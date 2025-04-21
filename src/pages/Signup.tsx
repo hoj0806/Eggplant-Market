@@ -1,5 +1,12 @@
+import SignupForm from "../features/authentication/SignupForm";
+
 const Signup = () => {
-  return <div>회원가입 페이지입니다</div>;
+  return (
+    <div>
+      회원가입
+      <SignupForm />
+    </div>
+  );
 };
 
 export default Signup;
