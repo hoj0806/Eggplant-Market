@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import GlobalStyles from "./styles/GlobalStyles";
 
 function App() {
   const queryClient = new QueryClient({
@@ -12,6 +13,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ReactQueryDevtools initialIsOpen={false} />
+      <GlobalStyles />
       <div>123</div>
     </QueryClientProvider>
   );
