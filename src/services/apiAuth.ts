@@ -6,6 +6,11 @@ interface SignupCredentials {
   password: string;
 }
 
+interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
 export async function signup({ nickname, email, password }: SignupCredentials) {
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -22,5 +27,18 @@ export async function signup({ nickname, email, password }: SignupCredentials) {
     throw new Error(error.message);
   }
 
+  return data;
+}
+
+export async function login({ email, password }: LoginCredentials) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  console.log(data);
   return data;
 }
