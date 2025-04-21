@@ -3,6 +3,7 @@ import Input from "../../ui/AuthenticationInput";
 import Form from "../../ui/Form";
 import FormRow from "../../ui/FormRow";
 import Button from "../../ui/Button";
+import { useLogin } from "./useLogin";
 
 type FormValues = {
   email: string;
@@ -11,9 +12,12 @@ type FormValues = {
 
 const LoginForm = () => {
   const { register, handleSubmit } = useForm<FormValues>();
-
-  const onSubmit = ({ email, password }) => {
-    console.log(email, password);
+  const { login, isPending } = useLogin();
+  const onSubmit = ({ email, password }: FormValues) => {
+    login({
+      email,
+      password,
+    });
   };
 
   return (
@@ -25,7 +29,9 @@ const LoginForm = () => {
         <Input type='password' id='password' {...register("password")} />
       </FormRow>
       <FormRow>
-        <Button>로그인</Button>
+        <Button disabled={isPending}>
+          {isPending ? "로그인중입니다..." : "로그인"}
+        </Button>
       </FormRow>
     </Form>
   );
