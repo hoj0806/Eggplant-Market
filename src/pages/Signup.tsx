@@ -1,11 +1,11 @@
 import SignupForm from "../features/authentication/SignupForm";
+import AuthenticationLayout from "../layout/AuthenticationLayout";
 
 const Signup = () => {
   return (
-    <div>
-      회원가입
+    <AuthenticationLayout>
       <SignupForm />
-    </div>
+    </AuthenticationLayout>
   );
 };
 
