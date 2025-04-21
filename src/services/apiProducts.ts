@@ -7,7 +7,7 @@ export async function createProductPost(newPost) {
   for (const image of images) {
     const imageName = `${Date.now()}-${image.name}`.replace(/\//g, "");
     const { error: uploadError } = await supabase.storage
-      .from("product-image") // 버킷 이름
+      .from("product-image")
       .upload(imageName, image);
 
     if (uploadError) {
@@ -22,7 +22,7 @@ export async function createProductPost(newPost) {
     .from("products")
     .insert([{ ...newPost, image: imagePaths }])
     .select()
-    .maybeSingle(); // 하나만 반환되도록 안전하게 처리
+    .maybeSingle();
 
   if (error) {
     throw new Error("게시물 생성에 실패했습니다!");
