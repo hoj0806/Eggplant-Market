@@ -9,6 +9,7 @@ type FormValues = {
   nickname: string;
   email: string;
   password: string;
+  passwordConfirm: string;
 };
 
 const SignupForm = () => {
