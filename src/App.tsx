@@ -6,11 +6,13 @@ import HomePage from "./pages/HomePage";
 import Signup from "./pages/Signup";
 import NewProduct from "./pages/NewProduct";
 import Login from "./pages/Login";
+import Product from "./pages/Product";
 
 const router = createBrowserRouter([
   { path: "/", element: <HomePage /> },
   { path: "/signup", element: <Signup /> },
   { path: "/product/new", element: <NewProduct /> },
+  { path: "/product/:id", element: <Product /> },
   { path: "/login", element: <Login /> },
 ]);
 
