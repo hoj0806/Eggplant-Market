@@ -1,5 +1,11 @@
+import CreatePostForm from "../features/product/CreatePostForm";
+
 const NewProduct = () => {
-  return <div>물건을 올리는 페이지 입니다</div>;
+  return (
+    <div>
+      <CreatePostForm />
+    </div>
+  );
 };
 
 export default NewProduct;
