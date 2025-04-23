@@ -31,12 +31,21 @@ export async function createProductPost(newPost) {
   return data;
 }
 
-export async function getProducts() {
-  const { data, error } = await supabase.from("products").select("*");
+// 지역이름도 searchParams 조건으로 넣기
+export async function getProducts(search?: string) {
+  let query = supabase.from("products").select("*");
+
+  if (search) {
+    query = query.or(
+      `productName.ilike.%${search}%,description.ilike.%${search}%,postTitle.ilike.%${search}%`
+    );
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error(error);
-    throw new Error("Cabins could not be loaded");
+    throw new Error("상품을 불러오는 데 실패했습니다.");
   }
 
   return data;

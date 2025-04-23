@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useProducts } from "./useProducts";
 
 const SearchBar = () => {
   const [searchParams, setSearchParams] = useSearchParams();

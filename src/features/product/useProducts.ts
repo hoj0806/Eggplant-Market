@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { getProducts } from "../../services/apiProducts";
 
-export function useProducts() {
+export function useProducts(searchTerm?: string) {
   const { isPending, data: products } = useQuery({
-    queryKey: ["products"],
-    queryFn: getProducts,
+    queryKey: ["products", searchTerm], // 검색어가 queryKey에 포함되어야 캐시가 구분됩니다
+    queryFn: () => getProducts(searchTerm),
   });
 
   return {
