@@ -41,3 +41,17 @@ export async function getProducts() {
 
   return data;
 }
+
+export async function getProduct(id) {
+  const { data, error } = await supabase
+    .from("products")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    throw new Error("상품 정보를 가져오는데 실패했습니다");
+  }
+
+  return data;
+}
