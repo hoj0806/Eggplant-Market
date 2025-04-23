@@ -55,3 +55,13 @@ export async function getProduct(id) {
 
   return data;
 }
+
+export async function deleteProduct(id) {
+  const { data, error } = await supabase.from("products").delete().eq("id", id);
+
+  if (error) {
+    throw new Error("상품 삭제에 실패했습니다");
+  }
+
+  return data;
+}
