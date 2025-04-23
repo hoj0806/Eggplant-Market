@@ -7,12 +7,19 @@ import Signup from "./pages/Signup";
 import NewProduct from "./pages/NewProduct";
 import Login from "./pages/Login";
 import Product from "./pages/Product";
+import MainLayout from "./layout/MainLayout";
 
 const router = createBrowserRouter([
-  { path: "/", element: <HomePage /> },
+  {
+    path: "/",
+    element: <MainLayout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "product/new", element: <NewProduct /> },
+      { path: "product/:productId", element: <Product /> },
+    ],
+  },
   { path: "/signup", element: <Signup /> },
-  { path: "/product/new", element: <NewProduct /> },
-  { path: "/product/:productId", element: <Product /> },
   { path: "/login", element: <Login /> },
 ]);
 
