@@ -32,7 +32,11 @@ export async function createProductPost(newPost) {
 }
 
 // 지역이름도 searchParams 조건으로 넣기
-export async function getProducts(search?: string, category?: string) {
+export async function getProducts(
+  search?: string,
+  category?: string,
+  priceRange?: string
+) {
   let query = supabase.from("products").select("*");
 
   if (search) {
@@ -43,6 +47,20 @@ export async function getProducts(search?: string, category?: string) {
 
   if (category) {
     query = query.eq("category", category);
+  }
+
+  if (priceRange) {
+    const [minStr, maxStr] = priceRange.split("_");
+    const min = parseInt(minStr, 10);
+    const max = parseInt(maxStr, 10);
+    console.log(min, max);
+    if (!isNaN(min)) {
+      query = query.gte("price", min);
+    }
+
+    if (!isNaN(max)) {
+      query = query.lte("price", max);
+    }
   }
 
   const { data, error } = await query;

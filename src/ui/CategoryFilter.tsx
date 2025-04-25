@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import styled from "styled-components";
-import { useProduct } from "../features/product/useProduct";
 
 const categories = [
   "디지털기기",
@@ -58,7 +57,6 @@ const CategoryLabel = styled.label<{ selected: boolean }>`
 `;
 
 const CategotyFilter = () => {
-  const { product } = useProduct();
   const [categoryParams, setCategoryParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState(
     categoryParams.get("category") || ""
@@ -68,7 +66,6 @@ const CategotyFilter = () => {
     setSelectedCategory(cat);
     categoryParams.set("category", cat);
     setCategoryParams(categoryParams);
-    product("sdf");
   };
   return (
     <StyledFilterContainer>
