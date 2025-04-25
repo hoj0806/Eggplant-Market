@@ -7,7 +7,7 @@ export function useProducts(
   priceRange?: string
 ) {
   const { isPending, data: products } = useQuery({
-    queryKey: ["products", searchTerm, categoryTerm, priceRange], // 검색어가 queryKey에 포함되어야 캐시가 구분됩니다
+    queryKey: ["products", searchTerm, categoryTerm, priceRange],
     queryFn: () => getProducts(searchTerm, categoryTerm, priceRange),
   });
 

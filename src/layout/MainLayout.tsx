@@ -4,11 +4,11 @@ import styled from "styled-components";
 
 const MainLayout = () => {
   const StyledMainWrapper = styled.div`
-    background-color: yellow;
+    background-color: var(--color-background);
   `;
 
   const ContentWrapper = styled.div`
-    background-color: var(--color-accent);
+    background-color: transparent;
     max-width: 124rem;
     margin: 0 auto;
   `;
