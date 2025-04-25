@@ -8,9 +8,7 @@ const GlobalStyles = createGlobalStyle`
     padding: 0;
   }
 
-  html {
-    font-size: 62.5%;
-  }
+
 
   html, body, div, span, applet, object, iframe,
   h1, h2, h3, h4, h5, h6, p, blockquote, pre,
@@ -92,6 +90,10 @@ const GlobalStyles = createGlobalStyle`
     --color-text: #F1F1F1;
     --color-muted: #B2BEC3;
     */
+  }
+
+  html {
+    font-size: 62.5%;
   }
 `;
 

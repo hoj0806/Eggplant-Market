@@ -1,14 +1,23 @@
+import styled from "styled-components";
 import HeaderProfile from "./HeaderProfile";
 import Logo from "./Logo";
 import Navigation from "./Navigation";
 
 const Header = () => {
+  const StyledHeader = styled.header`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  `;
+
   return (
-    <div style={{ display: "flex", gap: "5rem" }}>
+    <StyledHeader>
       <Logo />
       <Navigation />
       <HeaderProfile />
-    </div>
+    </StyledHeader>
   );
 };
 
