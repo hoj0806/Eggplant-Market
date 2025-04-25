@@ -1,11 +1,11 @@
-import ProductGrid from "../features/product/ProductGrid";
 import SearchBar from "../features/product/SearchBar";
+import MainSection from "../ui/MainSection";
 
 const HomePage = () => {
   return (
     <div>
       <SearchBar />
-      <ProductGrid />
+      <MainSection />
     </div>
   );
 };
