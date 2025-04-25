@@ -32,13 +32,17 @@ export async function createProductPost(newPost) {
 }
 
 // 지역이름도 searchParams 조건으로 넣기
-export async function getProducts(search?: string) {
+export async function getProducts(search?: string, category?: string) {
   let query = supabase.from("products").select("*");
 
   if (search) {
     query = query.or(
       `productName.ilike.%${search}%,description.ilike.%${search}%,postTitle.ilike.%${search}%`
     );
+  }
+
+  if (category) {
+    query = query.eq("category", category);
   }
 
   const { data, error } = await query;

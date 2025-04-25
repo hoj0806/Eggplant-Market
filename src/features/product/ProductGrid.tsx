@@ -4,6 +4,7 @@ import styled from "styled-components";
 
 const StyledGrid = styled.div`
   display: grid;
+  flex: 1; /* 남은 공간 모두 차지 */
   grid-template-columns: repeat(4, 1fr);
   gap: 2rem;
   padding: 2rem;
@@ -56,9 +57,9 @@ const ProductPrice = styled.p`
 const ProductGrid = () => {
   const [searchParams] = useSearchParams();
   const searchTerm = searchParams.get("search") || "";
-
+  const categoryTerm = searchParams.get("category") || "";
   const navigate = useNavigate();
-  const { products, isPending } = useProducts(searchTerm);
+  const { products, isPending } = useProducts(searchTerm, categoryTerm);
 
   if (isPending) return <div>게시물을 가져오는 중입니다...</div>;
 
