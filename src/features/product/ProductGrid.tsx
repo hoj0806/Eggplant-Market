@@ -57,9 +57,9 @@ const ProductPrice = styled.p`
 const ProductGrid = () => {
   const [searchParams] = useSearchParams();
   const searchTerm = searchParams.get("search") || "";
-
+  const categoryTerm = searchParams.get("category") || "";
   const navigate = useNavigate();
-  const { products, isPending } = useProducts(searchTerm);
+  const { products, isPending } = useProducts(searchTerm, categoryTerm);
 
   if (isPending) return <div>게시물을 가져오는 중입니다...</div>;
 
