@@ -12,7 +12,7 @@ const StyledInput = styled.input`
   padding: 2rem;
   width: 100%;
   border-radius: 4rem;
-  padding-right: 4rem; /* 버튼 여백을 위해 오른쪽 패딩 추가 */
+  padding-right: 4rem;
   font-size: 1.6rem;
 `;
 
