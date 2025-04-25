@@ -58,8 +58,14 @@ const ProductGrid = () => {
   const [searchParams] = useSearchParams();
   const searchTerm = searchParams.get("search") || "";
   const categoryTerm = searchParams.get("category") || "";
+  const priceRangeTerm = searchParams.get("price") || "";
+
   const navigate = useNavigate();
-  const { products, isPending } = useProducts(searchTerm, categoryTerm);
+  const { products, isPending } = useProducts(
+    searchTerm,
+    categoryTerm,
+    priceRangeTerm
+  );
 
   if (isPending) return <div>게시물을 가져오는 중입니다...</div>;
 
