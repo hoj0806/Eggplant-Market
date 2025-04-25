@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 
 const Navigation = () => {
-  // 나중에 수정
   return (
     <nav>
       <ol style={{ display: "flex", gap: "1rem" }}>

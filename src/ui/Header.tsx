@@ -6,6 +6,7 @@ const Header = () => {
   return (
     <div style={{ display: "flex", gap: "5rem" }}>
       <Logo />
+
       <Navigation />
       <HeaderProfile />
     </div>
