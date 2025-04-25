@@ -1,6 +1,5 @@
 import styled from "styled-components";
 import { useUser } from "../features/authentication/useUser";
-import { useLogin } from "../features/authentication/useLogin";
 import { useLogout } from "../features/authentication/useLogout";
 import { useNavigate } from "react-router-dom";
 
@@ -22,9 +21,13 @@ const AuthButton = () => {
   };
 
   const handleClick = () => {
-    if (isAuthenticated) logout();
-    else navigateLoginPage();
+    if (isAuthenticated) {
+      logout();
+      return;
+    }
+    navigateLoginPage();
   };
+
   return (
     <StyledButton onClick={handleClick}>
       {isAuthenticated ? "로그아웃" : "로그인"}
