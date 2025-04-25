@@ -1,5 +1,8 @@
 import styled from "styled-components";
 import { useUser } from "../features/authentication/useUser";
+import { useLogin } from "../features/authentication/useLogin";
+import { useLogout } from "../features/authentication/useLogout";
+import { useNavigate } from "react-router-dom";
 
 const StyledButton = styled.button`
   background-color: #7b2cbf;
@@ -11,8 +14,22 @@ const StyledButton = styled.button`
 
 const AuthButton = () => {
   const { isAuthenticated } = useUser();
+  const { logout } = useLogout();
+  const navigate = useNavigate();
 
-  return <StyledButton>{isAuthenticated ? "로그아웃" : "로그인"}</StyledButton>;
+  const navigateLoginPage = () => {
+    navigate("/login");
+  };
+
+  const handleClick = () => {
+    if (isAuthenticated) logout();
+    else navigateLoginPage();
+  };
+  return (
+    <StyledButton onClick={handleClick}>
+      {isAuthenticated ? "로그아웃" : "로그인"}
+    </StyledButton>
+  );
 };
 
 export default AuthButton;
