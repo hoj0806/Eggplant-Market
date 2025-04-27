@@ -34,6 +34,19 @@ export async function getPendingRequestByProductAndBuyer(
   return data;
 }
 
+export async function getSentRequests(currentUserId: string) {
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .select("*")
+    .eq("buyer_id", currentUserId);
+
+  if (error) {
+    throw new Error(`요청을 가져오는 데 실패했습니다: ${error.message}`);
+  }
+
+  return data;
+}
+
 export async function deleteRequest({
   product_id,
   buyer_id,
