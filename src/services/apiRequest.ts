@@ -33,3 +33,25 @@ export async function getPendingRequestByProductAndBuyer(
 
   return data;
 }
+
+export async function deleteRequest({
+  product_id,
+  buyer_id,
+}: {
+  product_id: string;
+  buyer_id: string;
+}) {
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .delete()
+    .eq("status", "pending")
+    .eq("buyer_id", buyer_id)
+    .eq("product_id", product_id);
+
+  if (error) {
+    console.error("요청 삭제 중 오류가 발생했습니다:", error);
+    throw error;
+  }
+
+  return data; // 삭제된 데이터 반환
+}
