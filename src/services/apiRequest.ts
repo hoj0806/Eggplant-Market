@@ -47,6 +47,25 @@ export async function getSentRequests(currentUserId: string) {
   return data;
 }
 
+export async function getReceivedRequests(currentUserId: string) {
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .select(
+      `
+          *,
+          product:product_id (
+            sellerId
+          )
+        `
+    )
+    .eq("product.sellerId", currentUserId);
+
+  if (error) {
+    throw new Error(`받은 요청을 가져오는 데 실패했습니다: ${error.message}`);
+  }
+
+  return data;
+}
 export async function deleteRequest({
   product_id,
   buyer_id,
@@ -57,7 +76,6 @@ export async function deleteRequest({
   const { data, error } = await supabase
     .from("purchase_requests")
     .delete()
-    .eq("status", "pending")
     .eq("buyer_id", buyer_id)
     .eq("product_id", product_id);
 
