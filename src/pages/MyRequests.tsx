@@ -1,5 +1,6 @@
 import { useDeleteRequest } from "../features/purchaseRequest/useDeleteRequest";
 import { useReceivedRequests } from "../features/purchaseRequest/useReceivedRequest";
+import { useRejectRequest } from "../features/purchaseRequest/useRejectRequest";
 import { useSentRequests } from "../features/purchaseRequest/useSentRequest";
 
 const MyRequests = () => {
@@ -8,6 +9,7 @@ const MyRequests = () => {
   const { deleteRequestMutation, isDeleting: isDeletingRequest } =
     useDeleteRequest();
 
+  const { rejectRequest, isRejecting } = useRejectRequest();
   if (isLoading || isLoading2) return <div>로딩중입니다...</div>;
   console.log(sentRequests);
 
@@ -42,7 +44,14 @@ const MyRequests = () => {
           return (
             <>
               <div>{request.product_id}</div>
-              <button disabled={isDeletingRequest}>요청 취소하기</button>
+              <button
+                disabled={isRejecting}
+                onClick={() => {
+                  rejectRequest(request.id);
+                }}
+              >
+                요청 거절하기
+              </button>
               <button disabled={isDeletingRequest}>요청 수락하기</button>
               <button disabled={isDeletingRequest}>요청 삭제하기</button>
             </>
