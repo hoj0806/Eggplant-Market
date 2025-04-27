@@ -9,6 +9,9 @@ import Login from "./pages/Login";
 import Product from "./pages/Product";
 import MainLayout from "./layout/MainLayout";
 import OtherUserProfile from "./pages/OtherUserProfile";
+import MyProfile from "./pages/MyProfile";
+import MyProducts from "./pages/MyProducts";
+import MyRequests from "./pages/MyRequests";
 
 const router = createBrowserRouter([
   {
@@ -21,6 +24,18 @@ const router = createBrowserRouter([
       {
         path: "user/:userId",
         element: <OtherUserProfile />,
+      },
+      {
+        path: "my/profile",
+        element: <MyProfile />,
+      },
+      {
+        path: "my/products",
+        element: <MyProducts />,
+      },
+      {
+        path: "my/requests",
+        element: <MyRequests />,
       },
     ],
   },
