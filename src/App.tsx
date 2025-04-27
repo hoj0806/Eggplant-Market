@@ -8,6 +8,7 @@ import NewProduct from "./pages/NewProduct";
 import Login from "./pages/Login";
 import Product from "./pages/Product";
 import MainLayout from "./layout/MainLayout";
+import OtherUserProfile from "./pages/OtherUserProfile";
 
 const router = createBrowserRouter([
   {
@@ -17,6 +18,10 @@ const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: "product/new", element: <NewProduct /> },
       { path: "product/:productId", element: <Product /> },
+      {
+        path: "user/:userId",
+        element: <OtherUserProfile />,
+      },
     ],
   },
   { path: "/signup", element: <Signup /> },
