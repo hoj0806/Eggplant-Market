@@ -2,6 +2,7 @@ import styled from "styled-components";
 import ProductGrid from "../features/product/ProductGrid";
 import CategotyFilter from "./CategoryFilter";
 import PriceFilter from "./PriceFilter";
+import FilterContainer from "./FilterContainer";
 
 const StyledMainSection = styled.section`
   display: flex;
@@ -11,10 +12,11 @@ const StyledMainSection = styled.section`
 const MainSection = () => {
   return (
     <StyledMainSection>
-      <div>
+      <FilterContainer />
+      {/* <div>
         <CategotyFilter />
         <PriceFilter />
-      </div>
+      </div> */}
       <ProductGrid />
     </StyledMainSection>
   );

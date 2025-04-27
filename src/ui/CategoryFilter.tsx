@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import styled from "styled-components";
+import FilterGrid from "./FilterGrid";
 
 const categories = [
   "디지털기기",
@@ -25,23 +26,19 @@ const categories = [
 ];
 
 const StyledFilterContainer = styled.div`
-  width: 25rem;
-  flex-shrink: 0;
-  padding: 2rem;
   background-color: #f9f9f9;
-  border-radius: 1.2rem;
   display: flex;
   flex-direction: column;
-  padding-left: 0rem;
+  gap: 0.2rem;
 `;
 
 const CategoryLabel = styled.label<{ selected: boolean }>`
   display: flex;
   align-items: center;
-  gap: 0.8rem;
-  font-size: 1.4rem;
+  gap: 1rem;
+  font-size: 1.6rem;
   color: ${(props) => (props.selected ? "#000" : "#666")};
-  padding: 0.6rem 1rem;
+
   border-radius: 2rem;
   border: none;
   cursor: pointer;
