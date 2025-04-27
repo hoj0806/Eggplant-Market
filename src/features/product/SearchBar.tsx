@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import styled from "styled-components";
+import media from "../../styles/media";
 
 const StyledInputContainer = styled.div`
   background-color: transparent;
   position: relative;
   width: 100%;
+
+  ${media.medium`
+    padding-left :1rem;
+    padding-right :1rem;
+    `}
 `;
 
 const StyledInput = styled.input`

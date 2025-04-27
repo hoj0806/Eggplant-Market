@@ -11,8 +11,10 @@ const StyledMainSection = styled.section`
 const MainSection = () => {
   return (
     <StyledMainSection>
-      <CategotyFilter />
-      <PriceFilter />
+      <div>
+        <CategotyFilter />
+        <PriceFilter />
+      </div>
       <ProductGrid />
     </StyledMainSection>
   );

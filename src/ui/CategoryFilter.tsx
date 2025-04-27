@@ -31,31 +31,59 @@ const StyledFilterContainer = styled.div`
   background-color: #f9f9f9;
   border-radius: 1.2rem;
   display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+  flex-direction: column;
+  padding-left: 0rem;
 `;
 
 const CategoryLabel = styled.label<{ selected: boolean }>`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.8rem;
   font-size: 1.4rem;
-  background-color: ${(props) => (props.selected ? "#ffe5cc" : "white")};
+  color: ${(props) => (props.selected ? "#000" : "#666")};
   padding: 0.6rem 1rem;
   border-radius: 2rem;
-  border: 1px solid #ccc;
+  border: none;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: color 0.2s, border-color 0.2s;
 
   &:hover {
-    background-color: #f0f0f0;
+    color: #888;
   }
 
-  input {
-    display: none;
+  input[type="radio"] {
+    appearance: none;
+    width: 1.4rem;
+    height: 1.4rem;
+    border: 2px solid #ccc;
+    border-radius: 50%;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  input[type="radio"]:checked {
+    border-color: #ff6f0f;
+  }
+
+  input[type="radio"]:checked::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 0.6rem;
+    height: 0.6rem;
+    background-color: #ff6f0f;
+    border-radius: 50%;
+  }
+
+  &:hover input[type="radio"] {
+    border-color: #888;
+  }
+
+  &:hover input[type="radio"]:checked::before {
+    background-color: #888;
   }
 `;
-
 const CategotyFilter = () => {
   const [categoryParams, setCategoryParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState(

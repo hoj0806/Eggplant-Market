@@ -26,6 +26,7 @@ const Logo = () => {
         x='100'
         y='35'
         font-size='24'
+        fontWeight='bold '
         fill='#7B2CBF'
         font-family="'Segoe UI Rounded', sans-serif"
         dominant-baseline='middle'

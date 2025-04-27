@@ -1,12 +1,18 @@
 import { Link } from "react-router-dom";
 import styled from "styled-components";
+import media from "../styles/media";
 
-const StyledNavigation = styled.nav``;
+const StyledNavigation = styled.nav`
+  ${media.medium`
+    display: none;
+`}
+`;
 
 const StyledNavList = styled.ol`
   display: flex;
   gap: 2rem;
-  font-size: 1.4rem;
+  font-size: 1.6rem;
+  font-weight: bold;
   position: relative;
 
   &:has(a:hover) a:not(:hover) {
