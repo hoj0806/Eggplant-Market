@@ -23,7 +23,7 @@ const OtherUserProfile = () => {
 
   return (
     <MainContainer>
-      <h1>판매물품({userProducts.length})</h1>
+      <h1>판매물품({userProducts?.length})</h1>
       <ProductGrid>
         {userProducts?.map((product) => {
           return (
