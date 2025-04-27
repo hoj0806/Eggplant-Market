@@ -4,11 +4,11 @@ import { useUser } from "../authentication/useUser";
 
 export function useSentRequests() {
   const { user } = useUser();
-  const buyerId = user?.id;
+  const currentUserId = user?.id;
 
   const { isPending: isLoading, data: sentRequests } = useQuery({
     queryKey: ["sentRequest"],
-    queryFn: () => getSentRequests(buyerId),
+    queryFn: () => getSentRequests(currentUserId),
   });
 
   return {

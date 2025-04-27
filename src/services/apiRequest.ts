@@ -2,12 +2,13 @@ import supabase from "../supabase";
 
 interface RequestData {
   productId: string;
+  sellerId: string;
 }
 
-export async function createRequest({ productId }: RequestData) {
+export async function createRequest({ productId, sellerId }: RequestData) {
   const { data, error } = await supabase
     .from("purchase_requests")
-    .insert([{ product_id: productId }]);
+    .insert([{ product_id: productId, seller_id: sellerId }]);
 
   if (error) {
     console.error("구매 요청 생성 중 오류가 발생했습니다:", error);
@@ -47,6 +48,18 @@ export async function getSentRequests(currentUserId: string) {
   return data;
 }
 
+export async function getReceivedRequests(currentUserId: string) {
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .select("*")
+    .eq("seller_id", currentUserId);
+
+  if (error) {
+    throw new Error(`받은 요청을 가져오는 데 실패했습니다: ${error.message}`);
+  }
+
+  return data;
+}
 export async function deleteRequest({
   product_id,
   buyer_id,
@@ -57,7 +70,6 @@ export async function deleteRequest({
   const { data, error } = await supabase
     .from("purchase_requests")
     .delete()
-    .eq("status", "pending")
     .eq("buyer_id", buyer_id)
     .eq("product_id", product_id);
 
@@ -67,4 +79,18 @@ export async function deleteRequest({
   }
 
   return data; // 삭제된 데이터 반환
+}
+
+export async function rejectRequest(requestId: string) {
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .update({ status: "rejected" })
+    .eq("id", requestId); // 요청 id로 필터링
+
+  if (error) {
+    console.error("요청 거절 중 오류가 발생했습니다:", error);
+    throw error;
+  }
+
+  return data;
 }

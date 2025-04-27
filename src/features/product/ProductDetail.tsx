@@ -48,7 +48,7 @@ const ProductDetail = () => {
   };
 
   const handleRequest = () => {
-    createRequest({ productId: product.id });
+    createRequest({ productId: product.id, sellerId: product.sellerId });
   };
 
   const handleCancelRequest = () => {
