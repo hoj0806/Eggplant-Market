@@ -26,23 +26,24 @@ const UserOtherProducts: React.FC<UserOtherProductsProps> = ({
   const { userProducts, isPending: isPending } = useUserProducts(id);
 
   if (isPending) return <div>로딩중...</div>;
-  console.log(userProducts);
+  console.log(nickname, id);
   return (
     <MainContainer>
       <div>
         <h1>{nickname} 의 판매물품</h1>
-        <Link to={"/user/asdads"}>더 구경하기</Link>
+        <Link to={`/user/${id}`}>더 구경하기</Link>
       </div>
 
       <ol>
         {userProducts?.slice(0, 5).map((product) => {
           return (
-            <OtherProduct
-              key={product.id}
-              title={product.postTitle}
-              price={product.price}
-              image={JSON.parse(product.image)[0]}
-            />
+            <Link to={`/product/${product.id}`} key={product.id}>
+              <OtherProduct
+                title={product.postTitle}
+                price={product.price}
+                image={JSON.parse(product.image)[0]}
+              />
+            </Link>
           );
         })}
       </ol>

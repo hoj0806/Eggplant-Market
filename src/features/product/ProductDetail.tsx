@@ -33,7 +33,6 @@ const ProductDetail = () => {
     deleteProduct(params.productId);
   };
 
-  console.log(product);
   if (isLoading) return <p>상품정보를 불러오고 있습니다...</p>;
 
   return (
@@ -52,8 +51,8 @@ const ProductDetail = () => {
         </button>
       </MainContainer>
       <UserOtherProducts
-        nickname={product.sellerNickname}
-        id={product.sellerId}
+        nickname={product?.sellerNickname}
+        id={product?.sellerId}
       />
     </>
   );
