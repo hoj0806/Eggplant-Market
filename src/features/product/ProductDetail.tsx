@@ -10,6 +10,7 @@ import {
   usePendingRequestByProductAndBuyer,
   useRequests,
 } from "../purchaseRequest/usePendingRequestByProductAndBuyer ";
+import { useDeleteRequest } from "../purchaseRequest/useDeleteRequest";
 
 const MainContainer = styled.div`
   padding-top: 2rem;
@@ -37,6 +38,9 @@ const ProductDetail = () => {
     isPendingRequestExists,
     isLoading: isLoading2,
   } = usePendingRequestByProductAndBuyer();
+  const { deleteRequestMutation, isDeleting: isDeletingRequest } =
+    useDeleteRequest();
+
   const params = useParams();
 
   const handleDeleteProduct = () => {
@@ -46,6 +50,16 @@ const ProductDetail = () => {
   const handleRequest = () => {
     createRequest({ productId: product.id });
   };
+
+  const handleCancelRequest = () => {
+    if (pendingRequests && pendingRequests.length > 0) {
+      console.log(pendingRequests[0]);
+      const { product_id, buyer_id } = pendingRequests[0];
+      console.log(product_id, buyer_id);
+      deleteRequestMutation({ product_id, buyer_id });
+    }
+  };
+
   if (isLoading || isLoading2) return <p>상품정보를 불러오고 있습니다...</p>;
 
   console.log(isPendingRequestExists);
@@ -60,9 +74,18 @@ const ProductDetail = () => {
           <DetailImageContainer images={product.image} />
           <PostDescription />
         </ProductDetailBox>
-        <button onClick={handleRequest} disabled={isCreating}>
-          구매요청 하기
-        </button>
+        {isPendingRequestExists ? (
+          <button
+            onClick={handleCancelRequest}
+            disabled={isCreating || isDeleting}
+          >
+            요청 취소하기
+          </button>
+        ) : (
+          <button onClick={handleRequest} disabled={isCreating}>
+            구매요청 하기
+          </button>
+        )}
         <button disabled={isDeleting} onClick={handleDeleteProduct}>
           {isDeleting ? "삭제중입니다..." : "글 삭제하기"}
         </button>
