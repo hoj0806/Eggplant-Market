@@ -4,6 +4,8 @@ import Logo from "./Logo";
 import Navigation from "./Navigation";
 import AuthButton from "./AuthButton";
 import { useUser } from "../features/authentication/useUser";
+import media from "../styles/media";
+import HeaderMenuIcon from "./HeaderMenuIcon";
 
 const Header = () => {
   const StyledHeader = styled.header`
@@ -12,15 +14,23 @@ const Header = () => {
     justify-content: space-between;
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
+
+    ${media.medium`
+      padding-left :1rem;
+      padding-right :1rem;
+
+    `}
   `;
+
   const { isAuthenticated } = useUser();
 
   return (
     <StyledHeader>
       <Logo />
       <Navigation />
-      {isAuthenticated && <HeaderProfile />}
+      {/* {isAuthenticated && <HeaderProfile />} */}
       <AuthButton />
+      <HeaderMenuIcon />
     </StyledHeader>
   );
 };

@@ -7,8 +7,10 @@ import FileInput from "../../ui/FileInput";
 import { useForm } from "react-hook-form";
 import Button from "../../ui/Button";
 import { useCreatePost } from "./useCreatePost";
+import { useUser } from "../authentication/useUser";
 
 const CreatePostForm = () => {
+  const { user } = useUser();
   // 추후에 authenticated 유저만 추가하도록 변경
   const [address, setAddress] = useState("");
 
@@ -21,6 +23,7 @@ const CreatePostForm = () => {
       category: "가전",
       image: data.image,
       address,
+      sellerNickname: user?.user_metadata.nickname,
     });
   }
 
