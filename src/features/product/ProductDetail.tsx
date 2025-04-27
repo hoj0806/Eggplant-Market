@@ -4,6 +4,7 @@ import { useDeleteProduct } from "./useDeleteProduct";
 import styled from "styled-components";
 import DetailImageContainer from "../../ui/DetailImageContainer";
 import PostDescription from "./ProductDescription";
+import { useUserProducts } from "./useUserProducts";
 
 const MainContainer = styled.div`
   padding-top: 2rem;
@@ -25,14 +26,18 @@ const DetailLinkBox = styled.div`
 const ProductDetail = () => {
   const { product, isLoading } = useProduct();
   const { deleteProduct, isDeleting } = useDeleteProduct();
+  const { userProducts, isPending: isPending2 } = useUserProducts(
+    product?.sellerId
+  );
   const params = useParams();
 
   const handleDeleteProduct = () => {
     deleteProduct(params.productId);
   };
 
-  if (isLoading) return <p>상품정보를 불러오고 있습니다...</p>;
+  if (isLoading || isPending2) return <p>상품정보를 불러오고 있습니다...</p>;
 
+  console.log(userProducts);
   return (
     <MainContainer>
       <DetailLinkBox>
