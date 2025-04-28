@@ -5,11 +5,13 @@ import OtherProduct from "../features/product/OtherProduct";
 import { Link } from "react-router-dom";
 
 const MainContainer = styled.div`
+  background-color: yellow;
   h1 {
     font-size: 3.2rem;
   }
 
   ol {
+    width: 100%;
     display: flex;
     gap: 2rem;
   }
@@ -26,7 +28,7 @@ const UserOtherProducts: React.FC<UserOtherProductsProps> = ({
   const { userProducts, isPending: isPending } = useUserProducts(id);
 
   if (isPending) return <div>로딩중...</div>;
-  console.log(nickname, id);
+
   return (
     <MainContainer>
       <div>

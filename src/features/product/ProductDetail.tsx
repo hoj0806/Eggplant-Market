@@ -2,7 +2,6 @@ import { Link, useParams } from "react-router-dom";
 import { useProduct } from "./useProduct";
 import { useDeleteProduct } from "./useDeleteProduct";
 import styled from "styled-components";
-import DetailImageContainer from "../../ui/DetailImageContainer";
 import PostDescription from "./ProductDescription";
 import UserOtherProducts from "../../ui/UserOtherProducts";
 import { useCreateRequest } from "../purchaseRequest/useCreateRequest";
