@@ -94,3 +94,32 @@ export async function rejectRequest(requestId: string) {
 
   return data;
 }
+
+export async function acceptRequest(data) {
+  // Step 1: 요청 수락
+  console.log("acceptRequest 호출됨:", data);
+
+  const { data: updatedData, error: updateError } = await supabase
+    .from("purchase_requests")
+    .update({ status: "accepted" })
+    .eq("id", data.requestId);
+
+  if (updateError) {
+    console.error("요청 수락 중 오류가 발생했습니다:", updateError);
+    throw updateError;
+  }
+
+  // Step 2: 다른 요청 삭제
+  const { error: deleteError } = await supabase
+    .from("purchase_requests")
+    .delete()
+    .eq("product_id", data.productId)
+    .neq("id", data.requestId); // 현재 수락한 요청은 제외하고 삭제
+
+  if (deleteError) {
+    console.error("다른 요청 삭제 중 오류가 발생했습니다:", deleteError);
+    throw deleteError;
+  }
+
+  return updatedData;
+}
