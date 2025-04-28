@@ -4,54 +4,52 @@ import styled from "styled-components";
 
 const StyledGrid = styled.div`
   display: grid;
-  flex: 1; /* 남은 공간 모두 차지 */
+  flex: 1;
   grid-template-columns: repeat(4, 1fr);
   gap: 2rem;
-  padding: 2rem;
-
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (max-width: 600px) {
-    grid-template-columns: 1fr;
-  }
+  row-gap: 4rem;
 `;
 
 const ProductCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   cursor: pointer;
-  border-radius: 1.2rem;
   overflow: hidden;
-  background-color: #fff;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s;
+  width: 23.15rem; /* 이거 넣어야 일관성 유지돼 */
 
-  &:hover {
-    transform: translateY(-4px);
+  &:hover img {
+    transform: scale(1.05); /* 카드에 hover할 때 이미지 확대 */
   }
 `;
 
-const ProductImage = styled.img`
+const ProductImage = styled.div`
   width: 100%;
-  height: 16rem;
-  object-fit: cover;
-`;
+  height: 23.15rem;
+  overflow: hidden;
+  border-radius: 2rem;
+  position: relative;
 
-const ProductInfo = styled.div`
-  padding: 1.2rem;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+    display: block;
+  }
 `;
+const ProductInfo = styled.div``;
 
 const ProductTitle = styled.h3`
-  font-size: 1.4rem;
+  font-size: 1.6rem;
   font-weight: 500;
   margin-bottom: 0.6rem;
   color: #222;
 `;
 
 const ProductPrice = styled.p`
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #ff6f0f;
+  font-weight: bold;
+  font-size: 1.6rem;
 `;
 
 const ProductGrid = () => {
@@ -85,7 +83,9 @@ const ProductGrid = () => {
             onClick={() => navigate(`/product/${product.id}`)}
           >
             {imageArray.length > 0 && (
-              <ProductImage src={imageArray[0]} alt={product.title} />
+              <ProductImage>
+                <img src={imageArray[0]} alt={product.title} />
+              </ProductImage>
             )}
             <ProductInfo>
               <ProductTitle>{product.postTitle}</ProductTitle>

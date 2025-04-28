@@ -6,7 +6,7 @@ import FilterContainer from "./FilterContainer";
 
 const StyledMainSection = styled.section`
   display: flex;
-  gap: 6rem;
+  gap: 2em;
 `;
 
 const MainSection = () => {
