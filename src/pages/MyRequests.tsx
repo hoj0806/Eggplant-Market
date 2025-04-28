@@ -1,4 +1,5 @@
 import { useAcceptRequest } from "../features/purchaseRequest/useAcceptRequest";
+import { useCompleteRequest } from "../features/purchaseRequest/useCompleteRequest";
 import { useDeleteRequest } from "../features/purchaseRequest/useDeleteRequest";
 import { useReceivedRequests } from "../features/purchaseRequest/useReceivedRequest";
 import { useRejectRequest } from "../features/purchaseRequest/useRejectRequest";
@@ -14,6 +15,7 @@ const MyRequests = () => {
 
   const { acceptRequest, isAccepting } = useAcceptRequest();
 
+  const { completeRequest } = useCompleteRequest();
   if (isLoading || isLoading2) return <div>로딩중입니다...</div>;
   console.log(sentRequests);
 
@@ -68,6 +70,17 @@ const MyRequests = () => {
                 요청 수락하기
               </button>
               <button disabled={isDeletingRequest}>요청 삭제하기</button>
+              <button
+                disabled={isDeletingRequest}
+                onClick={() => {
+                  completeRequest({
+                    requestId: request.id,
+                    productId: request.product_id,
+                  });
+                }}
+              >
+                판매완료
+              </button>
             </>
           );
         })}
