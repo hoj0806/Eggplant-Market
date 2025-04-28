@@ -123,3 +123,32 @@ export async function acceptRequest(data) {
 
   return updatedData;
 }
+
+export async function markRequestAsCompleted(data) {
+  // Step 1: 요청 상태를 'completed'로 변경
+  const { data: requestData, error: requestError } = await supabase
+    .from("purchase_requests")
+    .update({ status: "completed" })
+    .eq("id", data.requestId);
+
+  if (requestError) {
+    console.error("요청 완료 상태 변경 중 오류가 발생했습니다:", requestError);
+    throw requestError;
+  }
+
+  // Step 2: products 테이블에서 해당 상품의 isSold 값을 true로 변경
+  const { data: productData, error: productError } = await supabase
+    .from("products")
+    .update({ isSold: true })
+    .eq("id", data.productId);
+
+  if (productError) {
+    console.error(
+      "상품 판매 상태 업데이트 중 오류가 발생했습니다:",
+      productError
+    );
+    throw productError;
+  }
+
+  return { requestData, productData }; // 상태 변경된 데이터 반환
+}
