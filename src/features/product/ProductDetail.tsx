@@ -2,33 +2,32 @@ import { Link, useParams } from "react-router-dom";
 import { useProduct } from "./useProduct";
 import { useDeleteProduct } from "./useDeleteProduct";
 import styled from "styled-components";
-import DetailImageContainer from "../../ui/DetailImageContainer";
 import PostDescription from "./ProductDescription";
 import UserOtherProducts from "../../ui/UserOtherProducts";
 import { useCreateRequest } from "../purchaseRequest/useCreateRequest";
-import {
-  usePendingRequestByProductAndBuyer,
-  useRequests,
-} from "../purchaseRequest/usePendingRequestByProductAndBuyer ";
+import { usePendingRequestByProductAndBuyer } from "../purchaseRequest/usePendingRequestByProductAndBuyer ";
 import { useDeleteRequest } from "../purchaseRequest/useDeleteRequest";
+import ImageSlider from "../../ui/ImageSlider";
 
-const MainContainer = styled.div`
-  padding-top: 2rem;
-  background-color: yellow;
-  display: flex;
-  gap: 1rem;
-  flex-direction: column;
-`;
-
-const ProductDetailBox = styled.div`
-  display: flex;
-  gap: 4rem;
-`;
-const DetailLinkBox = styled.div`
+const LinkBox = styled.div`
   font-size: 1.4rem;
   display: flex;
   gap: 1rem;
+  margin-top: 3.2rem;
+
+  & p {
+    font-weight: bold;
+  }
 `;
+
+const MainContainer = styled.div``;
+
+const ProductDetailBox = styled.div`
+  display: flex;
+  margin-top: 1.6rem;
+  gap: 4rem;
+`;
+
 const ProductDetail = () => {
   const { product, isLoading } = useProduct();
   const { deleteProduct, isDeleting } = useDeleteProduct();
@@ -43,6 +42,7 @@ const ProductDetail = () => {
 
   const params = useParams();
 
+  console.log(product);
   const handleDeleteProduct = () => {
     deleteProduct(params.productId);
   };
@@ -62,16 +62,16 @@ const ProductDetail = () => {
 
   if (isLoading || isLoading2) return <p>상품정보를 불러오고 있습니다...</p>;
 
-  console.log(isPendingRequestExists);
+  console.log();
   return (
     <>
       <MainContainer>
-        <DetailLinkBox>
+        <LinkBox>
           <Link to='/'>홈</Link>
           <p>{product.postTitle}</p>
-        </DetailLinkBox>
+        </LinkBox>
         <ProductDetailBox>
-          <DetailImageContainer images={product.image} />
+          <ImageSlider images={JSON.parse(product.image)} />
           <PostDescription />
         </ProductDetailBox>
         {isPendingRequestExists ? (

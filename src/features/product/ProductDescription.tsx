@@ -2,10 +2,10 @@ import styled from "styled-components";
 import { useProduct } from "./useProduct";
 
 const DescriptionContainer = styled.div`
-  background-color: orange;
   display: flex;
   flex-direction: column;
   gap: 3rem;
+
   & h1 {
     font-size: 3rem;
     font-weight: bold;
