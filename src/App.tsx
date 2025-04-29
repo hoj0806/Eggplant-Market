@@ -12,6 +12,7 @@ import OtherUserProfile from "./pages/OtherUserProfile";
 import MyProfile from "./pages/MyProfile";
 import MyProducts from "./pages/MyProducts";
 import MyRequests from "./pages/MyRequests";
+import MyPosts from "./pages/MyProducts";
 
 const router = createBrowserRouter([
   {
@@ -26,19 +27,21 @@ const router = createBrowserRouter([
         element: <OtherUserProfile />,
       },
       {
+        path: "my/posts",
+        element: <MyPosts />,
+      },
+      {
         path: "my/profile",
         element: <MyProfile />,
       },
-      {
-        path: "my/products",
-        element: <MyProducts />,
-      },
+
       {
         path: "my/requests",
         element: <MyRequests />,
       },
     ],
   },
+
   { path: "/signup", element: <Signup /> },
   { path: "/login", element: <Login /> },
 ]);

@@ -70,7 +70,7 @@ const Navigation = () => {
         <StyledNavList>
           <Link to='/product/new'>내 정보</Link>
           <DropdownMenu>
-            <DropdownItem to='/my-posts'>내 게시물</DropdownItem>
+            <DropdownItem to='/my/posts'>내 게시물</DropdownItem>
             <DropdownItem to='/my-requests'>내 요청</DropdownItem>
             <DropdownItem to='/my-records'>내 기록</DropdownItem>
             <DropdownItem to='/account-settings'>계정 관리</DropdownItem>
