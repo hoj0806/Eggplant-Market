@@ -1,12 +1,16 @@
 import styled from "styled-components";
 
 const StyledFormRow = styled.div`
-  background-color: yellow;
+  margin-bottom: 1.6rem;
+  display: flex;
+  flex-direction: column;
 `;
 
 const Label = styled.label`
-  background-color: green;
+  font-weight: bold;
+  margin-bottom: 0.4rem;
 `;
+
 const FormRow: React.FC<{
   children: React.ReactNode;
   label?: string;
