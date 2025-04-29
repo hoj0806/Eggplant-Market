@@ -60,7 +60,7 @@ export async function getReceivedRequests(currentUserId: string) {
 
   return data;
 }
-export async function deleteRequest({
+export async function cancelRequest({
   product_id,
   buyer_id,
 }: {
@@ -79,20 +79,6 @@ export async function deleteRequest({
   }
 
   return data; // 삭제된 데이터 반환
-}
-
-export async function rejectRequest(requestId: string) {
-  const { data, error } = await supabase
-    .from("purchase_requests")
-    .update({ status: "rejected" })
-    .eq("id", requestId); // 요청 id로 필터링
-
-  if (error) {
-    console.error("요청 거절 중 오류가 발생했습니다:", error);
-    throw error;
-  }
-
-  return data;
 }
 
 export async function acceptRequest(data) {
@@ -125,14 +111,14 @@ export async function acceptRequest(data) {
 }
 
 export async function markRequestAsCompleted(data) {
-  // Step 1: 요청 상태를 'completed'로 변경
+  // Step 1: 요청 삭제
   const { data: requestData, error: requestError } = await supabase
     .from("purchase_requests")
-    .update({ status: "completed" })
+    .delete()
     .eq("id", data.requestId);
 
   if (requestError) {
-    console.error("요청 완료 상태 변경 중 오류가 발생했습니다:", requestError);
+    console.error("요청 삭제 중 오류가 발생했습니다:", requestError);
     throw requestError;
   }
 
@@ -150,5 +136,5 @@ export async function markRequestAsCompleted(data) {
     throw productError;
   }
 
-  return { requestData, productData }; // 상태 변경된 데이터 반환
+  return { requestData, productData }; // 삭제된 요청 데이터와 상품 데이터 반환
 }

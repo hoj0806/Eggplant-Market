@@ -12,8 +12,8 @@ const MainContainer = styled.div`
 
 const ProductGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(6, 1fr); /* 6 columns */
-  gap: 1rem; /* space between grid items */
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1rem;
 `;
 
 const MyPosts = () => {

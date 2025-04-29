@@ -6,7 +6,7 @@ import PostDescription from "./ProductDescription";
 import UserOtherProducts from "../../ui/UserOtherProducts";
 import { useCreateRequest } from "../purchaseRequest/useCreateRequest";
 import { usePendingRequestByProductAndBuyer } from "../purchaseRequest/usePendingRequestByProductAndBuyer ";
-import { useDeleteRequest } from "../purchaseRequest/useDeleteRequest";
+import { useCancelRequest } from "../purchaseRequest/useCancelRequest";
 import ImageSlider from "../../ui/ImageSlider";
 
 const LinkBox = styled.div`
@@ -37,8 +37,7 @@ const ProductDetail = () => {
     isPendingRequestExists,
     isLoading: isLoading2,
   } = usePendingRequestByProductAndBuyer();
-  const { deleteRequestMutation, isDeleting: isDeletingRequest } =
-    useDeleteRequest();
+  const { cancelRequest, isCanceling } = useCancelRequest();
 
   const params = useParams();
 
@@ -56,7 +55,7 @@ const ProductDetail = () => {
       console.log(pendingRequests[0]);
       const { product_id, buyer_id } = pendingRequests[0];
       console.log(product_id, buyer_id);
-      deleteRequestMutation({ product_id, buyer_id });
+      cancelRequest({ product_id, buyer_id });
     }
   };
 
