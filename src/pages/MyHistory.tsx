@@ -4,8 +4,9 @@ import { usePurchaseHistory } from "../features/purchaseRequest/usePurchaseHisto
 import { useSaleHistory } from "../features/purchaseRequest/useSaleHistory";
 import { useDeleteSaleHistory } from "../features/purchaseRequest/useDeleteSaleHistory";
 import { useDeletePurchaseHistory } from "../features/purchaseRequest/useDeletePurchaseHistory";
-import { useAllWishlists } from "../features/wishlist/useAllWishlists";
 import { useMyWishlists } from "../features/wishlist/useMyWishlists";
+import { useDeleteFromWishlist } from "../features/wishlist/useDeleteFromWishlist"; // 💡 추가
+import { useNavigate } from "react-router-dom";
 
 // Styled Components (기존 스타일 재사용)
 const TabContainer = styled.div`
@@ -42,6 +43,7 @@ const HistoryCard = styled.div`
   border-radius: 8px;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
 `;
+
 const ActionButton = styled.button`
   padding: 0.5rem 1rem;
   background-color: #e74c3c;
@@ -62,32 +64,39 @@ const ActionButton = styled.button`
 `;
 
 const MyHistory = () => {
-  const [activeTab, setActiveTab] = useState<"sale" | "purchase">("sale");
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<"sale" | "purchase" | "wishlist">(
+    "sale"
+  );
 
-  // get purchase hook
+  // 구매/판매 데이터
   const { saleHistory, isLoading } = useSaleHistory();
   const { purchaseHistory, isLoading: isLoading2 } = usePurchaseHistory();
-
-  // delete purchase hook
   const { deleteSaleHistory, isDeleting: isDeletingSale } =
     useDeleteSaleHistory();
   const { deletePurchaseHistory, isDeleting: isDeletingPurchase } =
     useDeletePurchaseHistory();
 
+  // 찜 목록 데이터
+  const { myWishlists, isLoading: isLoading3 } = useMyWishlists();
+  const { deleteWishlist, isDeleting: isDeletingWishlist } =
+    useDeleteFromWishlist();
+
+  // 삭제 핸들러
   const handleDeleteSale = (requestId: string) => {
-    deleteSaleHistory(requestId); // 삭제 요청
+    deleteSaleHistory(requestId);
   };
 
   const handleDeletePurchase = (requestId: string) => {
-    console.log(requestId);
-    deletePurchaseHistory(requestId); // 삭제 요청
+    deletePurchaseHistory(requestId);
   };
 
-  // get wishlist hook
-  const { myWishlists, isLoading: isLoading3 } = useMyWishlists();
+  const handleDeleteWishlist = (productId: string) => {
+    deleteWishlist(productId);
+  };
+
   if (isLoading || isLoading2 || isLoading3) return <div>로딩중...</div>;
 
-  console.log(myWishlists);
   return (
     <div>
       <TabContainer>
@@ -103,8 +112,15 @@ const MyHistory = () => {
         >
           내가 구매한 물품
         </Tab>
+        <Tab
+          isActive={activeTab === "wishlist"}
+          onClick={() => setActiveTab("wishlist")}
+        >
+          내가 찜한 물품
+        </Tab>
       </TabContainer>
 
+      {/* 판매 기록 */}
       {activeTab === "sale" && (
         <TabContent>
           <h2>판매 기록</h2>
@@ -121,7 +137,7 @@ const MyHistory = () => {
                 <strong>상태:</strong> {item.status}
               </div>
               <ActionButton
-                onClick={() => handleDeleteSale(item.id)} // 삭제 버튼 클릭 시 삭제 함수 호출
+                onClick={() => handleDeleteSale(item.id)}
                 disabled={isDeletingSale}
               >
                 {isDeletingSale ? "삭제 중..." : "삭제"}
@@ -131,6 +147,7 @@ const MyHistory = () => {
         </TabContent>
       )}
 
+      {/* 구매 기록 */}
       {activeTab === "purchase" && (
         <TabContent>
           <h2>구매 기록</h2>
@@ -147,10 +164,42 @@ const MyHistory = () => {
                 <strong>상태:</strong> {item.status}
               </div>
               <ActionButton
-                onClick={() => handleDeletePurchase(item.id)} // 삭제 버튼 클릭 시 삭제 함수 호출
+                onClick={() => handleDeletePurchase(item.id)}
                 disabled={isDeletingPurchase}
               >
                 {isDeletingPurchase ? "삭제 중..." : "삭제"}
+              </ActionButton>
+            </HistoryCard>
+          ))}
+        </TabContent>
+      )}
+
+      {/* 찜 목록 */}
+      {activeTab === "wishlist" && (
+        <TabContent>
+          <h2>찜한 물품</h2>
+          {myWishlists?.length === 0 && <div>찜한 물품이 없습니다.</div>}
+          {myWishlists?.map((item) => (
+            <HistoryCard
+              key={item.id}
+              onClick={() => navigate(`/product/${item.product_id}`)} // ⭐ 클릭시 이동
+              style={{ cursor: "pointer" }} // ⭐ 커서 변경
+            >
+              <div>
+                <strong>상품 ID:</strong> {item.product_id}
+              </div>
+              <div>
+                <strong>등록일:</strong>{" "}
+                {new Date(item.created_at).toLocaleDateString()}
+              </div>
+              <ActionButton
+                onClick={(e) => {
+                  e.stopPropagation(); // ⭐ 버튼 클릭 시 카드 클릭 이벤트 막기
+                  handleDeleteWishlist(item.product_id);
+                }}
+                disabled={isDeletingWishlist}
+              >
+                {isDeletingWishlist ? "삭제 중..." : "찜 삭제"}
               </ActionButton>
             </HistoryCard>
           ))}
