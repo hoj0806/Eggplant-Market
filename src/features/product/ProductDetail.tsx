@@ -10,6 +10,7 @@ import { useCancelRequest } from "../purchaseRequest/useCancelRequest";
 import ImageSlider from "../../ui/ImageSlider";
 import { useMyWishlists } from "../wishlist/useMyWishlists";
 import { useAddToWishlist } from "../wishlist/useAddToWishlist";
+import { useDeleteFromWishlist } from "../wishlist/useDeleteFromWishlist";
 
 const LinkBox = styled.div`
   font-size: 1.4rem;
@@ -48,6 +49,9 @@ const ProductDetail = () => {
   );
   const { addWishlist, isAdding } = useAddToWishlist();
 
+  const { deleteWishlist, isDeleting: isDeletingWish } =
+    useDeleteFromWishlist();
+
   const handleDeleteProduct = () => {
     deleteProduct(params.productId);
   };
@@ -67,6 +71,10 @@ const ProductDetail = () => {
 
   const handleAddWishlist = () => {
     addWishlist(product.id);
+  };
+
+  const handleDeleteWishlist = () => {
+    deleteWishlist(product.id);
   };
   if (isLoading || isLoading2 || isLoading3)
     return <p>상품정보를 불러오고 있습니다...</p>;
@@ -88,7 +96,9 @@ const ProductDetail = () => {
             찜하기
           </button>
         ) : (
-          <button>찜 취소</button>
+          <button disabled={isDeletingWish} onClick={handleDeleteWishlist}>
+            찜 취소
+          </button>
         )}
         {isPendingRequestExists ? (
           <button

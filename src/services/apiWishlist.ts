@@ -40,3 +40,15 @@ export async function addToWishlist(productId: string) {
 
   return data;
 }
+
+export async function deleteFromWishlist(productId: string) {
+  const { error } = await supabase
+    .from("wishlists")
+    .delete()
+    .eq("product_id", productId);
+
+  if (error) {
+    console.error("찜 삭제 중 오류가 발생했습니다:", error);
+    throw error;
+  }
+}
