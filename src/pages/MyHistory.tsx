@@ -4,6 +4,8 @@ import { usePurchaseHistory } from "../features/purchaseRequest/usePurchaseHisto
 import { useSaleHistory } from "../features/purchaseRequest/useSaleHistory";
 import { useDeleteSaleHistory } from "../features/purchaseRequest/useDeleteSaleHistory";
 import { useDeletePurchaseHistory } from "../features/purchaseRequest/useDeletePurchaseHistory";
+import { useAllWishlists } from "../features/wishlist/useAllWishlists";
+import { useMyWishlists } from "../features/wishlist/useMyWishlists";
 
 // Styled Components (기존 스타일 재사용)
 const TabContainer = styled.div`
@@ -81,8 +83,11 @@ const MyHistory = () => {
     deletePurchaseHistory(requestId); // 삭제 요청
   };
 
-  if (isLoading || isLoading2) return <div>로딩중...</div>;
+  // get wishlist hook
+  const { myWishlists, isLoading: isLoading3 } = useMyWishlists();
+  if (isLoading || isLoading2 || isLoading3) return <div>로딩중...</div>;
 
+  console.log(myWishlists);
   return (
     <div>
       <TabContainer>
