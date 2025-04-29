@@ -10,9 +10,9 @@ import Product from "./pages/Product";
 import MainLayout from "./layout/MainLayout";
 import OtherUserProfile from "./pages/OtherUserProfile";
 import MyProfile from "./pages/MyProfile";
-import MyProducts from "./pages/MyProducts";
 import MyRequests from "./pages/MyRequests";
 import MyPosts from "./pages/MyProducts";
+import MyHistory from "./pages/MyHistory";
 
 const router = createBrowserRouter([
   {
@@ -38,6 +38,10 @@ const router = createBrowserRouter([
       {
         path: "my/requests",
         element: <MyRequests />,
+      },
+      {
+        path: "my/history",
+        element: <MyHistory />,
       },
     ],
   },
