@@ -27,3 +27,16 @@ export async function getMyWishList(user_id: string, product_id?: string) {
 
   return data;
 }
+
+export async function addToWishlist(productId: string) {
+  const { data, error } = await supabase
+    .from("wishlists")
+    .insert([{ product_id: productId }]);
+
+  if (error) {
+    console.error("찜하기 추가 중 오류 발생:", error);
+    throw error;
+  }
+
+  return data;
+}

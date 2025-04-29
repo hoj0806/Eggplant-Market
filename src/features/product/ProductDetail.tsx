@@ -8,6 +8,8 @@ import { useCreateRequest } from "../purchaseRequest/useCreateRequest";
 import { usePendingRequestByProductAndBuyer } from "../purchaseRequest/usePendingRequestByProductAndBuyer ";
 import { useCancelRequest } from "../purchaseRequest/useCancelRequest";
 import ImageSlider from "../../ui/ImageSlider";
+import { useMyWishlists } from "../wishlist/useMyWishlists";
+import { useAddToWishlist } from "../wishlist/useAddToWishlist";
 
 const LinkBox = styled.div`
   font-size: 1.4rem;
@@ -29,6 +31,8 @@ const ProductDetailBox = styled.div`
 `;
 
 const ProductDetail = () => {
+  const params = useParams();
+
   const { product, isLoading } = useProduct();
   const { deleteProduct, isDeleting } = useDeleteProduct();
   const { createRequest, isCreating } = useCreateRequest();
@@ -39,9 +43,11 @@ const ProductDetail = () => {
   } = usePendingRequestByProductAndBuyer();
   const { cancelRequest, isCanceling } = useCancelRequest();
 
-  const params = useParams();
+  const { myWishlists, isLoading: isLoading3 } = useMyWishlists(
+    params.productId
+  );
+  const { addWishlist, isAdding } = useAddToWishlist();
 
-  console.log(product);
   const handleDeleteProduct = () => {
     deleteProduct(params.productId);
   };
@@ -59,9 +65,13 @@ const ProductDetail = () => {
     }
   };
 
-  if (isLoading || isLoading2) return <p>상품정보를 불러오고 있습니다...</p>;
+  const handleAddWishlist = () => {
+    addWishlist(product.id);
+  };
+  if (isLoading || isLoading2 || isLoading3)
+    return <p>상품정보를 불러오고 있습니다...</p>;
 
-  console.log();
+  console.log(myWishlists);
   return (
     <>
       <MainContainer>
@@ -73,6 +83,13 @@ const ProductDetail = () => {
           <ImageSlider images={JSON.parse(product.image)} />
           <PostDescription />
         </ProductDetailBox>
+        {myWishlists && myWishlists.length === 0 ? (
+          <button onClick={handleAddWishlist} disabled={isAdding}>
+            찜하기
+          </button>
+        ) : (
+          <button>찜 취소</button>
+        )}
         {isPendingRequestExists ? (
           <button
             onClick={handleCancelRequest}
