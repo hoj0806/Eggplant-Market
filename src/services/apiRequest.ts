@@ -39,7 +39,8 @@ export async function getSentRequests(currentUserId: string) {
   const { data, error } = await supabase
     .from("purchase_requests")
     .select("*")
-    .eq("buyer_id", currentUserId);
+    .eq("buyer_id", currentUserId)
+    .neq("status", "completed");
 
   if (error) {
     throw new Error(`요청을 가져오는 데 실패했습니다: ${error.message}`);
@@ -52,7 +53,8 @@ export async function getReceivedRequests(currentUserId: string) {
   const { data, error } = await supabase
     .from("purchase_requests")
     .select("*")
-    .eq("seller_id", currentUserId);
+    .eq("seller_id", currentUserId)
+    .neq("status", "completed");
 
   if (error) {
     throw new Error(`받은 요청을 가져오는 데 실패했습니다: ${error.message}`);
@@ -111,14 +113,14 @@ export async function acceptRequest(data) {
 }
 
 export async function markRequestAsCompleted(data) {
-  // Step 1: 요청 삭제
+  // Step 1: 요청 상태를 'completed'로 변경
   const { data: requestData, error: requestError } = await supabase
     .from("purchase_requests")
-    .delete()
+    .update({ status: "completed" })
     .eq("id", data.requestId);
 
   if (requestError) {
-    console.error("요청 삭제 중 오류가 발생했습니다:", requestError);
+    console.error("요청 완료 상태 변경 중 오류가 발생했습니다:", requestError);
     throw requestError;
   }
 
@@ -136,5 +138,58 @@ export async function markRequestAsCompleted(data) {
     throw productError;
   }
 
-  return { requestData, productData }; // 삭제된 요청 데이터와 상품 데이터 반환
+  return { requestData, productData }; // 상태 변경된 데이터 반환
+}
+
+export async function getMySalesHistory(id: string) {
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .select("*")
+    .eq("status", "completed")
+    .eq("seller_id", id)
+    .neq("isSellerDeleted", true); // 삭제된 판매 기록 제외
+
+  if (error) {
+    console.error("판매 기록 가져오는 중 오류:", error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function getMyPurchaseHistory(id: string) {
+  const { data: purchaseHistory, error } = await supabase
+    .from("purchase_requests")
+    .select("*")
+    .eq("status", "completed")
+    .eq("buyer_id", id)
+    .neq("isBuyerDeleted", true); // 삭제된 구매 기록 제외
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return purchaseHistory;
+}
+
+export async function deleteMySaleHistory(requestId: string) {
+  const { error } = await supabase
+    .from("purchase_requests")
+    .update({ isSellerDeleted: true }) // 판매기록 삭제
+    .eq("id", requestId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function deleteMyPurchaseHistory(requestId: string) {
+  const { error } = await supabase
+    .from("purchase_requests")
+    .update({ isBuyerDeleted: true }) // 구매기록 삭제
+    .eq("id", requestId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
