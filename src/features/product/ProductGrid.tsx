@@ -2,6 +2,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useProducts } from "./useProducts";
 import styled from "styled-components";
 import ReservedStatusBadge from "../../ui/reservedStatusBadge";
+import { formatRelativeTime } from "../../utils/helper";
 
 const StyledGrid = styled.div`
   display: grid;
@@ -98,6 +99,7 @@ const ProductGrid = () => {
             <ProductInfo>
               <ProductTitle>{product.postTitle}</ProductTitle>
               <ProductPrice>{product.price?.toLocaleString()}원</ProductPrice>
+              {formatRelativeTime(product.created_at)}
             </ProductInfo>
           </ProductCard>
         );

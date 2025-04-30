@@ -110,7 +110,6 @@ export async function deleteProduct(id) {
 }
 
 export async function incrementProductViews(productId: number) {
-  // 먼저 현재 views 값을 조회합니다.
   const { data, error: fetchError } = await supabase
     .from("products")
     .select("views")
