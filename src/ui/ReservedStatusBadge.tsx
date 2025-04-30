@@ -1,4 +1,5 @@
 // ui/ReservedStatusBadge.tsx
+import { ReactNode } from "react";
 import styled from "styled-components";
 
 const Badge = styled.span`
@@ -15,8 +16,10 @@ const Badge = styled.span`
   pointer-events: none;
 `;
 
-const ReservedStatusBadge = () => {
-  return <Badge>예약중</Badge>;
+const StatusBadge: React.FC<{
+  children: ReactNode;
+}> = ({ children }) => {
+  return <Badge>{children}</Badge>;
 };
 
-export default ReservedStatusBadge;
+export default StatusBadge;

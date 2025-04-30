@@ -86,7 +86,12 @@ const ProductGrid = () => {
           >
             {imageArray.length > 0 && (
               <ProductImage>
-                {product.status === "reserved" && <ReservedStatusBadge />}
+                {product.status === "reserved" && (
+                  <ReservedStatusBadge>예약중</ReservedStatusBadge>
+                )}
+                {product.status === "soldOut" && (
+                  <ReservedStatusBadge>판매완료</ReservedStatusBadge>
+                )}
                 <img src={imageArray[0]} alt={product.title} />
               </ProductImage>
             )}
