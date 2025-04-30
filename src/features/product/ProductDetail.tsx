@@ -13,6 +13,9 @@ import { useDeleteFromWishlist } from "../wishlist/useDeleteFromWishlist";
 import ProductControlButton from "../../ui/ProductControlButton";
 import useRequest from "../purchaseRequest/useRequest";
 import { useUser } from "../authentication/useUser";
+import PostView from "../../ui/PostView";
+import { useIncreaseProductViews } from "./useIncreaseProductViews";
+import { useEffect } from "react";
 
 const LinkBox = styled.div`
   font-size: 1.4rem;
@@ -34,6 +37,8 @@ const ProductDetailBox = styled.div`
 `;
 
 const ProductDetail = () => {
+  const { incrementViews } = useIncreaseProductViews();
+
   const params = useParams();
 
   const { user } = useUser();
@@ -77,11 +82,18 @@ const ProductDetail = () => {
   const handleDeleteWishlist = () => {
     deleteWishlist(product.id);
   };
+
+  useEffect(() => {
+    if (params.productId) {
+      incrementViews(Number(params.productId));
+    }
+  }, [params.productId, incrementViews]);
+
   if (isLoading || isLoading3 || isLoadingRequest)
     return <p>상품정보를 불러오고 있습니다...</p>;
 
   const isOwnerPost = user?.id === product.sellerId;
-  console.log(isOwnerPost);
+  console.log(product.views);
   return (
     <>
       <MainContainer>
@@ -93,6 +105,7 @@ const ProductDetail = () => {
           <ImageSlider images={JSON.parse(product.image)} />
           <PostDescription />
         </ProductDetailBox>
+        <PostView view={product.views} />
         {isOwnerPost ? (
           <ProductControlButton
             onClick={handleDeleteProduct}

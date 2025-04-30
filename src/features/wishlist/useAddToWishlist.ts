@@ -7,7 +7,6 @@ export function useAddToWishlist() {
   const { mutate: addWishlist, isPending: isAdding } = useMutation({
     mutationFn: addToWishlist,
     onSuccess: () => {
-      // 찜 추가 후 wishlists 쿼리를 새로고침
       queryClient.invalidateQueries({ queryKey: ["wishlists"] });
     },
   });

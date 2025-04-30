@@ -11,6 +11,20 @@ export async function getAllWishlists() {
   return data;
 }
 
+export async function getProductWishlist(productId: string) {
+  const { data, error } = await supabase
+    .from("wishlists")
+    .select("*")
+    .eq("product_id", productId);
+
+  if (error) {
+    console.error("찜 목록을 불러오는 중 오류가 발생했습니다:", error);
+    throw error;
+  }
+
+  return data;
+}
+
 export async function getMyWishList(user_id: string, product_id?: string) {
   let query = supabase.from("wishlists").select("*").eq("user_id", user_id);
 
