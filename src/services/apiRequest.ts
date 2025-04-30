@@ -5,6 +5,25 @@ interface RequestData {
   sellerId: string;
 }
 
+export async function getProductRequest({
+  productId,
+  buyerId,
+}: {
+  productId: string;
+  buyerId: string;
+}) {
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .select("*")
+    .eq("product_id", productId)
+    .eq("buyer_id", buyerId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data;
+}
+
 export async function createRequest({ productId, sellerId }: RequestData) {
   const { data, error } = await supabase
     .from("purchase_requests")
@@ -18,21 +37,25 @@ export async function createRequest({ productId, sellerId }: RequestData) {
   return data;
 }
 
-export async function getPendingRequestByProductAndBuyer(
-  productId: string,
-  buyerId: string
-) {
+export async function cancelRequest({
+  productId,
+  buyerId,
+}: {
+  productId: string;
+  buyerId: string;
+}) {
   const { data, error } = await supabase
     .from("purchase_requests")
-    .select("*")
+    .delete()
     .eq("product_id", productId)
     .eq("buyer_id", buyerId);
 
   if (error) {
-    throw new Error(`요청을 가져오는 데 실패했습니다: ${error.message}`);
+    console.error("요청 삭제 중 오류가 발생했습니다:", error);
+    throw error;
   }
 
-  return data;
+  return data; // 삭제된 데이터 반환
 }
 
 export async function getSentRequests(currentUserId: string) {
@@ -61,26 +84,6 @@ export async function getReceivedRequests(currentUserId: string) {
   }
 
   return data;
-}
-export async function cancelRequest({
-  product_id,
-  buyer_id,
-}: {
-  product_id: string;
-  buyer_id: string;
-}) {
-  const { data, error } = await supabase
-    .from("purchase_requests")
-    .delete()
-    .eq("buyer_id", buyer_id)
-    .eq("product_id", product_id);
-
-  if (error) {
-    console.error("요청 삭제 중 오류가 발생했습니다:", error);
-    throw error;
-  }
-
-  return data; // 삭제된 데이터 반환
 }
 
 export async function acceptRequest(data) {

@@ -5,12 +5,14 @@ import styled from "styled-components";
 import PostDescription from "./ProductDescription";
 import UserOtherProducts from "../../ui/UserOtherProducts";
 import { useCreateRequest } from "../purchaseRequest/useCreateRequest";
-import { usePendingRequestByProductAndBuyer } from "../purchaseRequest/usePendingRequestByProductAndBuyer ";
 import { useCancelRequest } from "../purchaseRequest/useCancelRequest";
 import ImageSlider from "../../ui/ImageSlider";
 import { useMyWishlists } from "../wishlist/useMyWishlists";
 import { useAddToWishlist } from "../wishlist/useAddToWishlist";
 import { useDeleteFromWishlist } from "../wishlist/useDeleteFromWishlist";
+import ProductControlButton from "../../ui/ProductControlButton";
+import useRequest from "../purchaseRequest/useRequest";
+import { useUser } from "../authentication/useUser";
 
 const LinkBox = styled.div`
   font-size: 1.4rem;
@@ -34,14 +36,11 @@ const ProductDetailBox = styled.div`
 const ProductDetail = () => {
   const params = useParams();
 
+  const { user } = useUser();
   const { product, isLoading } = useProduct();
   const { deleteProduct, isDeleting } = useDeleteProduct();
   const { createRequest, isCreating } = useCreateRequest();
-  const {
-    pendingRequests,
-    isPendingRequestExists,
-    isLoading: isLoading2,
-  } = usePendingRequestByProductAndBuyer();
+
   const { cancelRequest, isCanceling } = useCancelRequest();
 
   const { myWishlists, isLoading: isLoading3 } = useMyWishlists(
@@ -51,6 +50,10 @@ const ProductDetail = () => {
 
   const { deleteWishlist, isDeleting: isDeletingWish } =
     useDeleteFromWishlist();
+  const { request, isLoading: isLoadingRequest } = useRequest({
+    productId: params.productId!,
+    buyerId: user?.id ?? "",
+  });
 
   const handleDeleteProduct = () => {
     deleteProduct(params.productId);
@@ -61,12 +64,10 @@ const ProductDetail = () => {
   };
 
   const handleCancelRequest = () => {
-    if (pendingRequests && pendingRequests.length > 0) {
-      console.log(pendingRequests[0]);
-      const { product_id, buyer_id } = pendingRequests[0];
-      console.log(product_id, buyer_id);
-      cancelRequest({ product_id, buyer_id });
-    }
+    cancelRequest({
+      productId: product.id,
+      buyerId: user?.id,
+    });
   };
 
   const handleAddWishlist = () => {
@@ -76,10 +77,11 @@ const ProductDetail = () => {
   const handleDeleteWishlist = () => {
     deleteWishlist(product.id);
   };
-  if (isLoading || isLoading2 || isLoading3)
+  if (isLoading || isLoading3 || isLoadingRequest)
     return <p>상품정보를 불러오고 있습니다...</p>;
 
-  console.log(myWishlists);
+  const isOwnerPost = user?.id === product.sellerId;
+  console.log(isOwnerPost);
   return (
     <>
       <MainContainer>
@@ -91,30 +93,48 @@ const ProductDetail = () => {
           <ImageSlider images={JSON.parse(product.image)} />
           <PostDescription />
         </ProductDetailBox>
-        {myWishlists && myWishlists.length === 0 ? (
-          <button onClick={handleAddWishlist} disabled={isAdding}>
-            찜하기
-          </button>
-        ) : (
-          <button disabled={isDeletingWish} onClick={handleDeleteWishlist}>
-            찜 취소
-          </button>
-        )}
-        {isPendingRequestExists ? (
-          <button
-            onClick={handleCancelRequest}
-            disabled={isCreating || isDeleting}
+        {isOwnerPost ? (
+          <ProductControlButton
+            onClick={handleDeleteProduct}
+            disabled={isDeleting}
           >
-            요청 취소하기
-          </button>
+            {isDeleting ? "삭제중입니다..." : "글 삭제하기"}
+          </ProductControlButton>
         ) : (
-          <button onClick={handleRequest} disabled={isCreating}>
-            구매요청 하기
-          </button>
+          <>
+            {myWishlists && myWishlists.length === 0 ? (
+              <ProductControlButton
+                onClick={handleAddWishlist}
+                disabled={isAdding}
+              >
+                찜하기
+              </ProductControlButton>
+            ) : (
+              <ProductControlButton
+                disabled={isDeletingWish}
+                onClick={handleDeleteWishlist}
+              >
+                찜 취소
+              </ProductControlButton>
+            )}
+            {request[0]?.status === "pending" && (
+              <ProductControlButton
+                onClick={handleCancelRequest}
+                disabled={isCanceling}
+              >
+                요청 취소하기
+              </ProductControlButton>
+            )}
+            {request?.length === 0 && (
+              <ProductControlButton
+                onClick={handleRequest}
+                disabled={isCreating}
+              >
+                구매요청 하기
+              </ProductControlButton>
+            )}
+          </>
         )}
-        <button disabled={isDeleting} onClick={handleDeleteProduct}>
-          {isDeleting ? "삭제중입니다..." : "글 삭제하기"}
-        </button>
       </MainContainer>
       <UserOtherProducts
         nickname={product?.sellerNickname}
