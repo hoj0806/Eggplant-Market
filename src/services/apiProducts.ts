@@ -108,3 +108,23 @@ export async function deleteProduct(id) {
 
   return data;
 }
+
+export async function incrementProductViews(productId: number) {
+  // 먼저 현재 views 값을 조회합니다.
+  const { data, error: fetchError } = await supabase
+    .from("products")
+    .select("views")
+    .eq("id", productId)
+    .single();
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const updatedViews = (data?.views ?? 0) + 1;
+
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({ views: updatedViews })
+    .eq("id", productId);
+
+  if (updateError) throw new Error(updateError.message);
+}
