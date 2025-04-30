@@ -13,6 +13,9 @@ export function useCancelRequest() {
       queryClient.invalidateQueries({
         queryKey: ["request", params.productId, user?.id],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["request", params.productId],
+      });
     },
   });
 

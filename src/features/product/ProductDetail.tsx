@@ -13,6 +13,7 @@ import { useDeleteFromWishlist } from "../wishlist/useDeleteFromWishlist";
 import ProductControlButton from "../../ui/ProductControlButton";
 import useRequest from "../purchaseRequest/useRequest";
 import { useUser } from "../authentication/useUser";
+import PostView from "../../ui/PostView";
 
 const LinkBox = styled.div`
   font-size: 1.4rem;
@@ -93,6 +94,7 @@ const ProductDetail = () => {
           <ImageSlider images={JSON.parse(product.image)} />
           <PostDescription />
         </ProductDetailBox>
+        <PostView />
         {isOwnerPost ? (
           <ProductControlButton
             onClick={handleDeleteProduct}

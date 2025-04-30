@@ -24,6 +24,22 @@ export async function getProductRequest({
   return data;
 }
 
+export async function getAllProductRequests({
+  productId,
+}: {
+  productId: string;
+}) {
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .select("*")
+    .eq("product_id", productId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data;
+}
+
 export async function createRequest({ productId, sellerId }: RequestData) {
   const { data, error } = await supabase
     .from("purchase_requests")
