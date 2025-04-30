@@ -93,7 +93,7 @@ const ProductDetail = () => {
     return <p>상품정보를 불러오고 있습니다...</p>;
 
   const isOwnerPost = user?.id === product.sellerId;
-  console.log(product.views);
+  console.log(product);
   return (
     <>
       <MainContainer>
