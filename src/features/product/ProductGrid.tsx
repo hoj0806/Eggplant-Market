@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useProducts } from "./useProducts";
 import styled from "styled-components";
+import ReservedStatusBadge from "../../ui/reservedStatusBadge";
 
 const StyledGrid = styled.div`
   display: grid;
@@ -38,6 +39,7 @@ const ProductImage = styled.div`
     display: block;
   }
 `;
+
 const ProductInfo = styled.div``;
 
 const ProductTitle = styled.h3`
@@ -84,6 +86,7 @@ const ProductGrid = () => {
           >
             {imageArray.length > 0 && (
               <ProductImage>
+                {product.status === "reserved" && <ReservedStatusBadge />}
                 <img src={imageArray[0]} alt={product.title} />
               </ProductImage>
             )}
