@@ -109,6 +109,15 @@ export async function acceptRequest(data) {
     throw deleteError;
   }
 
+  const { error: productError } = await supabase
+    .from("products")
+    .update({ status: "reserved" })
+    .eq("id", data.productId);
+
+  if (productError) {
+    throw productError;
+  }
+
   return updatedData;
 }
 
@@ -127,7 +136,7 @@ export async function markRequestAsCompleted(data) {
   // Step 2: products 테이블에서 해당 상품의 isSold 값을 true로 변경
   const { data: productData, error: productError } = await supabase
     .from("products")
-    .update({ isSold: true })
+    .update({ status: "soldOut" })
     .eq("id", data.productId);
 
   if (productError) {
