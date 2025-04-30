@@ -5,7 +5,6 @@ import styled from "styled-components";
 import PostDescription from "./ProductDescription";
 import UserOtherProducts from "../../ui/UserOtherProducts";
 import { useCreateRequest } from "../purchaseRequest/useCreateRequest";
-import { usePendingRequestByProductAndBuyer } from "../purchaseRequest/usePendingRequestByProductAndBuyer ";
 import { useCancelRequest } from "../purchaseRequest/useCancelRequest";
 import ImageSlider from "../../ui/ImageSlider";
 import { useMyWishlists } from "../wishlist/useMyWishlists";
@@ -81,7 +80,8 @@ const ProductDetail = () => {
   if (isLoading || isLoading3 || isLoadingRequest)
     return <p>상품정보를 불러오고 있습니다...</p>;
 
-  console.log(request);
+  const isOwnerPost = user?.id === product.sellerId;
+  console.log(isOwnerPost);
   return (
     <>
       <MainContainer>
@@ -93,43 +93,48 @@ const ProductDetail = () => {
           <ImageSlider images={JSON.parse(product.image)} />
           <PostDescription />
         </ProductDetailBox>
-        {myWishlists && myWishlists.length === 0 ? (
-          <button onClick={handleAddWishlist} disabled={isAdding}>
-            찜하기
-          </button>
-        ) : (
-          <button disabled={isDeletingWish} onClick={handleDeleteWishlist}>
-            찜 취소
-          </button>
-        )}
-        {request[0]?.status === "pending" && (
+        {isOwnerPost ? (
           <ProductControlButton
-            onClick={handleCancelRequest}
-            disabled={isCreating}
+            onClick={handleDeleteProduct}
+            disabled={isDeleting}
           >
-            요청 취소하기
+            {isDeleting ? "삭제중입니다..." : "글 삭제하기"}
           </ProductControlButton>
-        )}
-        {request?.length === 0 && (
-          <ProductControlButton onClick={handleRequest} disabled={isCreating}>
-            구매요청 하기
-          </ProductControlButton>
-        )}
-
-        {/* {isPendingRequestExists ? (
-        
         ) : (
-          <ProductControlButton onClick={handleRequest} disabled={isCreating}>
-            구매요청 하기
-          </ProductControlButton>
-        )} */}
-
-        <ProductControlButton
-          onClick={handleDeleteProduct}
-          disabled={isDeleting}
-        >
-          {isDeleting ? "삭제중입니다..." : "글 삭제하기"}
-        </ProductControlButton>
+          <>
+            {myWishlists && myWishlists.length === 0 ? (
+              <ProductControlButton
+                onClick={handleAddWishlist}
+                disabled={isAdding}
+              >
+                찜하기
+              </ProductControlButton>
+            ) : (
+              <ProductControlButton
+                disabled={isDeletingWish}
+                onClick={handleDeleteWishlist}
+              >
+                찜 취소
+              </ProductControlButton>
+            )}
+            {request[0]?.status === "pending" && (
+              <ProductControlButton
+                onClick={handleCancelRequest}
+                disabled={isCanceling}
+              >
+                요청 취소하기
+              </ProductControlButton>
+            )}
+            {request?.length === 0 && (
+              <ProductControlButton
+                onClick={handleRequest}
+                disabled={isCreating}
+              >
+                구매요청 하기
+              </ProductControlButton>
+            )}
+          </>
+        )}
       </MainContainer>
       <UserOtherProducts
         nickname={product?.sellerNickname}
