@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-ssr
+coverage
+*.local
+.env
+.env.local
+.env.*.local
+
+# 에디터/OS
+.DS_Store
+*.log
+logs
+.vscode/*
+!.vscode/extensions.json
+.idea
