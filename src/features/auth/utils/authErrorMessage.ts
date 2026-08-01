@@ -1,5 +1,7 @@
 // Supabase Auth 오류(영문 message/code)를 사용자에게 보여줄 한국어 문구로 바꾼다.
 
+import { matchErrorMessage } from '../../../shared/utils/errorText';
+
 const DEFAULT_AUTH_ERROR_MESSAGE = '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 
 // 순서가 곧 우선순위다. 구체적인 원인을 위에 둔다.
@@ -18,42 +20,6 @@ const MESSAGE_BY_PATTERN: ReadonlyArray<readonly [RegExp, string]> = [
   [/failed to fetch|network|networkerror/, '네트워크 연결을 확인해 주세요.'],
 ];
 
-type ErrorLike = {
-  message?: unknown;
-  code?: unknown;
-};
-
-/** Error 인스턴스가 아닐 수도 있으므로(직렬화된 응답 등) code·message를 모아 문자열로 만든다. */
-function extractErrorText(error: unknown): string {
-  if (typeof error === 'string') {
-    return error;
-  }
-  if (error === null || typeof error !== 'object') {
-    return '';
-  }
-
-  const candidate = error as ErrorLike;
-  const parts: string[] = [];
-  if (typeof candidate.code === 'string') {
-    parts.push(candidate.code);
-  }
-  if (typeof candidate.message === 'string') {
-    parts.push(candidate.message);
-  }
-  return parts.join(' ');
-}
-
 export function toAuthErrorMessage(error: unknown): string {
-  const text = extractErrorText(error).toLowerCase();
-  if (text.length === 0) {
-    return DEFAULT_AUTH_ERROR_MESSAGE;
-  }
-
-  for (const [pattern, message] of MESSAGE_BY_PATTERN) {
-    if (pattern.test(text)) {
-      return message;
-    }
-  }
-
-  return DEFAULT_AUTH_ERROR_MESSAGE;
+  return matchErrorMessage(error, MESSAGE_BY_PATTERN, DEFAULT_AUTH_ERROR_MESSAGE);
 }

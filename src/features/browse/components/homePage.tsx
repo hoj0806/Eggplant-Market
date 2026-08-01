@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import LogoutButton from '../../auth/components/logoutButton';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
+import ProfileAvatar from '../../profile/components/profileAvatar';
+import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
 
 function GuestActions() {
   return (
@@ -22,9 +24,31 @@ function GuestActions() {
   );
 }
 
+/** 온보딩에서 정한 닉네임·프로필 사진을 보여준다. */
+function MemberGreeting() {
+  const user = useAuthStore(selectAuthUser);
+  const profileQuery = useMyProfileQuery(user?.id ?? null);
+  const profile = profileQuery.data;
+
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <ProfileAvatar
+          nickname={profile?.nickname ?? ''}
+          avatarUrl={profile?.avatarUrl ?? null}
+          size="md"
+        />
+        <p className="text-gray-600 dark:text-gray-300">
+          <span className="font-semibold">{profile?.nickname ?? '이웃'}</span>님, 반갑습니다.
+        </p>
+      </div>
+      <LogoutButton />
+    </>
+  );
+}
+
 function HomePage() {
   const status = useAuthStore(selectAuthStatus);
-  const user = useAuthStore(selectAuthUser);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col items-center justify-center gap-3 p-6">
@@ -33,12 +57,7 @@ function HomePage() {
       {status === 'loading' ? (
         <p className="text-gray-600 dark:text-gray-300">세션을 확인하는 중입니다…</p>
       ) : status === 'authenticated' ? (
-        <>
-          <p className="text-gray-600 dark:text-gray-300">
-            <span className="font-semibold">{user?.email ?? '이웃'}</span>님, 반갑습니다.
-          </p>
-          <LogoutButton />
-        </>
+        <MemberGreeting />
       ) : (
         <>
           <p className="text-gray-600 dark:text-gray-300">

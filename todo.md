@@ -1,13 +1,21 @@
-1.회원가입
+# 진행 상황
 
-2.로그인
+## 완료
 
-3.로그아웃
+1. 회원가입 (이메일 + 구글)
+2. 로그인
+3. 로그아웃
+4. 프로필 온보딩 — 최초 가입 시 닉네임·프로필 사진 설정
 
-(이메일, 구글 로그인)
-남은 것 — 대시보드 설정 2개 (코드로는 불가)
+대시보드 설정 2개(구글 OAuth 활성화, Confirm email)는 2026-08-02에 처리 완료.
+구글 로그인·이메일 가입 모두 실제로 동작하는 것을 확인했다.
 
-1. 구글 로그인 미활성화: Google Cloud Console에서 OAuth 클라이언트 생성 → 승인된 리디렉션 URI에 https://hcmpbpeyhmmismxjkkzv.supabase.co/auth/v1/callback 등록 → Supabase Dashboard > Authentication > Providers > Google에 Client ID/Secret 입력. 코드는 준비돼 있어 켜기만 하면 동작합니다.
-2. 이메일 회원가입이 실제로는 메일 발송에서 막힘: Confirm email이 켜져 있는데 무료 프로젝트 내장 SMTP가 rate limit(over_email_send_rate_limit)입니다. 개발 중에는 Authentication > Sign In / Providers > Email에서 Confirm email을 끄는 것을 권합니다. (참고로 Supabase가 MX 없는 도메인 — example.com 등 — 을 거부하므로 테스트 이메일도 실제 도메인이어야 합니다.)
+## 남은 것
 
-즉 로그인·로그아웃은 지금 바로 동작하고, 회원가입·구글 로그인은 위 설정 후 동작합니다.
+- **배포 전 필수** — Confirm email을 다시 켤 것. 지금은 개발 편의로 꺼둔 상태라
+  아무 이메일로나 가입이 된다. 커스텀 SMTP(Resend 등)를 붙인 뒤 켠다.
+- **온보딩 2단계 — 동네 설정** (`feature.md`의 "최초 가입 시 자신의 동네 설정").
+  카카오맵 API가 필요해 아직 구현하지 않았다. `profiles.location`·`dong_name` 컬럼은 준비돼 있다.
+- 비밀번호 변경 (이메일 회원)
+- 회원탈퇴
+- 프로필 수정 화면 (닉네임·사진 변경 — 온보딩과 폼을 공유할 수 있다)
