@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { useMyProfileQuery } from '../hooks/useProfileQuery';
+import { isOnboardingComplete } from '../utils/onboardingStatus';
 
 type RequireOnboardingProps = {
   children: ReactNode;
@@ -22,7 +23,7 @@ function RequireOnboarding(props: RequireOnboardingProps) {
     if (profileQuery.isLoading) {
       return <PageSpinner message="프로필을 불러오는 중입니다…" />;
     }
-    if (profileQuery.data !== undefined && profileQuery.data.onboardedAt === null) {
+    if (profileQuery.data !== undefined && !isOnboardingComplete(profileQuery.data)) {
       return <Navigate to="/onboarding" replace />;
     }
   }

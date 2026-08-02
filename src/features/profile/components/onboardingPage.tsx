@@ -1,14 +1,14 @@
 import { Navigate, useNavigate } from 'react-router-dom';
-import OnboardingForm from './onboardingForm';
+import OnboardingSteps, { type CompletedOnboardingDraft } from './onboardingSteps';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { useCompleteOnboardingMutation } from '../hooks/useProfileMutations';
 import { useMyProfileQuery } from '../hooks/useProfileQuery';
-import type { ProfileOnboardingValues } from '../types';
+import { isOnboardingComplete, toInitialNickname } from '../utils/onboardingStatus';
 import { toProfileErrorMessage } from '../utils/profileErrorMessage';
 
 /**
- * 최초 가입 직후 닉네임·프로필 사진을 정하는 화면.
+ * 최초 가입 직후 프로필과 동네를 정하는 화면. 두 단계로 나뉜다.
  * 이메일 가입과 구글 로그인 모두 이곳을 거친다(가입 경로에 따라 첫 경험이 갈리지 않도록).
  */
 function OnboardingPage() {
@@ -18,13 +18,18 @@ function OnboardingPage() {
   const profileQuery = useMyProfileQuery(user?.id ?? null);
   const onboardingMutation = useCompleteOnboardingMutation();
 
-  function handleSubmit(values: ProfileOnboardingValues): void {
+  function handleComplete(draft: CompletedOnboardingDraft): void {
     if (user === null) {
       return;
     }
 
     onboardingMutation.mutate(
-      { userId: user.id, nickname: values.nickname, avatarFile: values.avatarFile },
+      {
+        userId: user.id,
+        nickname: draft.nickname,
+        avatarFile: draft.avatarFile,
+        region: draft.region,
+      },
       {
         onSuccess: function handleOnboarded(): void {
           navigate('/', { replace: true });
@@ -45,8 +50,11 @@ function OnboardingPage() {
     return <PageSpinner message="프로필을 불러오는 중입니다…" />;
   }
 
+  const profile = profileQuery.data;
+
   // 이미 마친 사람이 주소창으로 들어온 경우 되돌린다.
-  if (profileQuery.data !== undefined && profileQuery.data.onboardedAt !== null) {
+  // 판정은 라우트 가드(requireOnboarding)와 같은 함수를 써야 서로 밀어내지 않는다.
+  if (profile !== undefined && isOnboardingComplete(profile)) {
     return <Navigate to="/" replace />;
   }
 
@@ -62,10 +70,10 @@ function OnboardingPage() {
           🍆 가지마켓
         </span>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">
-          프로필을 만들어 주세요
+          시작하기 전에 몇 가지만 알려 주세요
         </h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          이웃에게 보여질 닉네임과 사진입니다.
+          이웃에게 보여질 프로필과 거래할 동네입니다.
         </p>
       </header>
 
@@ -83,7 +91,11 @@ function OnboardingPage() {
           </p>
         ) : null}
 
-        <OnboardingForm isPending={onboardingMutation.isPending} onSubmit={handleSubmit} />
+        <OnboardingSteps
+          initialNickname={profile === undefined ? '' : toInitialNickname(profile)}
+          isPending={onboardingMutation.isPending}
+          onComplete={handleComplete}
+        />
       </section>
     </main>
   );

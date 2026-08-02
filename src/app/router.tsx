@@ -4,6 +4,7 @@ import SignInPage from '../features/auth/components/signInPage';
 import SignUpPage from '../features/auth/components/signUpPage';
 import HomePage from '../features/browse/components/homePage';
 import OnboardingPage from '../features/profile/components/onboardingPage';
+import RegionSettingsPage from '../features/profile/components/regionSettingsPage';
 import RequireOnboarding from '../features/profile/components/requireOnboarding';
 
 export const router = createBrowserRouter([
@@ -26,6 +27,14 @@ export const router = createBrowserRouter([
   {
     path: '/onboarding',
     element: <OnboardingPage />,
+  },
+  {
+    path: '/settings/region',
+    element: (
+      <RequireOnboarding>
+        <RegionSettingsPage />
+      </RequireOnboarding>
+    ),
   },
   {
     path: '/auth/callback',
