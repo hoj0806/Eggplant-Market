@@ -338,3 +338,153 @@ post_images 1건, sort_order 0, posts.thumbnail_url과 같은 URL
 - 검색·카테고리 필터·정렬·무한 스크롤 (`feature.md` §2.2)
 - 지도에서 주변 물품 보기, `nearby_posts` RPC 연동
 - 댓글, 채팅, 최근 본 상품(`recently_viewed` 기록)
+
+---
+
+## 게시물 검색 및 필터링 (2026-08-02)
+
+`feature.md` §2.2 "자신의 동네에서 판매하는 물품들 검색 가능 / 카테고리별·가격 필터 / 무한 스크롤" 구현.
+
+### 무엇을 만들었나
+
+1. **`/search` 화면** — 제품 이름·게시물 내용 검색 + 카테고리 + 가격 구간 + 거래 가능만 보기.
+   조건은 모두 **중첩(AND)** 되고, 필터 초기화 버튼이 있다.
+2. **비로그인 사용자도 사용 가능** — 게스트는 동네를 직접 고르고 브라우저에 남긴다.
+3. **무한 스크롤** — `(bumped_at, id)` keyset 커서로 20개씩.
+
+검색·필터는 언제나 **내 동네 안에서만** 돈다. 동네는 조건이 아니라 전제라
+`PostSearchFilters`에 들어 있지 않고 `regionCode`로 따로 넘어간다.
+
+### 설계 결정 네 가지
+
+#### 1. 쿼리 빌더가 아니라 RPC (`search_posts`)
+
+제목과 본문을 OR로 묶으려면 PostgREST에서는 **필터를 문자열로** 조립해야 한다.
+
+```ts
+// 이렇게 하지 않았다
+.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%`)
+```
+
+사용자가 검색창에 `,`나 `(`를 치는 순간 저 문자열의 문법이 깨진다.
+실제로 "노트북 거치대, 마우스패드"처럼 쉼표가 든 제목이 흔하다.
+RPC는 값이 파라미터로 바인딩돼 그런 걱정이 없다 — 0001의 `nearby_posts`와도 결이 같다.
+
+와일드카드는 SQL 쪽에서 걷어낸다. 이게 없으면 `%` 한 글자에 동네 글 전체가 나온다.
+
+```sql
+create or replace function escape_like_pattern(p_text text)
+returns text language sql immutable as $$
+  select replace(replace(replace(p_text, '\', '\'), '%', '\%'), '_', '\_');
+$$;
+```
+
+대분류/소분류는 파라미터 하나(`p_category_id`)로 받는다. 게시물은 언제나 소분류에 붙지만
+필터는 "디지털/가전 전체"로 넓게 거는 쪽이 쓸모 있어서, 대분류가 들어오면 자식까지 훑는다.
+
+```sql
+and (p_category_id is null
+     or p.category_id = p_category_id
+     or p.category_id in (select c.id from categories c where c.parent_id = p_category_id))
+```
+
+#### 2. 커서는 `bumped_at` 하나로 부족하다
+
+`bumped_at`만 커서로 쓰면 **같은 시각에 올라온 글**이 페이지 경계에서 통째로 잘리거나 겹친다.
+`(bumped_at, id)` 쌍으로 잡고 정렬도 같은 순서로 맞춘다.
+
+```sql
+and (p_cursor_bumped_at is null
+     or p.bumped_at < p_cursor_bumped_at
+     or (p.bumped_at = p_cursor_bumped_at and p.id < coalesce(p_cursor_id, 0)))
+order by p.bumped_at desc, p.id desc
+```
+
+offset(`.range()`)을 쓰지 않은 이유는, 스크롤하는 동안 누가 글을 올리면 이미 본 글이
+다시 나오거나 못 본 글이 밀려 사라지기 때문이다.
+
+인덱스도 이 동선에 맞춰 새로 깔았다. 0001에 title trgm은 있었지만 본문 검색용이 없었다.
+
+```sql
+create index posts_description_trgm_idx on posts using gin (description gin_trgm_ops);
+create index posts_region_keyset_idx    on posts (region_code, bumped_at desc, id desc);
+create index posts_region_price_idx     on posts (region_code, price);
+```
+
+#### 3. 필터의 원본은 컴포넌트 state가 아니라 URL
+
+`useSearchParams`가 유일한 원본이다. 새로고침·뒤로가기·링크 공유가 공짜로 따라오고,
+"필터 초기화"가 쿼리를 다시 쓰는 한 줄이 된다.
+
+```ts
+// src/features/browse/components/searchPage.tsx
+function handleResetFilters(): void {
+  setSearchParams(toSearchParams(clearFilters(filters)));
+}
+```
+
+초기화는 **필터만 지우고 검색어는 남긴다**. "'노트북' 검색 결과에서 조건만 풀어 보고 싶다"가
+흔한 요구라, 검색어까지 지우면 처음부터 다시 쳐야 한다.
+
+대신 URL은 사용자가 직접 고칠 수 있어 `fromSearchParams`가 들어오는 값을 하나도 믿지 않는다.
+`?minPrice=abc`나 `?category=-1`은 오류가 아니라 "그 필터가 없는 것"으로 본다.
+
+#### 4. 검색어는 즉시, 필터는 "적용하기"에서 한 번에
+
+두 입력의 성격이 다르다.
+
+- **검색어**(`postSearchField`): 400ms 디바운스 후 바로 URL 반영. 결과가 바로 보여야 검색하는 맛이 난다.
+- **필터**(`postFilterPanel`): 자기 안에 draft로 들고 있다가 "적용하기"에서 한 번에 넘긴다.
+  가격을 한 글자씩 칠 때마다 반영하면 "1", "10", "100"까지 세 번 헛돈다.
+
+### 비로그인 사용자의 "내 동네"
+
+게스트는 저장할 프로필이 없다. 온보딩과 같은 `RegionPicker`로 동네만 고르게 하고
+localStorage에 남긴다(`region/utils/storedRegion.ts`, `region/store/activeRegionStore.ts`).
+zustand 스토어를 겸하는 이유는 localStorage만으로는 리렌더가 걸리지 않아서다.
+
+로그인/게스트 분기는 `browse/hooks/useActiveRegion.ts` 한 곳에만 둔다.
+
+```ts
+// 로그인이면 profiles가 원본, 아니면 게스트가 고른 동네
+const { region, isLoading, isGuest, setGuestRegion } = useActiveRegion();
+```
+
+### 검증
+
+실제 DB(`hcmpbpeyhmmismxjkkzv`)에 게시물 26건을 넣고 `search_posts`를 직접 호출해 확인했다.
+
+```
+키워드 "노트북"      제목·본문 양쪽에서 4건 (맥북/갤럭시탭/거치대/그램)
+키워드 "%"          1건 — 와일드카드가 아니라 글자로 취급됨
+키워드 "거치대, 마우스"  1건 — 쉼표가 있어도 깨지지 않음
+대분류 1            22건 (소분류 글 전부 포함) / 소분류 15 → 2건
+가격 30000~60000    5건, 30000과 60000 모두 포함(경계 이상/이하)
+거래 가능만          24건 (selling+reserved) / 끄면 27건 (sold 3건 포함)
+중첩 4개 동시        2건
+keyset 페이징        limit 5로 6페이지 순회 → 27행 수집, 중복 0
+                    (같은 bumped_at 3건을 일부러 넣고 확인)
+anon 역할            27건 조회 가능 — 비로그인도 RLS 통과
+```
+
+앱이 실제로 타는 경로(PostgREST HTTP + anon 키)로도 같은 결과가 나오는지 확인했다.
+
+```bash
+curl -X POST "$VITE_SUPABASE_URL/rest/v1/rpc/search_posts" \
+  -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Content-Type: application/json" \
+  -d '{"p_region_code":"1129013900","p_keyword":"노트북","p_category_id":1,
+       "p_min_price":200000,"p_max_price":1200000,"p_available_only":true,"p_limit":20}'
+```
+
+커서를 `{"p_cursor_bumped_at":"2026-08-02T05:10:00+00:00","p_cursor_id":26}`로 넘겼을 때
+같은 시각의 id 25가 먼저, 그다음 id 28이 나오는 것까지 확인했다.
+
+Jest는 201건 통과. 새로 붙인 것은 필터↔URL 변환(16), 커서 판정(3),
+카테고리 필터 select(6), 필터 패널(7), 검색어 디바운스(4)다.
+
+### 이번 범위 밖
+
+- 정렬 옵션(조회수순·찜 많은 순) — 지금은 최신순(`bumped_at desc`) 고정
+- 반경 기반 검색(`nearby_posts`, `profiles.search_radius_m`) — 여전히 법정동 코드 일치 기준이다
+- 지도에서 주변 물품 보기
+- 홈 화면의 최신 목록 — 검색창 진입점만 붙였고 목록 자체는 그대로다

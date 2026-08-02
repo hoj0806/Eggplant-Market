@@ -8,10 +8,10 @@ type NeighborhoodPostListProps = {
 };
 
 /**
- * 내 동네 최신 글 목록.
+ * 홈의 내 동네 최신 글 목록. 조건 없이 최근 20개만 보여준다.
  *
- * 검색·카테고리 필터·무한 스크롤은 아직 없다(feature.md 2.2). 지금은 방금 올린 글이
- * 이웃에게 보이는지 확인할 수 있는 최소한의 목록이다.
+ * 검색·필터·무한 스크롤은 `/search`(searchPage)가 맡는다. 홈은 "지금 우리 동네에 뭐가 올라왔나"를
+ * 한눈에 보는 자리라 조건을 걸 수단을 두지 않고 짧게 끊는다.
  */
 function NeighborhoodPostList(props: NeighborhoodPostListProps) {
   const postsQuery = useNeighborhoodPostsQuery(props.regionCode);

@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
+import type { PostSearchFilters } from '../../browse/types';
 import type { TradePlace } from '../../place/types';
 import type { Region } from '../../region/types';
 import type { PostDetail, PostSeller, PostStatus, PostSummary } from '../types';
@@ -18,6 +19,9 @@ const DEFAULT_IMAGE_EXTENSION = 'jpg';
 const SAFE_EXTENSION_PATTERN = /^[a-zA-Z0-9]{1,5}$/;
 
 export const NEIGHBORHOOD_POSTS_LIMIT = 20;
+
+/** 검색 결과 한 페이지 크기. search_posts가 서버에서 50으로 한 번 더 막는다. */
+export const POST_SEARCH_PAGE_SIZE = 20;
 
 type PostSummaryRow = {
   id: number;
@@ -338,6 +342,55 @@ export async function fetchNeighborhoodPosts(regionCode: string): Promise<PostSu
     throw error;
   }
 
+  return (data as PostSummaryRow[]).map(toPostSummary);
+}
+
+/**
+ * 검색 결과의 다음 페이지를 가리키는 자리.
+ *
+ * offset이 아니라 마지막으로 읽은 행 자체다. 스크롤하는 동안 누가 글을 올려도
+ * 이미 본 글이 다시 나오거나 못 본 글이 밀려 사라지지 않는다.
+ * `bumped_at`만으로는 같은 시각 글을 가를 수 없어 `id`까지 함께 들고 간다.
+ */
+export type PostSearchCursor = {
+  bumpedAt: string;
+  id: number;
+};
+
+export type SearchPostsParams = {
+  /** 검색은 언제나 이 동네 안에서만 돈다. */
+  regionCode: string;
+  filters: PostSearchFilters;
+  /** 첫 페이지는 null. */
+  cursor: PostSearchCursor | null;
+};
+
+/**
+ * 내 동네 게시물 검색 + 필터.
+ *
+ * 조건을 PostgREST 쿼리 빌더로 이어 붙이지 않고 RPC 하나로 보낸다.
+ * 제목·본문을 OR로 묶으려면 `.or('title.ilike.%키워드%,...')`처럼 필터를 문자열로 만들어야 하는데,
+ * 검색어에 `,`나 `(`가 들어오는 순간 그 문자열의 문법이 깨진다.
+ * RPC는 값이 파라미터로 바인딩돼 그런 걱정이 없다. (0007 참고)
+ */
+export async function searchPosts(params: SearchPostsParams): Promise<PostSummary[]> {
+  const { data, error } = await supabase.rpc('search_posts', {
+    p_region_code: params.regionCode,
+    p_keyword: params.filters.keyword === '' ? null : params.filters.keyword,
+    p_category_id: params.filters.categoryId,
+    p_min_price: params.filters.minPrice,
+    p_max_price: params.filters.maxPrice,
+    p_available_only: params.filters.availableOnly,
+    p_cursor_bumped_at: params.cursor?.bumpedAt ?? null,
+    p_cursor_id: params.cursor?.id ?? null,
+    p_limit: POST_SEARCH_PAGE_SIZE,
+  });
+
+  if (error !== null) {
+    throw error;
+  }
+
+  // RPC의 returns table이 목록 카드가 쓰는 컬럼과 같은 모양이라 변환도 그대로 재사용한다.
   return (data as PostSummaryRow[]).map(toPostSummary);
 }
 
