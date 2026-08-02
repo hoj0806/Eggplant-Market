@@ -66,9 +66,75 @@ export type KakaoGeocoderConstructor = {
   new (): KakaoGeocoder;
 };
 
+/**
+ * 장소(POI) 검색 결과 한 건. 거래희망장소를 고를 때 쓴다.
+ * 좌표는 주소 검색과 마찬가지로 문자열(x=경도, y=위도)로 온다.
+ */
+export type KakaoPlaceSearchResult = {
+  id: string;
+  place_name: string;
+  address_name: string;
+  /** 도로명 주소. 없는 장소도 있어 빈 문자열로 온다. */
+  road_address_name: string;
+  category_group_name: string;
+  x: string;
+  y: string;
+};
+
+/** keywordSearch 콜백의 세 번째 인자. 이 앱은 첫 페이지만 쓰므로 형태만 적어 둔다. */
+export type KakaoPagination = {
+  totalCount: number;
+};
+
+export type KakaoKeywordSearchCallback = {
+  (
+    result: ReadonlyArray<KakaoPlaceSearchResult>,
+    status: KakaoStatus,
+    pagination: KakaoPagination,
+  ): void;
+};
+
+/** 좌표 객체. 값을 직접 읽지는 않고 검색 옵션에 그대로 넘기기만 한다. */
+export type KakaoLatLng = {
+  getLat(): number;
+  getLng(): number;
+};
+
+export type KakaoLatLngConstructor = {
+  new (lat: number, lng: number): KakaoLatLng;
+};
+
+/** 검색 중심·반경·정렬. 주지 않으면 전국에서 뽑혀 내 동네 장소가 밀린다. */
+export type KakaoKeywordSearchOptions = {
+  location?: KakaoLatLng;
+  /** 미터. 카카오가 허용하는 최댓값은 20000이다. */
+  radius?: number;
+  sort?: string;
+  size?: number;
+};
+
+export type KakaoPlaces = {
+  keywordSearch(
+    keyword: string,
+    callback: KakaoKeywordSearchCallback,
+    options?: KakaoKeywordSearchOptions,
+  ): void;
+};
+
+export type KakaoPlacesConstructor = {
+  new (): KakaoPlaces;
+};
+
 export type KakaoMapsNamespace = {
+  LatLng: KakaoLatLngConstructor;
   services: {
     Geocoder: KakaoGeocoderConstructor;
+    Places: KakaoPlacesConstructor;
+    /** 정렬 상수. 문자열을 직접 넣지 말고 이 값을 쓴다. */
+    SortBy: {
+      ACCURACY: string;
+      DISTANCE: string;
+    };
   };
   /** autoload=false로 받은 SDK를 실제로 초기화한다. */
   load(callback: KakaoMapsLoadCallback): void;

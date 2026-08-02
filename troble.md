@@ -218,3 +218,148 @@ add column location_lat double precision
 (`pg_proc.provolatile = 'i'`). 아니었다면 생성 컬럼을 만들 수 없다.
 
 **검증**: 실제 UPDATE를 `begin` … `rollback`으로 감싸 데이터를 건드리지 않고 왕복을 확인했다.
+
+---
+
+## 중고물품 게시물 등록 (2026-08-02)
+
+### 9. `increment_view_count`가 남의 글에서는 아무 일도 하지 않았다
+
+**증상**: 코드로는 아무 문제가 없어 보였다. RPC를 부르면 오류도 안 나고, 조회수도 안 오른다.
+
+**원인**: 0001의 함수가 `language sql`(= security **invoker**)이라 **호출자 권한**으로
+`posts`를 update한다. 그런데 `posts` 정책은 이렇다.
+
+```sql
+create policy posts_update on posts for update using (auth.uid() = seller_id);
+```
+
+작성자만 자기 글을 수정할 수 있으므로, 남의 글을 대상으로 한 update는 **0행에 매칭되고
+조용히 끝난다**. RLS는 권한이 없는 행을 "보이지 않게" 하는 것이지 오류를 내지 않는다.
+이것이 실패를 알아채기 어려웠던 이유다.
+
+**해결**: `security definer`로 바꾸고, 함수 안에서 본인 글을 제외했다.
+
+```sql
+create or replace function increment_view_count(p_post_id bigint)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update posts set view_count = view_count + 1
+   where id = p_post_id
+     and (auth.uid() is null or seller_id <> auth.uid());
+end; $$;
+```
+
+**교훈**: RLS가 걸린 테이블을 함수로 갱신할 때는 "누구 권한으로 실행되는가"를 먼저 본다.
+`update ... where`가 0행이어도 오류가 아니라 성공으로 보인다.
+같은 이유로 찜 개수 트리거(`sync_post_like_count`)도 `security definer`여야 했다.
+
+---
+
+### 10. PostgREST 임베드가 `PGRST201`로 거절 — 관계가 하나가 아니었다
+
+**증상**: 게시물 상세에서 판매자를 함께 읽으려고 `seller:profiles (...)`로 적었더니 400.
+
+```json
+{"code":"PGRST201",
+ "message":"Could not embed because more than one relationship was found for 'posts' and 'profiles'"}
+```
+
+**원인**: `posts`와 `profiles`는 `seller_id` 말고도 `likes`·`recently_viewed`를 통해
+이어져 있다(다대다). PostgREST가 어느 관계인지 고를 수 없다.
+
+**해결**: FK 이름으로 관계를 짚어 준다.
+
+```ts
+'... seller:profiles!posts_seller_id_fkey (id, nickname, avatar_url, manner_temp) ...'
+```
+
+**교훈**: 이 오류는 타입 검사에도 테스트에도 걸리지 않는다(응답이 와야 안다).
+select 문자열은 화면을 띄우기 전에 REST로 직접 찔러 확인하는 편이 빠르다.
+
+```bash
+set -a && . ./.env.local && set +a
+curl -s -G "$VITE_SUPABASE_URL/rest/v1/posts" \
+  --data-urlencode "select=id,seller:profiles!posts_seller_id_fkey(nickname)" \
+  -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY"
+```
+
+`categories`는 `parent_id` 자기참조가 생겼지만 `posts`→`categories` FK는 하나뿐이라
+`category:categories (...)`는 그대로 둬도 된다.
+
+---
+
+### 11. jsdom에 `URL.createObjectURL`이 없어 사진 미리보기 테스트가 죽었다
+
+**증상**: `TypeError: URL.createObjectURL is not a function`. 파일을 올리는 순간
+컴포넌트가 통째로 언마운트되어, 이어지는 `getByLabelText('제목')`까지 "그런 요소 없음"으로 실패했다.
+오류 메시지만 보면 라벨 문제로 보여 엉뚱한 곳을 뒤지기 쉽다.
+
+**원인**: jsdom은 Object URL을 구현하지 않는다. 실제 blob을 만들 방법이 없어서다.
+
+**해결**: `setupTests.ts`에서 stub을 깐다. 미리보기 URL이 목록의 `key`로도 쓰이므로
+호출마다 다른 값을 돌려줘야 한다.
+
+```ts
+if (typeof URL.createObjectURL !== 'function') {
+  let objectUrlCount = 0;
+  URL.createObjectURL = function createObjectURL(): string {
+    objectUrlCount += 1;
+    return `blob:test/${objectUrlCount}`;
+  };
+  URL.revokeObjectURL = function revokeObjectURL(): void {};
+}
+```
+
+---
+
+### 12. 트랜잭션 안에서 `updated_at` 갱신 여부를 확인할 수 없었다
+
+**증상**: `updated_at`이 조회수 증가에 안 따라 오르는지 확인하려고 plpgsql 블록 하나에서
+"이전 값 → 작업 → 이후 값"을 여러 번 비교했더니 결과가 앞뒤가 안 맞았다.
+분명히 갱신되어야 할 **본문 수정**이 "그대로"로 나왔다.
+
+**원인**: 트리거의 `set_updated_at()`은 `now()`를 쓰는데, `now()`는
+**트랜잭션 시작 시각**이라 한 트랜잭션 안에서 항상 같은 값이다.
+앞선 작업이 이미 `updated_at`을 그 시각으로 올려 둬서, 뒤의 작업은 값이 안 바뀐 것처럼 보였다.
+
+**해결**: 시나리오를 한 트랜잭션에 몰아넣지 않고 나눠 실행해서 확인했다.
+(`clock_timestamp()`와 달리 `now()` = `transaction_timestamp()`라는 점을 기억해 둘 것)
+
+---
+
+### 13. 자기 글에 찜이 됐다 — check 제약으로는 막을 수 없다
+
+**증상**: 첫 게시물을 올리고 확인해 보니 판매자 본인이 자기 글을 찜해 `like_count`가 1이었다.
+조회수는 본인을 제외하도록 만들어 뒀는데 찜에는 같은 규칙이 없었다.
+
+**왜 문제인가**: 찜 개수는 "찜 많은 순" 정렬(`feature.md` §2.2)의 근거다.
+자기 글을 찜할 수 있으면 정렬이 곧바로 의미를 잃는다.
+
+**막다가 걸린 것**: `likes`에 check 제약을 걸려고 했지만 안 된다.
+판매자가 누구인지는 `posts`에 있고, **check 제약은 다른 테이블을 참조할 수 없다**
+(`ERROR: cannot use subquery in check constraint`).
+
+**해결**: RLS insert 정책에 조건을 얹었다.
+
+```sql
+create policy likes_insert on likes for insert
+  with check (
+    auth.uid() = user_id
+    and not exists (
+      select 1 from posts where posts.id = likes.post_id and posts.seller_id = auth.uid()
+    )
+  );
+```
+
+**검증**: `authenticated` 역할로 두 경우를 모두 넣어 봤다.
+
+```
+판매자 본인이 자기 글 찜 → RLS가 막음
+다른 사용자가 찜         → 성공
+```
+
+`insufficient_privilege` 예외를 잡아 결과를 표로 돌려주면 한 번에 확인할 수 있다.
+
+**교훈**: "이 행을 쓸 수 있는가"를 다른 테이블의 값으로 판단해야 한다면 check가 아니라 RLS 정책이다.
+화면에서도 자기 글에는 찜 버튼을 그리지 않지만, 규칙의 주인은 서버여야 한다.
