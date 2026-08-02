@@ -78,6 +78,16 @@ function HomePage() {
         ) : null}
 
         {isMember ? <MemberGreeting profile={profileQuery.data} /> : null}
+
+        {/* 검색은 비로그인도 쓸 수 있어 로그인 여부와 상관없이 보여준다. */}
+        <Link
+          to="/search"
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-400
+                     transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900
+                     dark:text-gray-500 dark:hover:bg-gray-800"
+        >
+          🔍 물건 이름이나 내용으로 검색
+        </Link>
       </header>
 
       {isMember ? (

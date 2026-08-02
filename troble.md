@@ -363,3 +363,37 @@ create policy likes_insert on likes for insert
 
 **교훈**: "이 행을 쓸 수 있는가"를 다른 테이블의 값으로 판단해야 한다면 check가 아니라 RLS 정책이다.
 화면에서도 자기 글에는 찜 버튼을 그리지 않지만, 규칙의 주인은 서버여야 한다.
+
+---
+
+## 게시물 검색 및 필터링 (2026-08-02)
+
+### 1. curl로 RPC를 찔러 검증할 때 한글 검색어만 `PGRST102`
+
+**증상**: 앱과 같은 경로(PostgREST HTTP + anon 키)로 `search_posts`를 확인하는데
+한글 검색어를 넣은 요청만 실패했다.
+
+```bash
+curl -X POST ".../rpc/search_posts" -d '{"p_region_code":"1129013900","p_keyword":"노트북"}'
+# {"code":"PGRST102","message":"Empty or invalid json"}
+```
+
+**원인 찾기**: RPC 정의를 의심했지만 SQL로는 잘 돌았다. 같은 요청에서 한글만 빼 보니 통과했다.
+
+```bash
+-d '{"p_region_code":"1129013900","p_limit":2}'   # 200 OK
+-d '{"p_region_code":"1129013900","p_keyword":"노트북","p_limit":2}'   # PGRST102
+```
+
+서버가 아니라 **셸이 범인**이다. Windows의 Git Bash에서 인라인 `-d` 문자열에 든 UTF-8이
+깨진 채 전송돼 PostgREST가 JSON으로 파싱하지 못한다.
+
+**해결**: 본문을 파일에 쓰고 `--data-binary @파일`로 넘긴다.
+
+```bash
+curl -X POST ".../rpc/search_posts" -H "Content-Type: application/json" \
+  --data-binary @payload.json
+```
+
+**교훈**: 검증 도구가 실패했다고 검증 대상이 틀린 것은 아니다.
+한글이 오가는 API를 이 환경에서 curl로 확인할 때는 처음부터 파일로 넘기는 편이 낫다.

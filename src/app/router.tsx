@@ -3,6 +3,7 @@ import AuthCallbackPage from '../features/auth/components/authCallbackPage';
 import SignInPage from '../features/auth/components/signInPage';
 import SignUpPage from '../features/auth/components/signUpPage';
 import HomePage from '../features/browse/components/homePage';
+import SearchPage from '../features/browse/components/searchPage';
 import NewPostPage from '../features/post/components/newPostPage';
 import PostDetailPage from '../features/post/components/postDetailPage';
 import OnboardingPage from '../features/profile/components/onboardingPage';
@@ -38,6 +39,11 @@ export const router = createBrowserRouter([
         <NewPostPage />
       </RequireOnboarding>
     ),
+  },
+  {
+    // 검색도 비로그인이 쓸 수 있다. 동네는 화면 안에서 직접 고르게 한다.
+    path: '/search',
+    element: <SearchPage />,
   },
   {
     // 상세는 비로그인도 볼 수 있다. 찜만 로그인을 요구한다.

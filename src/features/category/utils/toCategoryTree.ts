@@ -56,6 +56,33 @@ export function toCategoryTree(rows: ReadonlyArray<CategoryRow>): CategoryTree[]
   return trees;
 }
 
+/**
+ * id로 이름을 찾는다. 대분류·소분류 어느 쪽이든 받는다.
+ * 필터 요약 칩처럼 "고른 값"만 들고 있는 곳에서 이름을 되찾을 때 쓴다.
+ */
+export function findCategoryName(
+  trees: ReadonlyArray<CategoryTree>,
+  categoryId: number | null,
+): string | null {
+  if (categoryId === null) {
+    return null;
+  }
+
+  for (const tree of trees) {
+    if (tree.id === categoryId) {
+      return tree.name;
+    }
+
+    for (const child of tree.children) {
+      if (child.id === categoryId) {
+        return child.name;
+      }
+    }
+  }
+
+  return null;
+}
+
 /** 소분류 id로 그 부모 대분류를 찾는다. 없으면 null. */
 export function findParentCategoryId(
   trees: ReadonlyArray<CategoryTree>,
