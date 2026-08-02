@@ -5,7 +5,9 @@ import {
   validateAvatarFile,
   validateNickname,
   validateProfileOnboardingValues,
+  validateRegion,
 } from './validateProfileInput';
+import type { Region } from '../../region/types';
 
 function createFile(type: string, size: number): File {
   const file = new File(['x'], 'avatar.png', { type });
@@ -86,5 +88,24 @@ describe('validateProfileOnboardingValues', function onboardingValuesSuite() {
     expect(errors.nickname).toBe('닉네임을 입력해 주세요.');
     expect(errors.avatarFile).toBe('JPG, PNG, WEBP, GIF 형식만 올릴 수 있습니다.');
     expect(hasProfileFieldError(errors)).toBe(true);
+  });
+});
+
+describe('validateRegion', function validateRegionSuite() {
+  const REGION: Region = {
+    code: '1130510300',
+    depth1: '서울특별시',
+    depth2: '강북구',
+    depth3: '수유동',
+    fullName: '서울특별시 강북구 수유동',
+    coords: { lat: 37.6379, lng: 127.0146 },
+  };
+
+  it('동네를 고르지 않으면 오류다', function missingRegionCase() {
+    expect(validateRegion(null)).toBe('동네를 선택해 주세요.');
+  });
+
+  it('동네를 골랐으면 통과한다', function selectedRegionCase() {
+    expect(validateRegion(REGION)).toBeUndefined();
   });
 });

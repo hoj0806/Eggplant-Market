@@ -38,9 +38,17 @@ function MemberGreeting() {
           avatarUrl={profile?.avatarUrl ?? null}
           size="md"
         />
-        <p className="text-gray-600 dark:text-gray-300">
-          <span className="font-semibold">{profile?.nickname ?? '이웃'}</span>님, 반갑습니다.
-        </p>
+        <div className="flex flex-col">
+          <p className="text-gray-600 dark:text-gray-300">
+            <span className="font-semibold">{profile?.nickname ?? '이웃'}</span>님, 반갑습니다.
+          </p>
+          <Link
+            to="/settings/region"
+            className="text-sm text-emerald-700 transition hover:underline dark:text-emerald-400"
+          >
+            {profile?.region?.fullName ?? '동네 설정하기'} ›
+          </Link>
+        </div>
       </div>
       <LogoutButton />
     </>

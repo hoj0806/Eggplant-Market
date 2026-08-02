@@ -9,19 +9,18 @@ import {
 } from '../utils/validateProfileInput';
 
 type OnboardingFormProps = {
+  /** 이미 닉네임이 있는 사용자가 온보딩을 다시 거칠 때 채워 넣는다. */
+  initialValues: ProfileOnboardingValues;
+  submitLabel: string;
   isPending: boolean;
   onSubmit(values: ProfileOnboardingValues): void;
 };
 
-const EMPTY_ONBOARDING_VALUES: ProfileOnboardingValues = {
-  nickname: '',
-  avatarFile: null,
-};
-
 const NICKNAME_MAX_LENGTH = 12;
 
+/** 온보딩 1단계 — 닉네임과 프로필 사진. */
 function OnboardingForm(props: OnboardingFormProps) {
-  const [values, setValues] = useState<ProfileOnboardingValues>(EMPTY_ONBOARDING_VALUES);
+  const [values, setValues] = useState<ProfileOnboardingValues>(props.initialValues);
   const [errors, setErrors] = useState<ProfileFieldErrors>({});
 
   function updateNickname(nickname: string): void {
@@ -74,7 +73,7 @@ function OnboardingForm(props: OnboardingFormProps) {
         onValueChange={updateNickname}
       />
 
-      <SubmitButton label="시작하기" pendingLabel="저장 중…" isPending={props.isPending} />
+      <SubmitButton label={props.submitLabel} pendingLabel="저장 중…" isPending={props.isPending} />
     </form>
   );
 }

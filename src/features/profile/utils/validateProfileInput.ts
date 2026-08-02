@@ -1,3 +1,4 @@
+import type { Region } from '../../region/types';
 import type { ProfileFieldErrors, ProfileOnboardingValues } from '../types';
 
 const MIN_NICKNAME_LENGTH = 2;
@@ -67,4 +68,13 @@ export function validateProfileOnboardingValues(
 
 export function hasProfileFieldError(errors: ProfileFieldErrors): boolean {
   return Object.keys(errors).length > 0;
+}
+
+/** 동네는 온보딩 2단계의 유일한 입력이라 필드 오류 맵 대신 문구 하나로 충분하다. */
+export function validateRegion(region: Region | null): string | undefined {
+  if (region === null) {
+    return '동네를 선택해 주세요.';
+  }
+
+  return undefined;
 }
