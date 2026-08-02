@@ -1,37 +1,42 @@
 import { Link } from 'react-router-dom';
+import NeighborhoodPostList from './neighborhoodPostList';
 import LogoutButton from '../../auth/components/logoutButton';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import ProfileAvatar from '../../profile/components/profileAvatar';
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
+import type { Profile } from '../../profile/types';
 
 function GuestActions() {
   return (
-    <div className="flex gap-2">
-      <Link
-        to="/login"
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-      >
-        로그인
-      </Link>
-      <Link
-        to="/signup"
-        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700
-                   transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-      >
-        회원가입
-      </Link>
+    <div className="flex flex-col items-center gap-3 py-10">
+      <p className="text-gray-600 dark:text-gray-300">
+        로그인하고 우리 동네 중고거래를 시작해 보세요.
+      </p>
+      <div className="flex gap-2">
+        <Link
+          to="/login"
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+        >
+          로그인
+        </Link>
+        <Link
+          to="/signup"
+          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700
+                     transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          회원가입
+        </Link>
+      </div>
     </div>
   );
 }
 
-/** 온보딩에서 정한 닉네임·프로필 사진을 보여준다. */
-function MemberGreeting() {
-  const user = useAuthStore(selectAuthUser);
-  const profileQuery = useMyProfileQuery(user?.id ?? null);
-  const profile = profileQuery.data;
+/** 온보딩에서 정한 닉네임·프로필 사진과 지금 보고 있는 동네를 보여준다. */
+function MemberGreeting(props: { profile: Profile | undefined }) {
+  const profile = props.profile;
 
   return (
-    <>
+    <div className="flex w-full items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         <ProfileAvatar
           nickname={profile?.nickname ?? ''}
@@ -51,29 +56,49 @@ function MemberGreeting() {
         </div>
       </div>
       <LogoutButton />
-    </>
+    </div>
   );
 }
 
 function HomePage() {
   const status = useAuthStore(selectAuthStatus);
+  const user = useAuthStore(selectAuthUser);
+  // 목록을 그리려면 내 동네를 알아야 해서 프로필을 화면 맨 위에서 읽는다.
+  const profileQuery = useMyProfileQuery(status === 'authenticated' ? (user?.id ?? null) : null);
+
+  const isMember = status === 'authenticated';
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col items-center justify-center gap-3 p-6">
-      <h1 className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">🍆 가지마켓</h1>
+    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
+      <header className="flex flex-col gap-4">
+        <h1 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">🍆 가지마켓</h1>
 
-      {status === 'loading' ? (
-        <p className="text-gray-600 dark:text-gray-300">세션을 확인하는 중입니다…</p>
-      ) : status === 'authenticated' ? (
-        <MemberGreeting />
-      ) : (
+        {status === 'loading' ? (
+          <p className="text-gray-600 dark:text-gray-300">세션을 확인하는 중입니다…</p>
+        ) : null}
+
+        {isMember ? <MemberGreeting profile={profileQuery.data} /> : null}
+      </header>
+
+      {isMember ? (
         <>
-          <p className="text-gray-600 dark:text-gray-300">
-            로그인하고 우리 동네 중고거래를 시작해 보세요.
-          </p>
-          <GuestActions />
+          <section className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
+              우리 동네 중고거래
+            </h2>
+            <Link
+              to="/posts/new"
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              + 글쓰기
+            </Link>
+          </section>
+
+          <NeighborhoodPostList regionCode={profileQuery.data?.region?.code ?? null} />
         </>
-      )}
+      ) : null}
+
+      {status === 'unauthenticated' ? <GuestActions /> : null}
     </main>
   );
 }

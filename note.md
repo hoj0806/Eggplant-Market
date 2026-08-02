@@ -175,3 +175,155 @@ location_lat  37.612986      location_lng  127.061401      srid  4326
 - `search_radius_m`(내 동네 범위) 설정 UI — 컬럼은 있으나 게시물 조회가 없어 효과를 확인할 수 없다
 - 지도 렌더링(주변 물품 마커) — `feature.md` §2.2
 - `nearby_posts` RPC 연동
+
+---
+
+## 중고물품 게시물 등록 · 카테고리 2단계 (2026-08-02)
+
+`todo.md`의 두 가지 — 카테고리 대분류·소분류 정하기, 게시물 올리기(찜·조회수 포함) 구현.
+
+### 무엇을 만들었나
+
+1. **카테고리 2단계** — `categories.parent_id` 자기참조. 대분류 12개 / 소분류 73개.
+2. **글쓰기** (`/posts/new`) — 사진·제목·카테고리·가격·설명·거래희망장소.
+3. **상세** (`/posts/:postId`) — 사진 넘김, 판매자·매너온도, 조회수, 찜.
+4. **홈 목록** — 내 동네 최신 글 20개. 검색·필터·무한스크롤은 다음 작업.
+
+### 설계 결정
+
+#### 1. 좌표를 두 개로 나눈다 — `location`과 `trade_location`
+
+| 컬럼 | 값 | 쓰임 |
+| --- | --- | --- |
+| `posts.location` | 판매자 **동네 대표 좌표**(프로필에서 복사) | 목록·반경 검색의 기준 |
+| `posts.trade_location` | **거래희망장소 좌표** | 상세 화면 표시(선택 사항) |
+
+거래장소를 `location`에 넣으면 "옆 동네 카페에서 만나기로 한 글"이 그 동네 글이 되어
+동네 목록이 어긋난다. 같은 이유로 `region_code`·`dong_name`도 작성 시점에 게시물에 박아 둔다
+(판매자가 나중에 이사해 동네를 바꿔도 이미 올린 글의 동네는 그대로여야 한다).
+
+읽고 쓰는 방식은 동네 설정 때와 같다 — EWKT로 쓰고, 좌표는 생성 컬럼(`*_lat`/`*_lng`)으로 읽는다.
+
+#### 2. 찜 개수는 컬럼 + 트리거
+
+목록에서 글마다 `count(*)`를 세지 않으려고 `posts.like_count`를 두고 `likes`의 insert/delete
+트리거가 유지한다. `feature.md` §2.2의 "찜 많은 순" 정렬도 이 컬럼 하나로 끝난다.
+
+트리거 함수는 `security definer`여야 한다. 찜하는 사람은 **남의 글**에 찜을 하는데
+`posts_update` 정책이 `auth.uid() = seller_id`라 호출자 권한으로는 그 글을 갱신할 수 없다.
+
+#### 3. 자기 글은 찜할 수 없다
+
+찜 개수는 "찜 많은 순" 정렬의 근거라, 판매자가 자기 글을 찜할 수 있으면 정렬이 곧바로 의미를 잃는다.
+화면에서는 자기 글에 찜 버튼 대신 "내가 올린 상품이에요"를 보여주고, 규칙 자체는 서버가 들고 있다.
+
+`check` 제약으로는 못 막는다 — 판매자가 누구인지는 `posts`에 있고 check는 다른 테이블을 볼 수 없다.
+그래서 RLS insert 정책에 조건을 얹었다(`0006_disallow_self_like.sql`).
+
+```sql
+create policy likes_insert on likes for insert
+  with check (
+    auth.uid() = user_id
+    and not exists (
+      select 1 from posts where posts.id = likes.post_id and posts.seller_id = auth.uid()
+    )
+  );
+```
+
+#### 4. 조회수 — 클라이언트와 서버가 각각 막는다
+
+- 클라이언트: 탭 세션당 한 번(`sessionStorage`의 `viewedPostIds`). 새로고침으로 부풀지 않는다.
+- 서버: `increment_view_count`가 `seller_id <> auth.uid()` 조건으로 본인 글을 제외한다.
+
+서버에도 두는 이유는, 클라이언트 가드만 있으면 판매자가 저장소를 비우고 새로고침해
+자기 글 조회수를 얼마든지 올릴 수 있기 때문이다.
+
+`updated_at` 트리거에는 조건을 달았다. 조회수·찜 개수만 바뀐 update는 "수정"이 아니다.
+
+```sql
+create trigger posts_set_updated_at
+  before update on posts
+  for each row when (
+    old.view_count is not distinct from new.view_count
+    and old.like_count is not distinct from new.like_count
+  )
+  execute function set_updated_at();
+```
+
+#### 5. 거래희망장소는 지도 없이 장소 검색으로
+
+`features/place`를 `features/region`과 같은 구조로 만들었다(카카오 SDK를 건드리는 자리를
+feature 단위로 격리 — ts-jest의 `import.meta` 문제 때문에 테스트에서 통째로 모킹할 수 있어야 한다).
+동네 검색이 Geocoder(주소)라면, 거래장소는 Places(장소 이름)를 쓴다.
+
+검색할 때 사용자 동네 좌표를 `location`, 반경 20km, 정렬을 거리순으로 넘긴다.
+옵션 없이 부르면 전국에서 15건이 뽑혀 내 동네 장소가 밀린다.
+
+#### 6. 등록은 세 번 쓰고, 실패하면 되돌린다
+
+`createPost`는 ① 사진 업로드 → ② `posts` → ③ `post_images` 순서다. 스토리지가 끼어 있어
+트랜잭션으로 묶을 수 없으므로 직접 보상한다.
+
+- ②가 실패하면 → 올린 파일을 지운다 (아무도 못 보는 파일이 남지 않게)
+- ③이 실패하면 → 게시물 행을 지우고 파일도 지운다 (사진 없는 게시물이 남지 않게)
+
+### 파일 구성
+
+```
+supabase/migrations/0004_category_hierarchy.sql   categories.parent_id
+supabase/migrations/0005_post_create.sql          posts 컬럼·찜 트리거·조회수·post-images 버킷
+supabase/migrations/0006_disallow_self_like.sql   자기 글 찜 금지(RLS)
+supabase/seed.sql                                 소분류 73개 추가
+
+src/features/category/    트리 변환(순수) · 조회 · 2단 select
+src/features/place/       카카오 Places 래퍼 · 거래장소 선택 위젯
+src/features/post/        등록/상세/목록 API · 검증 · 조회수 규칙 · 화면
+src/features/like/        찜 API · 낙관적 토글 · 하트 버튼
+src/features/browse/      홈 목록(postCard · neighborhoodPostList)
+src/shared/ui/textArea.tsx            여러 줄 입력
+src/shared/utils/formatTimeAgo.ts     "n분 전"
+```
+
+### 찜은 낙관적으로 뒤집는다
+
+하트는 누르는 즉시 바뀌어야 한다. 왕복을 기다리면 안 눌린 줄 알고 한 번 더 눌러
+찜·해제가 번갈아 나간다. `onMutate`에서 캐시를 뒤집고 `onError`에서 되돌린다.
+연타로 중복 insert가 나가도 되도록 `addLike`는 `upsert`다.
+
+### 테스트
+
+| 파일 | 확인하는 것 |
+| --- | --- |
+| `category/utils/toCategoryTree.test.ts` | 트리 접기, 정렬, 부모 없는 행 버리기 |
+| `category/components/categorySelect.test.tsx` | 대분류 변경 시 소분류 초기화, 값 복원 |
+| `place/utils/toPlace.test.ts` | 도로명/지번 선택, 빈 좌표 거르기 |
+| `place/components/tradePlacePicker.test.tsx` | 내 동네 중심 검색, 선택·해제 |
+| `post/utils/validatePostInput.test.ts` | 길이·형식·장수·용량, 0원 나눔 |
+| `post/utils/viewedPosts.test.ts` | 세션 1회, 본인 글 제외, 깨진 저장값 |
+| `post/components/postForm.test.tsx` | 필수 항목 안내, 제출 payload, 나눔 |
+| `like/components/likeButton.test.tsx` | 낙관적 토글과 실패 시 롤백 |
+| `shared/utils/formatTimeAgo.test.ts` | 단위별 내림, 미래·잘못된 값 |
+
+### 실제 DB 검증 결과
+
+`authenticated` 역할과 실제 사용자 uid로 RLS를 통과시켜 확인했다.
+
+```
+게시물 insert   RLS 통과, region_code/dong_name/좌표 저장 확인
+생성 컬럼       location_lat 37.612986 / trade_location_lat 37.6135
+조회수          비로그인 +1, 다른 사용자 +1, 판매자 본인 0
+찜              insert → like_count 1, delete → 0 (트리거)
+자기 글 찜      판매자 본인 insert는 RLS가 거부, 다른 사용자는 성공
+updated_at      조회수·찜으로는 바뀌지 않음
+목록 조회       region_code 필터 + bumped_at 내림차순
+```
+
+검증에 쓴 행은 모두 지웠다.
+
+### 이번 범위 밖
+
+- 게시물 수정·삭제, 상태 변경(판매중→예약중→거래완료)
+- 찜 목록 화면(내가 찜한 상품) — 데이터는 쌓이지만 모아 보는 화면이 없다
+- 검색·카테고리 필터·정렬·무한 스크롤 (`feature.md` §2.2)
+- 지도에서 주변 물품 보기, `nearby_posts` RPC 연동
+- 댓글, 채팅, 최근 본 상품(`recently_viewed` 기록)
