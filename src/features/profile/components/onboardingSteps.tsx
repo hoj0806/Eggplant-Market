@@ -16,6 +16,8 @@ export type CompletedOnboardingDraft = ProfileOnboardingValues & { region: Regio
 type OnboardingStepsProps = {
   /** 이미 닉네임이 있는 사용자를 위한 초기값. 임시 닉네임이면 빈 문자열이 온다. */
   initialNickname: string;
+  /** 이미 가입을 마쳐 프로필 단계가 필요 없는 사용자. 동네만 고르게 한다. */
+  regionOnly: boolean;
   isPending: boolean;
   onComplete(draft: CompletedOnboardingDraft): void;
 };
@@ -27,6 +29,8 @@ type OnboardingStepsProps = {
  * 온보딩을 통째로 빠져나가 입력을 날려 버리지 않고 1단계로 돌아가게 하기 위해서다.
  * 값 자체는 컴포넌트 상태에 있으므로 새로고침하면 사라진다 —
  * 그래서 닉네임이 비어 있으면 2단계 주소로 들어와도 1단계로 되돌린다.
+ *
+ * regionOnly면 단계가 하나뿐이라 위 장치가 모두 필요 없다. 쿼리스트링과 상관없이 동네만 보여준다.
  */
 function OnboardingSteps(props: OnboardingStepsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,7 +42,8 @@ function OnboardingSteps(props: OnboardingStepsProps) {
   const [regionError, setRegionError] = useState<string | undefined>(undefined);
 
   const isRegionStep =
-    searchParams.get(STEP_PARAM) === REGION_STEP && draft.nickname.trim().length > 0;
+    props.regionOnly ||
+    (searchParams.get(STEP_PARAM) === REGION_STEP && draft.nickname.trim().length > 0);
 
   function goToRegionStep(values: ProfileOnboardingValues): void {
     setDraft(function mergeProfileValues(previous) {
@@ -74,7 +79,10 @@ function OnboardingSteps(props: OnboardingStepsProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <OnboardingStepIndicator current={isRegionStep ? 2 : 1} total={TOTAL_STEPS} />
+      {/* 단계가 하나뿐인 사용자에게 "1/1"을 보여 줄 이유가 없다. */}
+      {props.regionOnly ? null : (
+        <OnboardingStepIndicator current={isRegionStep ? 2 : 1} total={TOTAL_STEPS} />
+      )}
 
       {isRegionStep ? (
         <OnboardingRegionStep
@@ -82,7 +90,8 @@ function OnboardingSteps(props: OnboardingStepsProps) {
           isPending={props.isPending}
           errorMessage={regionError}
           onRegionChange={handleRegionChange}
-          onBack={goBackToProfileStep}
+          // 돌아갈 앞 단계가 없으면 '이전' 버튼도 없어야 한다.
+          onBack={props.regionOnly ? undefined : goBackToProfileStep}
           onFinish={handleFinish}
         />
       ) : (

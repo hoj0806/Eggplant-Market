@@ -23,3 +23,16 @@ const TEMP_NICKNAME_PATTERN = /^user_[0-9a-f]{8}$/;
 export function toInitialNickname(profile: Profile): string {
   return TEMP_NICKNAME_PATTERN.test(profile.nickname) ? '' : profile.nickname;
 }
+
+/**
+ * 프로필 단계를 건너뛰고 동네만 고르게 할 사용자인지 판정한다.
+ *
+ * 동네 설정 기능 이전에 가입한 사용자는 onboarded_at과 닉네임이 이미 차 있고 동네만 없다.
+ * 이들에게 닉네임·사진 화면부터 다시 보여주면 "이미 가입한 계정인데 왜 또 프로필을 정하나"가 된다.
+ *
+ * 닉네임이 임시값이면 사용자가 정한 적이 없다는 뜻이라 건너뛰지 않는다 —
+ * 건너뛰면 임시 닉네임이 그대로 굳어 버린다.
+ */
+export function needsRegionOnly(profile: Profile): boolean {
+  return profile.onboardedAt !== null && toInitialNickname(profile).length > 0;
+}

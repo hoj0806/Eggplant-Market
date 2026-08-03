@@ -25,7 +25,13 @@ function toScriptSource(): string {
   return `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_APP_KEY}&libraries=services&autoload=false`;
 }
 
-/** SDK 스크립트를 붙이고 로드 완료를 기다린다. 이미 붙어 있으면 그 요소를 재사용한다. */
+/**
+ * SDK 스크립트를 붙이고 로드 완료를 기다린다.
+ *
+ * 이미 붙어 있는 요소는 재사용하지 않고 지운 뒤 새로 붙인다.
+ * 재사용하면 한 번 실패한 <script>에 리스너를 다는 꼴이 되는데, load도 error도 이미 끝난 뒤라
+ * 다시 발생하지 않아 재시도가 영원히 멈춘다. 동시 호출은 loadPromise가 이미 막고 있다.
+ */
 function appendSdkScript(): Promise<void> {
   return new Promise(function attachScript(resolve, reject): void {
     if (window.kakao?.maps !== undefined) {
@@ -33,10 +39,12 @@ function appendSdkScript(): Promise<void> {
       return;
     }
 
-    const existing = document.getElementById(SCRIPT_ELEMENT_ID);
-    const script =
-      existing !== null ? (existing as HTMLScriptElement) : document.createElement('script');
+    const stale = document.getElementById(SCRIPT_ELEMENT_ID);
+    if (stale !== null) {
+      stale.remove();
+    }
 
+    const script = document.createElement('script');
     script.addEventListener('load', function handleScriptLoad(): void {
       resolve();
     });
@@ -44,12 +52,10 @@ function appendSdkScript(): Promise<void> {
       reject(toLoaderError(KAKAO_LOAD_FAILED_CODE));
     });
 
-    if (existing === null) {
-      script.id = SCRIPT_ELEMENT_ID;
-      script.async = true;
-      script.src = toScriptSource();
-      document.head.appendChild(script);
-    }
+    script.id = SCRIPT_ELEMENT_ID;
+    script.async = true;
+    script.src = toScriptSource();
+    document.head.appendChild(script);
   });
 }
 

@@ -37,7 +37,7 @@ const SUYU: Region = {
   coords: { lat: 37.6379, lng: 127.0146 },
 };
 
-function renderSteps(onComplete: jest.Mock, initialNickname = '') {
+function renderSteps(onComplete: jest.Mock, initialNickname = '', regionOnly = false) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -47,6 +47,7 @@ function renderSteps(onComplete: jest.Mock, initialNickname = '') {
       <QueryClientProvider client={queryClient}>
         <OnboardingSteps
           initialNickname={initialNickname}
+          regionOnly={regionOnly}
           isPending={false}
           onComplete={onComplete}
         />
@@ -121,6 +122,29 @@ describe('OnboardingSteps', function onboardingStepsSuite() {
     renderSteps(jest.fn(), '기존닉네임');
 
     expect(screen.getByLabelText('닉네임')).toHaveValue('기존닉네임');
+  });
+
+  // 이미 가입한 계정에 프로필 설정 화면을 다시 띄우면 안 된다.
+  it('가입을 마친 사용자에게는 프로필 단계를 건너뛰고 동네만 묻는다', function regionOnlyCase() {
+    renderSteps(jest.fn(), '기존닉네임', true);
+
+    expect(screen.getByLabelText('동네 이름으로 찾기')).toBeInTheDocument();
+    expect(screen.queryByLabelText('닉네임')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '이전' })).not.toBeInTheDocument();
+  });
+
+  it('건너뛴 경우에도 기존 닉네임을 그대로 넘긴다', async function regionOnlySubmitCase() {
+    const handleComplete = jest.fn();
+    renderSteps(handleComplete, '기존닉네임', true);
+
+    await pickSuyu();
+    await userEvent.click(screen.getByRole('button', { name: '시작하기' }));
+
+    expect(handleComplete).toHaveBeenCalledWith({
+      nickname: '기존닉네임',
+      avatarFile: null,
+      region: SUYU,
+    });
   });
 
   it('1단계에서는 아직 저장하지 않는다', async function noEarlyWriteCase() {
