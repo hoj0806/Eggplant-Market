@@ -8,10 +8,18 @@ type PostCardProps = {
   post: PostSummary;
   /** 목록 전체가 같은 기준으로 "n분 전"을 계산하도록 부모가 넘긴다. */
   now: Date;
+  /**
+   * 시간 자리에 대신 적을 문구.
+   *
+   * 홈·검색에서는 끌올 시각("3일 전")이 맞지만 마이페이지에서는 그 자리에
+   * "3일 전 찜"·"7월 30일 구매"처럼 목록마다 다른 뜻이 온다. 넘기지 않으면 지금까지와 같다.
+   */
+  timeText?: string;
 };
 
 function PostCard(props: PostCardProps) {
   const post = props.post;
+  const timeText = props.timeText ?? formatTimeAgo(post.bumpedAt, props.now);
 
   return (
     <li>
@@ -43,7 +51,7 @@ function PostCard(props: PostCardProps) {
           </div>
 
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {post.dongName ?? '동네 정보 없음'} · {formatTimeAgo(post.bumpedAt, props.now)}
+            {post.dongName ?? '동네 정보 없음'} · {timeText}
           </span>
 
           <span className="font-semibold text-gray-900 dark:text-gray-50">

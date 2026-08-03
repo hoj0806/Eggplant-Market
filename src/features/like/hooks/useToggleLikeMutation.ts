@@ -79,6 +79,8 @@ export function useToggleLikeMutation(
     onSettled: function refreshLists(): void {
       // 목록 카드의 찜 개수도 낡는다. 상세는 낙관적 값이 이미 맞으므로 목록만 다시 받는다.
       queryClient.invalidateQueries({ queryKey: ['posts', 'neighborhood'] });
+      // 관심목록은 개수가 아니라 목록 자체가 달라진다 — 방금 푼 글이 남아 있으면 안 된다.
+      queryClient.invalidateQueries({ queryKey: ['my', 'likes'] });
     },
   });
 }

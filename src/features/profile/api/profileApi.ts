@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
+import { toAvatarStoragePath } from '../utils/avatarStoragePath';
 import type { Region } from '../../region/types';
 import type { Profile } from '../types';
 
@@ -36,6 +37,15 @@ export type CompleteOnboardingInput = {
 export type UpdateProfileRegionInput = {
   userId: string;
   region: Region;
+};
+
+export type UpdateProfileBasicsInput = {
+  userId: string;
+  nickname: string;
+  /** 새로 고른 사진. null이면 사진은 건드리지 않는다. */
+  avatarFile: File | null;
+  /** true면 기본 이미지로 되돌린다(avatar_url = null). */
+  removeAvatar: boolean;
 };
 
 /** 네 컬럼이 모두 차 있어야 동네로 인정한다. 하나라도 비면 아직 안 정한 것이다. */
@@ -166,6 +176,93 @@ export async function completeProfileOnboarding(
   }
 
   return toProfile(data as ProfileRow);
+}
+
+/** 지금 저장돼 있는 사진 주소. 바꾼 뒤 옛 파일을 지우려면 미리 알아 둬야 한다. */
+async function fetchAvatarUrl(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('avatar_url')
+    .eq('id', userId)
+    .single();
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return (data as { avatar_url: string | null }).avatar_url;
+}
+
+/**
+ * 스토리지에서 아바타 파일 하나를 지운다.
+ *
+ * 실패해도 조용히 넘어간다 — 뒷정리라서 그렇다(postApi.removeUploadedImages와 같은 자리).
+ * 우리 버킷 URL이 아니면 경로가 null이라 아무것도 하지 않는다.
+ */
+async function removeAvatarObject(avatarUrl: string | null): Promise<void> {
+  const path = toAvatarStoragePath(avatarUrl);
+  if (path === null) {
+    return;
+  }
+
+  await supabase.storage.from(AVATAR_BUCKET).remove([path]);
+}
+
+/** 사진을 어떻게 할지에 따라 update payload의 avatar_url 칸을 만든다. */
+function toAvatarPayload(
+  removeAvatar: boolean,
+  uploadedUrl: string | null,
+): { avatar_url: string | null } | Record<string, never> {
+  if (uploadedUrl !== null) {
+    return { avatar_url: uploadedUrl };
+  }
+  if (removeAvatar) {
+    return { avatar_url: null };
+  }
+
+  // 아무것도 안 골랐으면 칸 자체를 비운다. 넣으면 기존 사진이 지워진다.
+  return {};
+}
+
+/**
+ * 닉네임·프로필 사진 변경.
+ *
+ * 온보딩(completeProfileOnboarding)과 쓰는 컬럼은 겹치지만 규칙이 다르다.
+ *   · onboarded_at을 건드리지 않는다 (updateProfileRegion과 같다)
+ *   · "사진 없음"이 두 가지로 갈린다 — 그대로 두기 / 기본 이미지로 되돌리기
+ *
+ * 스토리지는 트랜잭션에 들어가지 않으므로 양쪽으로 보상한다.
+ *   update가 실패하면 방금 올린 파일을 지우고(createPost와 같은 형태),
+ *   성공하면 이제 아무도 안 보는 옛 파일을 지운다.
+ * 뒷정리 실패는 무시한다. 프로필은 이미 저장됐고, 파일 하나 때문에 오류를 띄울 이유가 없다.
+ */
+export async function updateProfileBasics(input: UpdateProfileBasicsInput): Promise<Profile> {
+  const previousAvatarUrl = await fetchAvatarUrl(input.userId);
+  const uploadedUrl =
+    input.avatarFile === null ? null : await uploadAvatar(input.userId, input.avatarFile);
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      nickname: input.nickname,
+      ...toAvatarPayload(input.removeAvatar, uploadedUrl),
+    })
+    .eq('id', input.userId)
+    .select(PROFILE_COLUMNS)
+    .single();
+
+  if (error !== null) {
+    await removeAvatarObject(uploadedUrl);
+    throw error;
+  }
+
+  const profile = toProfile(data as ProfileRow);
+
+  if (profile.avatarUrl !== previousAvatarUrl) {
+    await removeAvatarObject(previousAvatarUrl);
+  }
+
+  return profile;
 }
 
 /** 동네만 바꾼다. 온보딩을 이미 마친 사용자용이라 onboarded_at은 건드리지 않는다. */

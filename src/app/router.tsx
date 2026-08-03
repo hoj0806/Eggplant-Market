@@ -8,9 +8,16 @@ import ChatRoomListPage from '../features/chat/components/chatRoomListPage';
 import ChatRoomPage from '../features/chat/components/chatRoomPage';
 import NewPostPage from '../features/post/components/newPostPage';
 import PostDetailPage from '../features/post/components/postDetailPage';
+import LikedPostsPage from '../features/profile/components/likedPostsPage';
+import MyPage from '../features/profile/components/myPage';
 import OnboardingPage from '../features/profile/components/onboardingPage';
+import ProfileSettingsPage from '../features/profile/components/profileSettingsPage';
+import PurchasedPostsPage from '../features/profile/components/purchasedPostsPage';
+import RecentlyViewedPage from '../features/profile/components/recentlyViewedPage';
 import RegionSettingsPage from '../features/profile/components/regionSettingsPage';
+import RequireMember from '../features/profile/components/requireMember';
 import RequireOnboarding from '../features/profile/components/requireOnboarding';
+import SellingPostsPage from '../features/profile/components/sellingPostsPage';
 
 export const router = createBrowserRouter([
   {
@@ -66,6 +73,68 @@ export const router = createBrowserRouter([
     element: (
       <RequireOnboarding>
         <ChatRoomPage />
+      </RequireOnboarding>
+    ),
+  },
+  {
+    // 마이페이지는 내 것을 보는 자리라 게스트에게 보여줄 것이 없다.
+    // RequireOnboarding은 게스트를 통과시키므로 RequireMember를 한 겹 더 두른다.
+    path: '/my',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <MyPage />
+        </RequireMember>
+      </RequireOnboarding>
+    ),
+  },
+  {
+    path: '/my/likes',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <LikedPostsPage />
+        </RequireMember>
+      </RequireOnboarding>
+    ),
+  },
+  {
+    path: '/my/recent',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <RecentlyViewedPage />
+        </RequireMember>
+      </RequireOnboarding>
+    ),
+  },
+  {
+    path: '/my/purchases',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <PurchasedPostsPage />
+        </RequireMember>
+      </RequireOnboarding>
+    ),
+  },
+  {
+    path: '/my/sales',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <SellingPostsPage />
+        </RequireMember>
+      </RequireOnboarding>
+    ),
+  },
+  {
+    path: '/settings/profile',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <ProfileSettingsPage />
+        </RequireMember>
       </RequireOnboarding>
     ),
   },

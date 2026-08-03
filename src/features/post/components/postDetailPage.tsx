@@ -10,6 +10,7 @@ import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import StartChatButton from '../../chat/components/startChatButton';
 import LikeButton from '../../like/components/likeButton';
 import { usePostDetailQuery } from '../hooks/usePostQueries';
+import { useRecordRecentView } from '../hooks/useRecordRecentView';
 import { useViewCount } from '../hooks/useViewCount';
 import type { PostDetail } from '../types';
 
@@ -103,6 +104,7 @@ function PostDetailPage() {
 
   const postQuery = usePostDetailQuery(postId, viewerId);
   useViewCount(postQuery.data, viewerId);
+  useRecordRecentView(postQuery.data?.id, viewerId);
 
   if (postId === null || postQuery.isError) {
     return (

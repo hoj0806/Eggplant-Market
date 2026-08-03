@@ -2,8 +2,10 @@ import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/r
 import { profileQueryKey } from './useProfileQuery';
 import {
   completeProfileOnboarding,
+  updateProfileBasics,
   updateProfileRegion,
   type CompleteOnboardingInput,
+  type UpdateProfileBasicsInput,
   type UpdateProfileRegionInput,
 } from '../api/profileApi';
 import type { Profile } from '../types';
@@ -23,6 +25,29 @@ export function useCompleteOnboardingMutation(): UseMutationResult<
     mutationFn: completeProfileOnboarding,
     onSuccess: function handleOnboarded(profile): void {
       queryClient.setQueryData(profileQueryKey(profile.id), profile);
+    },
+  });
+}
+
+/**
+ * 닉네임·프로필 사진 변경.
+ *
+ * 캐시 갱신 방식은 위 둘과 같다. 다만 내 닉네임·사진은 프로필 쿼리 밖에도 복사본이 있다 —
+ * 게시물 상세의 판매자 카드(`['post', …]`)가 그렇다. 그 쿼리는 조회 시점의 프로필을 통째로
+ * 안고 있어서 profileQueryKey를 고쳐도 닿지 않는다. 다음 조회에서 맞춰지도록 무효화해 둔다.
+ */
+export function useUpdateProfileBasicsMutation(): UseMutationResult<
+  Profile,
+  Error,
+  UpdateProfileBasicsInput
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation<Profile, Error, UpdateProfileBasicsInput>({
+    mutationFn: updateProfileBasics,
+    onSuccess: function handleProfileUpdated(profile): void {
+      queryClient.setQueryData(profileQueryKey(profile.id), profile);
+      queryClient.invalidateQueries({ queryKey: ['post'] });
     },
   });
 }

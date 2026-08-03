@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import NeighborhoodPostList from './neighborhoodPostList';
-import LogoutButton from '../../auth/components/logoutButton';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import ChatEntryLink from '../../chat/components/chatEntryLink';
 import ProfileAvatar from '../../profile/components/profileAvatar';
@@ -32,21 +31,31 @@ function GuestActions() {
   );
 }
 
-/** 온보딩에서 정한 닉네임·프로필 사진과 지금 보고 있는 동네를 보여준다. */
+/**
+ * 온보딩에서 정한 닉네임·프로필 사진과 지금 보고 있는 동네를 보여준다.
+ *
+ * 사진과 이름은 마이페이지로 가는 길이다 — 로그아웃도 그리로 옮겼다.
+ * 홈 헤더에 두면 자주 쓰지 않는 버튼이 검색·글쓰기 자리를 계속 차지한다.
+ */
 function MemberGreeting(props: { profile: Profile | undefined; viewerId: string }) {
   const profile = props.profile;
 
   return (
     <div className="flex w-full items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
-        <ProfileAvatar
-          nickname={profile?.nickname ?? ''}
-          avatarUrl={profile?.avatarUrl ?? null}
-          size="md"
-        />
-        <div className="flex flex-col">
-          <p className="text-gray-600 dark:text-gray-300">
-            <span className="font-semibold">{profile?.nickname ?? '이웃'}</span>님, 반갑습니다.
+      <div className="flex min-w-0 items-center gap-3">
+        <Link to="/my" aria-label="마이페이지" className="shrink-0">
+          <ProfileAvatar
+            nickname={profile?.nickname ?? ''}
+            avatarUrl={profile?.avatarUrl ?? null}
+            size="md"
+          />
+        </Link>
+        <div className="flex min-w-0 flex-col">
+          <p className="truncate text-gray-600 dark:text-gray-300">
+            <Link to="/my" className="font-semibold transition hover:underline">
+              {profile?.nickname ?? '이웃'}
+            </Link>
+            님, 반갑습니다.
           </p>
           <Link
             to="/settings/region"
@@ -58,7 +67,6 @@ function MemberGreeting(props: { profile: Profile | undefined; viewerId: string 
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <ChatEntryLink viewerId={props.viewerId} />
-        <LogoutButton />
       </div>
     </div>
   );

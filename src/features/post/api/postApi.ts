@@ -445,3 +445,17 @@ export async function incrementViewCount(postId: number): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * 최근 본 글에 남긴다(마이페이지의 "최근 본 글").
+ *
+ * 누가 봤는지는 보내지 않는다 — RPC가 auth.uid()로 판단한다.
+ * 비로그인·본인 글은 서버가 조용히 걸러 내므로(0009) 여기서는 부르기만 한다.
+ */
+export async function recordRecentlyViewed(postId: number): Promise<void> {
+  const { error } = await supabase.rpc('record_recently_viewed', { p_post_id: postId });
+
+  if (error !== null) {
+    throw error;
+  }
+}

@@ -661,3 +661,118 @@ export function needsRegionOnly(profile: Profile): boolean {
 
 **교훈**: 마이그레이션으로 생긴 "중간 상태"의 사용자는 **가드를 통과시키는 것만으로 끝이 아니다.**
 그 다음에 보게 될 화면이 자신의 상태에 맞는지까지 봐야 한다.
+
+---
+
+## 마이페이지 (2026-08-03)
+
+### 1. 새 커서 유틸의 테스트가 로드 단계에서 죽었다 — 동네 설정 5번과 같은 함정
+
+**증상**: `myPostCursor.test.ts`만 스위트째 실패했다.
+
+```
+SyntaxError: Cannot use 'import.meta' outside a module
+  at src/shared/lib/supabaseClient.ts:5
+  at Object.<anonymous> (src/features/profile/api/myPostsApi.ts:1:1)
+  at Object.<anonymous> (src/features/profile/utils/myPostCursor.ts:1:1)
+```
+
+**원인**: 「동네 설정」 5번(`ts-jest`가 `import.meta`를 그대로 뱉는다)과 **완전히 같은 문제**다.
+`myPostCursor.ts`가 페이지 크기 상수 하나(`MY_POSTS_PAGE_SIZE`)를 쓰려고 `myPostsApi`를 import했고,
+그것이 `supabaseClient`를 끌고 들어왔다. 상수 하나 때문에 Supabase 클라이언트 전체가 로드된다.
+
+**해결**: 같은 처방이다. `postSearchCursor.test.ts`가 이미 쓰고 있던 모듈 mock을 그대로 가져왔다.
+
+```ts
+jest.mock('../api/myPostsApi', function mockMyPostsApi() {
+  // supabaseClient를 거쳐 import.meta.env에 닿으므로 실제 모듈은 로드하지 않는다.
+  return { MY_POSTS_PAGE_SIZE: 20 };
+});
+```
+
+**교훈**: 이미 한 번 밟은 함정은 **같은 구조를 다시 만들 때 다시 밟는다.** 커서 유틸이 API에서
+페이지 크기를 가져오는 구조 자체가 원인이라, 그 구조를 따라 하면 mock도 함께 따라와야 한다.
+`postSearchCursor.test.ts`에 남겨 둔 주석이 그대로 진단서가 됐다.
+
+### 2. jsdom에 `IntersectionObserver`가 없어 무한 스크롤 목록을 테스트할 수 없었다
+
+**증상**: `MyPostList`를 렌더하면 `IntersectionObserver is not defined`로 죽었다.
+
+**원인**: 「채팅」 4번(`scrollIntoView`)·「게시물 등록」 11번(`URL.createObjectURL`)과 같은 종류다. jsdom은 레이아웃을
+계산하지 않으므로 **"화면에 보인다"는 개념 자체가 없다.** `useInfiniteScroll`이 목록 끝 표식을
+관찰하는 데 이 API를 쓴다.
+
+그동안 드러나지 않았던 이유는 무한 스크롤을 쓰는 화면(`postSearchResultList`)에 컴포넌트 테스트가
+없었기 때문이다. **API가 없는 것이 아니라 그 API를 쓰는 코드를 테스트한 적이 없었다.**
+
+**해결**: `setupTests.ts`에 stub을 뒀다. 표식이 화면에 들어오는 일은 테스트에서 일어나지 않으므로
+콜백은 부르지 않는다 — 관찰을 받아 주기만 하면 된다.
+
+```ts
+class StubIntersectionObserver implements IntersectionObserver {
+  readonly root: Element | null = null;
+  readonly rootMargin: string = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  takeRecords(): IntersectionObserverEntry[] { return []; }
+}
+```
+
+**교훈**: jsdom에 없는 브라우저 API는 **하나씩 순서대로 드러난다** — 그 API를 쓰는 코드에
+테스트가 처음 붙는 순간에. 이번이 네 번째다(`TextEncoder` → `createObjectURL` → `scrollIntoView` →
+`IntersectionObserver`).
+
+### 3. keyset 페이징이 깨진 줄 알았는데 검증 쿼리가 틀렸다
+
+**증상**: 27건짜리 판매관리 목록을 커서로 넘겨 보니 1페이지와 2페이지가 **19건이나 겹쳤다.**
+
+```
+page1_rows | page2_rows | overlap
+        20 |         20 |      19
+```
+
+**원인**: RPC가 아니라 확인용 SQL이 틀렸다. 다음 커서로 삼을 "페이지의 마지막 행"을 이렇게 뽑았다.
+
+```sql
+select sort_at, id from page1 order by sort_at desc, id desc limit 1   -- ✗ 가장 새 행
+```
+
+목록이 `desc` 정렬이므로 `desc`로 다시 정렬해 하나를 집으면 **첫 행**이 나온다.
+커서가 맨 앞 행이니 2페이지는 2~21번째를 돌려줬고, 겹친 19건이 그 증거였다.
+
+**해결**: 커서로 쓸 행은 정렬의 **끝**이다.
+
+```sql
+select sort_at, id from page1 order by sort_at asc, id asc limit 1     -- ✓ 가장 오래된 행
+```
+
+고치니 `20 + 7 = 27`, 중복 0, distinct 27로 맞았다.
+
+**교훈**: 검증이 실패하면 **검증 자체를 먼저 의심한다.** 겹친 건수(19 = 20 - 1)가 "커서가 한 칸
+앞이었다"를 그대로 가리키고 있었다 — 숫자의 모양이 원인을 말해 줄 때가 있다.
+
+### 4. 온보딩의 "기본 이미지 사용" 버튼이 프로필 수정에서는 거짓말이 된다
+
+**증상**: 버그로 터진 것은 아니고 `AvatarPicker`를 재사용하려다 발견했다.
+
+온보딩에서 사진을 고른 뒤 누르는 버튼은 "기본 이미지 사용"이다. 고른 파일을 물리면 정말 기본 이미지로
+돌아가니 맞는 문구다. 그런데 **이미 사진이 있는 사용자**가 프로필 수정에서 같은 버튼을 누르면
+기본 이미지가 아니라 **원래 쓰던 사진**으로 돌아간다. 같은 버튼이 상황에 따라 다른 일을 한다.
+
+게다가 프로필 수정에는 진짜로 기본 이미지로 되돌리는 동작이 따로 필요하다. 문구를 그대로 두면
+버튼 두 개가 같은 이름을 갖게 된다.
+
+**해결**: 되돌아갈 곳을 보고 문구를 고른다. 저장된 사진이 있으면 "선택 취소", 없으면(온보딩)
+"기본 이미지 사용" 그대로다. 진짜 삭제는 "기본 이미지로"라는 별도 버튼이다.
+
+```tsx
+const resetLabel = currentAvatarUrl !== null && !isRemoved ? '선택 취소' : '기본 이미지 사용';
+```
+
+문구를 그대로 뒀더니 기존 `onboardingForm.test.tsx`가 손대지 않고 통과했다 — 온보딩의 동작이
+바뀌지 않았다는 증거이기도 하다.
+
+**교훈**: 컴포넌트를 재사용할 때 **props보다 문구가 먼저 깨진다.** "무엇을 하는 버튼인가"는 같아도
+"무엇으로 돌아가는가"가 화면마다 다르면 같은 이름을 쓸 수 없다.
