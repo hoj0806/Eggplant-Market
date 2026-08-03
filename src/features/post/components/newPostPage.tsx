@@ -5,6 +5,7 @@ import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
 import { useCreatePostMutation } from '../hooks/useCreatePostMutation';
 import { toPostErrorMessage } from '../utils/postErrorMessage';
+import { toNewImageFiles } from '../utils/validatePostInput';
 import type { PostFormValues } from '../types';
 
 /**
@@ -34,7 +35,8 @@ function NewPostPage() {
         description: values.description.trim(),
         price: Number(values.price),
         categoryId: values.categoryId,
-        imageFiles: values.imageFiles,
+        // 등록 화면의 사진은 전부 새 파일이다. 기존 사진이 섞이는 것은 수정 화면뿐이다.
+        imageFiles: toNewImageFiles(values.images),
         tradePlace: values.tradePlace,
         region,
       },
@@ -96,6 +98,7 @@ function NewPostPage() {
           </Link>
         ) : (
           <PostForm
+            mode="create"
             center={region.coords}
             isPending={createPostMutation.isPending}
             onSubmit={handleSubmit}

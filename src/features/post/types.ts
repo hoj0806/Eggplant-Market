@@ -3,19 +3,31 @@ import type { TradePlace } from '../place/types';
 /** 0001의 post_status enum과 같은 값이다. */
 export type PostStatus = 'selling' | 'reserved' | 'sold';
 
-/** 글쓰기 폼이 들고 있는 값. 가격은 입력 중이라 아직 문자열이다. */
+/**
+ * 폼이 들고 있는 사진 한 장.
+ *
+ * 등록에서는 언제나 `new`뿐이지만 수정에서는 이미 올라가 있는 사진(`existing`)과
+ * 방금 고른 사진이 한 줄에 섞인다. 둘을 배열 두 개로 나누지 않는 이유는 **순서**다 —
+ * 첫 장이 목록 썸네일이라, 기존 사진 뒤에 새 사진을 붙이는 것 말고 다른 순서를 만들 수 없게 된다.
+ */
+export type PostImageItem =
+  | { kind: 'existing'; url: string }
+  | { kind: 'new'; file: File };
+
+/** 글쓰기·수정 폼이 들고 있는 값. 가격은 입력 중이라 아직 문자열이다. */
 export type PostFormValues = {
   title: string;
   description: string;
   price: string;
   /** 소분류 id. 대분류만 골라서는 저장할 수 없다. */
   categoryId: number | null;
-  imageFiles: File[];
+  /** 화면에 보이는 순서 그대로. 첫 장이 썸네일이다. */
+  images: PostImageItem[];
   /** 선택 사항. 고르지 않으면 null. */
   tradePlace: TradePlace | null;
 };
 
-export type PostFieldName = 'title' | 'description' | 'price' | 'categoryId' | 'imageFiles';
+export type PostFieldName = 'title' | 'description' | 'price' | 'categoryId' | 'images';
 
 export type PostFieldErrors = Partial<Record<PostFieldName, string>>;
 
@@ -51,6 +63,8 @@ export type PostDetail = {
   /** 로그인하지 않았으면 언제나 false. */
   isLiked: boolean;
   createdAt: string;
+  /** 마지막 끌올 시각. 한 번도 안 했으면 등록 시각이다. 다음 끌올 가능 시각의 기준. */
+  bumpedAt: string;
   /** 거래완료로 바뀐 시각. 그 전에는 null. */
   soldAt: string | null;
   seller: PostSeller;

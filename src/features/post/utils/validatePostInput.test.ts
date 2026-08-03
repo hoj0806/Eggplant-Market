@@ -1,5 +1,6 @@
 import {
   hasPostFieldError,
+  toNewImageFiles,
   validatePostCategory,
   validatePostDescription,
   validatePostFormValues,
@@ -7,12 +8,20 @@ import {
   validatePostPrice,
   validatePostTitle,
 } from './validatePostInput';
-import type { PostFormValues } from '../types';
+import type { PostFormValues, PostImageItem } from '../types';
 
 function makeFile(overrides: { type?: string; size?: number } = {}): File {
   const file = new File(['x'], 'photo.jpg', { type: overrides.type ?? 'image/jpeg' });
   Object.defineProperty(file, 'size', { value: overrides.size ?? 1024 });
   return file;
+}
+
+function makeNewImage(overrides: { type?: string; size?: number } = {}): PostImageItem {
+  return { kind: 'new', file: makeFile(overrides) };
+}
+
+function makeExistingImage(url = 'https://example.supabase.co/photo.jpg'): PostImageItem {
+  return { kind: 'existing', url };
 }
 
 function makeValues(overrides: Partial<PostFormValues> = {}): PostFormValues {
@@ -21,7 +30,7 @@ function makeValues(overrides: Partial<PostFormValues> = {}): PostFormValues {
     description: '작년에 산 아이패드입니다. 생활기스 조금 있어요.',
     price: '450000',
     categoryId: 14,
-    imageFiles: [makeFile()],
+    images: [makeNewImage()],
     tradePlace: null,
     ...overrides,
   };
@@ -93,22 +102,58 @@ describe('validatePostImages', function imagesSuite() {
   });
 
   it('11장부터 막는다', function tooManyCase() {
-    const files = Array.from({ length: 11 }, function toFile() {
-      return makeFile();
+    const images = Array.from({ length: 11 }, function toImage() {
+      return makeNewImage();
     });
-    expect(validatePostImages(files)).toBe('사진은 최대 10장까지 올릴 수 있습니다.');
+    expect(validatePostImages(images)).toBe('사진은 최대 10장까지 올릴 수 있습니다.');
+  });
+
+  it('개수는 이미 올라간 사진까지 세어서 막는다', function mixedCountCase() {
+    const images = [
+      ...Array.from({ length: 6 }, function toExisting() {
+        return makeExistingImage();
+      }),
+      ...Array.from({ length: 5 }, function toNew() {
+        return makeNewImage();
+      }),
+    ];
+    expect(validatePostImages(images)).toBe('사진은 최대 10장까지 올릴 수 있습니다.');
   });
 
   it('지원하지 않는 형식을 막는다', function wrongTypeCase() {
-    expect(validatePostImages([makeFile({ type: 'application/pdf' })])).toBe(
+    expect(validatePostImages([makeNewImage({ type: 'application/pdf' })])).toBe(
       'JPG, PNG, WEBP, GIF 형식만 올릴 수 있습니다.',
     );
   });
 
   it('5MB를 넘는 사진을 막는다', function tooLargeCase() {
-    expect(validatePostImages([makeFile({ size: 6 * 1024 * 1024 })])).toBe(
+    expect(validatePostImages([makeNewImage({ size: 6 * 1024 * 1024 })])).toBe(
       '사진 한 장의 용량은 5MB 이하여야 합니다.',
     );
+  });
+
+  // 이미 올라간 사진은 등록할 때 같은 검사를 통과한 것들이라 파일을 다시 볼 방법이 없다.
+  it('이미 올라간 사진만 남아 있어도 통과시킨다', function existingOnlyCase() {
+    expect(validatePostImages([makeExistingImage()])).toBeUndefined();
+  });
+});
+
+describe('toNewImageFiles', function newFilesSuite() {
+  it('새로 고른 파일만 순서대로 골라낸다', function pickCase() {
+    const first = makeFile();
+    const second = makeFile();
+
+    const files = toNewImageFiles([
+      { kind: 'new', file: first },
+      makeExistingImage(),
+      { kind: 'new', file: second },
+    ]);
+
+    expect(files).toEqual([first, second]);
+  });
+
+  it('이미 올라간 사진뿐이면 올릴 것이 없다', function emptyCase() {
+    expect(toNewImageFiles([makeExistingImage()])).toEqual([]);
   });
 });
 
@@ -121,10 +166,10 @@ describe('validatePostFormValues', function formSuite() {
 
   it('여러 필드가 틀리면 모두 모아서 돌려준다', function multipleErrorsCase() {
     const errors = validatePostFormValues(
-      makeValues({ title: '', price: '무료', categoryId: null, imageFiles: [] }),
+      makeValues({ title: '', price: '무료', categoryId: null, images: [] }),
     );
 
-    expect(Object.keys(errors).sort()).toEqual(['categoryId', 'imageFiles', 'price', 'title']);
+    expect(Object.keys(errors).sort()).toEqual(['categoryId', 'images', 'price', 'title']);
   });
 
   it('거래희망장소는 비어 있어도 통과시킨다', function optionalPlaceCase() {

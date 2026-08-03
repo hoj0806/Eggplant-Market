@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
 import PostStatusBadge from '../../post/components/postStatusBadge';
+import type { ReactNode } from 'react';
 import type { PostSummary } from '../../post/types';
 
 type PostCardProps = {
@@ -15,6 +16,13 @@ type PostCardProps = {
    * "3일 전 찜"·"7월 30일 구매"처럼 목록마다 다른 뜻이 온다. 넘기지 않으면 지금까지와 같다.
    */
   timeText?: string;
+  /**
+   * 카드 아래에 붙는 버튼 자리(판매관리의 끌어올리기).
+   *
+   * 링크 안이 아니라 밖에 둔다 — a 안에 button을 넣으면 어느 쪽이 눌린 것인지 브라우저마다
+   * 다르게 굴고, 스크린리더도 링크 이름에 버튼 글자를 섞어 읽는다.
+   */
+  action?: ReactNode;
 };
 
 function PostCard(props: PostCardProps) {
@@ -65,6 +73,8 @@ function PostCard(props: PostCardProps) {
           ) : null}
         </div>
       </Link>
+
+      {props.action}
     </li>
   );
 }

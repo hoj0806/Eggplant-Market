@@ -1,4 +1,4 @@
-import type { PostFieldErrors, PostFormValues } from '../types';
+import type { PostFieldErrors, PostFormValues, PostImageItem } from '../types';
 
 const MIN_TITLE_LENGTH = 2;
 const MAX_TITLE_LENGTH = 40;
@@ -79,17 +79,35 @@ export function validatePostCategory(categoryId: number | null): string | undefi
   return undefined;
 }
 
+/** 폼에 담긴 사진 중 이번에 새로 올릴 것만 고른다. */
+export function toNewImageFiles(images: ReadonlyArray<PostImageItem>): File[] {
+  const files: File[] = [];
+
+  for (const image of images) {
+    if (image.kind === 'new') {
+      files.push(image.file);
+    }
+  }
+
+  return files;
+}
+
 /**
  * 중고거래에서 사진은 사실상 본문이라 최소 한 장을 받는다.
  * 용량·형식은 스토리지 버킷에서도 막지만, 업로드를 시작하기 전에 알려 주는 편이 낫다.
+ *
+ * 개수는 전체로 세고, 용량·형식은 이번에 올릴 파일만 본다.
+ * 이미 올라가 있는 사진은 등록할 때 같은 검사를 통과한 것들이라 다시 볼 방법도, 볼 이유도 없다.
  */
-export function validatePostImages(files: ReadonlyArray<File>): string | undefined {
-  if (files.length === 0) {
+export function validatePostImages(images: ReadonlyArray<PostImageItem>): string | undefined {
+  if (images.length === 0) {
     return '상품 사진을 최소 1장 올려 주세요.';
   }
-  if (files.length > MAX_POST_IMAGE_COUNT) {
+  if (images.length > MAX_POST_IMAGE_COUNT) {
     return `사진은 최대 ${MAX_POST_IMAGE_COUNT}장까지 올릴 수 있습니다.`;
   }
+
+  const files = toNewImageFiles(images);
 
   const hasWrongType = files.some(function isWrongType(file: File): boolean {
     return !ALLOWED_POST_IMAGE_TYPES.includes(file.type);
@@ -131,9 +149,9 @@ export function validatePostFormValues(values: PostFormValues): PostFieldErrors 
     errors.categoryId = categoryError;
   }
 
-  const imagesError = validatePostImages(values.imageFiles);
+  const imagesError = validatePostImages(values.images);
   if (imagesError !== undefined) {
-    errors.imageFiles = imagesError;
+    errors.images = imagesError;
   }
 
   return errors;
