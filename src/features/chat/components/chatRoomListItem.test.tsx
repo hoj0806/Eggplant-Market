@@ -19,11 +19,14 @@ const ROOM: ChatRoomSummary = {
   unreadCount: 0,
 };
 
-function renderItem(room: ChatRoomSummary) {
+/** 기본은 내가 구매자인 방이다(ROOM.sellerId가 'seller-1'). */
+const VIEWER_ID = 'buyer-1';
+
+function renderItem(room: ChatRoomSummary, viewerId = VIEWER_ID) {
   render(
     <MemoryRouter>
       <ul>
-        <ChatRoomListItem room={room} now={NOW} />
+        <ChatRoomListItem room={room} viewerId={viewerId} now={NOW} />
       </ul>
     </MemoryRouter>,
   );
@@ -66,5 +69,19 @@ describe('ChatRoomListItem', function chatRoomListItemSuite() {
     renderItem({ ...ROOM, unreadCount: 1200 });
 
     expect(screen.getByLabelText('안 읽은 메시지 1200개')).toHaveTextContent('999+');
+  });
+
+  it('내가 판매자면 판매 뱃지를 단다', function showsSaleBadge() {
+    renderItem(ROOM, 'seller-1');
+
+    expect(screen.getByText('판매')).toBeInTheDocument();
+    expect(screen.queryByText('구매')).not.toBeInTheDocument();
+  });
+
+  it('상대가 판매자면 구매 뱃지를 단다', function showsPurchaseBadge() {
+    renderItem(ROOM);
+
+    expect(screen.getByText('구매')).toBeInTheDocument();
+    expect(screen.queryByText('판매')).not.toBeInTheDocument();
   });
 });

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import PostStatusBadge from '../../post/components/postStatusBadge';
 import PostStatusControl from '../../post/components/postStatusControl';
+import { isSaleRoom } from '../utils/chatRoomFilter';
 import type { ChatRoomSummary } from '../types';
 
 type ChatPostHeaderProps = {
@@ -22,7 +23,8 @@ type ChatPostHeaderProps = {
  */
 function ChatPostHeader(props: ChatPostHeaderProps) {
   const room = props.room;
-  const isSeller = room.sellerId === props.viewerId;
+  // 판매자 판정은 목록의 판매/구매 구분과 같은 규칙이어야 한다. 한곳에서 가져온다.
+  const isSeller = isSaleRoom(room, props.viewerId);
 
   return (
     <section className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-950">
