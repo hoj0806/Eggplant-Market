@@ -46,7 +46,9 @@ const DETAIL: PostDetail = {
   likeCount: 2,
   isLiked: false,
   createdAt: '2026-08-02T00:00:00.000Z',
+  soldAt: null,
   seller: { id: 'seller-1', nickname: '가지이웃', avatarUrl: null, mannerTemp: 36.5 },
+  buyer: null,
 };
 
 /**
