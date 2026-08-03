@@ -2,3 +2,13 @@
 
 /* 클래스 기반 다크모드 (.dark) */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * 바탕색은 화면이 아니라 여기서 한 번만 정한다.
+ * 페이지마다 배경을 칠하면 어느 한 곳을 빠뜨렸을 때 다크모드에서 흰 판이 튀어나온다.
+ */
+@layer base {
+  body {
+    @apply bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-50;
+  }
+}
