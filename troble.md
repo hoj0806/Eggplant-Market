@@ -397,3 +397,166 @@ curl -X POST ".../rpc/search_posts" -H "Content-Type: application/json" \
 
 **교훈**: 검증 도구가 실패했다고 검증 대상이 틀린 것은 아니다.
 한글이 오가는 API를 이 환경에서 curl로 확인할 때는 처음부터 파일로 넘기는 편이 낫다.
+
+---
+
+## 채팅 · 거래 상태 (2026-08-03)
+
+### 2. 구독이 자리 잡기 전에 보낸 첫 메시지가 사라졌다
+
+**증상**: 실제 경로(anon 키 + 사용자 JWT + Realtime 웹소켓)로 확인하는데,
+판매자가 **텍스트·사진 2건 중 1건**만 받았다. 못 받은 것은 언제나 **첫 번째** 메시지였다.
+
+```
+OK   판매자 Realtime 구독      SUBSCRIBED
+FAIL 판매자가 실시간으로 받은 수   1        ← 2여야 한다
+OK   마지막 실시간 메시지 종류    image    ← 뒤엣것은 왔다
+```
+
+**원인 찾기**: RLS를 의심했지만 그렇다면 둘 다 안 와야 한다. 구독만 걸고 0·0.5·2·2초 간격으로
+네 번 보내는 최소 재현을 따로 만들었더니 **4건 모두 도착**했다.
+
+```
+insert #0 -> 6 (delay 0ms)   …   received: repro-0, repro-1, repro-2, repro-3
+count: 4 / 4
+```
+
+같은 전체 시나리오를 한 번 더 돌리자 이번에는 2/2로 통과했다.
+즉 **재현되지 않는 첫 실행만의 문제**였다 — `messages`를 publication에 갓 추가한 직후,
+복제 슬롯이 자리 잡는 사이에 지나간 INSERT를 놓친 것으로 보인다.
+
+**왜 그냥 넘기면 안 되는가**: 원인이 무엇이든 **첫 조회와 구독 사이에는 틈이 있다.**
+방을 열고(첫 조회) 구독이 붙기까지 몇 백 ms가 있고, 그 사이 도착한 메시지는
+조회 결과에도 구독 이벤트에도 안 들어간다. 상대가 새 메시지를 보내야만 화면이 되살아난다.
+
+**해결**: 구독이 자리 잡은 시점(`SUBSCRIBED`)에 메시지 쿼리를 한 번 무효화해 그 틈을 메운다.
+
+```ts
+// chat/api/chatApi.ts — 채널 상태를 훅에 알린다
+.subscribe(function handleStatus(status): void {
+  if (status === 'SUBSCRIBED') { onReady(); }
+});
+
+// chat/hooks/useChatRealtime.ts
+function handleReady(): void {
+  queryClient.invalidateQueries({ queryKey: chatMessagesQueryKey(roomId) });
+}
+```
+
+**교훈**: 실시간 구독은 "붙은 뒤부터"만 보장한다. 첫 조회와 구독을 함께 쓰는 화면은
+**구독이 붙은 시점에 한 번 다시 읽어야** 그 사이가 비지 않는다.
+재현되지 않았다고 넘겼으면 사용자에게는 "가끔 메시지가 안 온다"로 남았을 것이다.
+
+---
+
+### 3. `storage.objects`는 SQL로 지울 수 없다
+
+**증상**: 검증에 쓴 채팅 사진을 정리하려고 SQL로 지웠더니 막혔다.
+
+```
+ERROR: 42501: Direct deletion from storage tables is not allowed. Use the Storage API instead.
+HINT:  This prevents accidental data loss from orphaned objects.
+CONTEXT: PL/pgSQL function storage.protect_delete()
+```
+
+**원인**: `storage.objects` 행을 지워도 실제 파일은 남는다. Supabase가 그 불일치를 막으려고
+트리거로 직접 삭제를 거부한다.
+
+**해결**: Storage API로 지워야 한다. `chat-images`는 비공개 버킷이고 삭제 정책이
+`(storage.foldername(name))[2] = auth.uid()::text`라 **올린 본인의 세션**으로 지워야 한다.
+
+```ts
+await client.storage.from('chat-images').remove([path]);
+```
+
+**교훈**: 스토리지가 낀 검증은 정리도 스토리지 API로 해야 한다.
+정책을 "본인 폴더만"으로 좁혔다면 뒷정리 스크립트도 그 본인으로 로그인해야 한다.
+
+---
+
+### 4. jsdom에 `scrollIntoView`가 없어 채팅 목록 테스트가 통째로 죽었다
+
+**증상**: `TypeError: bottomRef.current?.scrollIntoView is not a function`.
+렌더 자체가 실패해서 그 파일의 테스트가 한꺼번에 무너졌다.
+
+**원인**: jsdom은 레이아웃을 계산하지 않아 스크롤이라는 개념이 없다.
+`URL.createObjectURL`(#11)과 같은 부류다.
+
+**해결**: `setupTests.ts`에 스텁을 깐다.
+
+```ts
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = function scrollIntoView(): void {};
+}
+```
+
+---
+
+### 5. 버튼 안의 아바타 때문에 이름이 두 번 읽혔다
+
+**증상**: 상대 선택 목록에서 `getByRole('button', { name: '호박이웃' })`이 못 찾는다.
+화면에는 분명히 그 이름의 버튼이 있다.
+
+**원인**: 버튼의 접근성 이름은 안쪽 내용을 모두 이은 것이다.
+`ProfileAvatar`가 `aria-label="호박이웃님의 기본 프로필 이미지"`를 달고 있어
+실제 이름이 `"호박이웃님의 기본 프로필 이미지 호박이웃"`이 됐다.
+
+**해결**: 테스트를 정규식으로 느슨하게 만드는 대신 버튼에 이름을 명시했다.
+스크린리더에게도 이름이 두 번 들리지 않는 편이 낫다.
+
+```tsx
+// 아바타에도 이름이 붙어 있어 그대로 두면 이름이 두 번 읽힌다.
+aria-label={partner.nickname}
+```
+
+**교훈**: `getByRole`이 못 찾으면 선택자를 느슨하게 하기 전에
+**접근성 이름이 실제로 무엇인지**를 먼저 본다. 대개 화면 쪽이 고칠 자리다.
+
+---
+
+### 6. 상대의 "안읽음"이 21초 동안 안 사라졌다 — 왕복 하나가 더 끼어 있었다
+
+**증상**: 브라우저 두 창으로 실제로 대화해 보니, 구매자가 보낸 메시지의 "안읽음"이
+판매자가 **답장을 보낼 때**서야 사라졌다. 반대 방향(판매자→구매자)은 1초 남짓이었다.
+
+DB에 시각이 그대로 남아 원인 범위를 좁힐 수 있었다.
+
+```sql
+select id, from_seller, created_at, read_at,
+       extract(epoch from (read_at - created_at)) as read_after_sec
+```
+
+```
+12  구매자→판매자  01:49:32.404 → 01:49:53.706   21.30초   ← 판매자가 답장한 시각
+13  판매자→구매자  01:49:52.835 → 01:49:54.306    1.47초
+14  판매자→구매자  01:49:53.033 → 01:49:54.306    1.27초
+```
+
+**원인**: 읽음 처리의 방아쇠가 **방 요약(`fetch_chat_rooms`의 `unread_count`)** 이었다.
+
+```
+상대 메시지 도착 → Realtime → 방 요약 무효화 → 다시 받아옴 → unreadCount>0 → 읽음 처리
+                                  └─ 이 왕복이 제때 돌지 않으면 전부 멈춘다
+```
+
+메시지 자체는 실시간으로 잘 도착했다(화면에 떴다). 멈춘 것은 **그 뒤에 붙은 왕복**이라
+증상만 보면 "실시간이 안 된다"로 보이지 않는다. 그래서 더 늦게 발견됐다.
+
+**해결**: 방 요약을 기다릴 이유가 없다. 안 읽은 수는 **이미 화면에 있는 메시지**로 셀 수 있고,
+그 목록은 Realtime이 도착하는 순간 갱신된다. 왕복을 통째로 없앴다.
+
+```ts
+// chat/hooks/useMarkRoomRead.ts
+export function countUnreadFromPartner(messages, viewerId) {
+  return messages.filter((m) => m.senderId !== viewerId && m.readAt === null).length;
+}
+
+// chatRoomPage.tsx — 방 요약이 아니라 화면에 있는 메시지로 센다
+useMarkRoomRead(roomId, viewerId, countUnreadFromPartner(messages, viewerId));
+```
+
+브라우저 검증에서 **21초 → 0.8초**가 됐다.
+
+**교훈**: 실시간 화면에서 "이미 손에 있는 데이터로 판단할 수 있는 것"을 굳이 서버에 다시 묻지 않는다.
+왕복을 하나 끼우면 그 왕복이 실패하거나 늦는 만큼 화면 전체가 늦어진다.
+그리고 이 종류는 **단위 테스트로는 절대 안 잡힌다** — 두 사용자가 동시에 있어야 드러난다.

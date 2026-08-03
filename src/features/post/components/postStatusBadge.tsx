@@ -1,13 +1,8 @@
+import { POST_STATUS_LABEL } from '../utils/postStatusTransition';
 import type { PostStatus } from '../types';
 
 type PostStatusBadgeProps = {
   status: PostStatus;
-};
-
-const LABEL_BY_STATUS: Record<PostStatus, string> = {
-  selling: '판매중',
-  reserved: '예약중',
-  sold: '거래완료',
 };
 
 const CLASS_BY_STATUS: Record<PostStatus, string> = {
@@ -16,7 +11,7 @@ const CLASS_BY_STATUS: Record<PostStatus, string> = {
   sold: 'bg-gray-500 text-white',
 };
 
-/** 상태 변경 기능은 아직 없다. 지금은 모든 글이 판매중으로 등록된다. */
+/** 상태를 바꾸는 곳은 PostStatusControl이다. 여기는 보여 주기만 한다. */
 function PostStatusBadge(props: PostStatusBadgeProps) {
   return (
     <span
@@ -24,7 +19,7 @@ function PostStatusBadge(props: PostStatusBadgeProps) {
         CLASS_BY_STATUS[props.status]
       }`}
     >
-      {LABEL_BY_STATUS[props.status]}
+      {POST_STATUS_LABEL[props.status]}
     </span>
   );
 }

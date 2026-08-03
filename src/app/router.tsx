@@ -4,6 +4,8 @@ import SignInPage from '../features/auth/components/signInPage';
 import SignUpPage from '../features/auth/components/signUpPage';
 import HomePage from '../features/browse/components/homePage';
 import SearchPage from '../features/browse/components/searchPage';
+import ChatRoomListPage from '../features/chat/components/chatRoomListPage';
+import ChatRoomPage from '../features/chat/components/chatRoomPage';
 import NewPostPage from '../features/post/components/newPostPage';
 import PostDetailPage from '../features/post/components/postDetailPage';
 import OnboardingPage from '../features/profile/components/onboardingPage';
@@ -49,6 +51,23 @@ export const router = createBrowserRouter([
     // 상세는 비로그인도 볼 수 있다. 찜만 로그인을 요구한다.
     path: '/posts/:postId',
     element: <PostDetailPage />,
+  },
+  {
+    // 채팅은 로그인이 있어야 한다. 온보딩 가드는 게스트를 통과시키므로 화면 안에서 한 번 더 막는다.
+    path: '/chats',
+    element: (
+      <RequireOnboarding>
+        <ChatRoomListPage />
+      </RequireOnboarding>
+    ),
+  },
+  {
+    path: '/chats/:roomId',
+    element: (
+      <RequireOnboarding>
+        <ChatRoomPage />
+      </RequireOnboarding>
+    ),
   },
   {
     path: '/settings/region',

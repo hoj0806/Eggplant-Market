@@ -2,10 +2,12 @@ import { Link, useParams } from 'react-router-dom';
 import PostImageCarousel from './postImageCarousel';
 import PostSellerCard from './postSellerCard';
 import PostStatusBadge from './postStatusBadge';
+import PostStatusControl from './postStatusControl';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
+import StartChatButton from '../../chat/components/startChatButton';
 import LikeButton from '../../like/components/likeButton';
 import { usePostDetailQuery } from '../hooks/usePostQueries';
 import { useViewCount } from '../hooks/useViewCount';
@@ -48,9 +50,12 @@ function TradePlaceSection(props: { post: PostDetail }) {
 /**
  * 글 아래 버튼 자리.
  *
- * 자기 글에는 찜 버튼을 그리지 않는다 — 조회수와 같은 이유다.
- * 자기 글을 찜해 찜 개수를 올릴 수 있으면 "찜 많은 순" 정렬이 의미를 잃는다.
- * 서버도 같은 규칙을 들고 있다(0006의 likes_insert 정책).
+ * 자기 글에는 찜 버튼도 채팅 버튼도 그리지 않는다 — 조회수와 같은 이유다.
+ * 자기 글을 찜해 찜 개수를 올릴 수 있으면 "찜 많은 순" 정렬이 의미를 잃고,
+ * 자기 자신과 나누는 대화는 성립하지 않는다.
+ * 서버도 같은 규칙을 들고 있다(0006의 likes_insert, 0008의 chat_rooms_insert 정책).
+ *
+ * 대신 판매자에게는 그 자리에 거래 상태를 바꾸는 버튼이 온다.
  */
 function PostActions(props: { post: PostDetail; viewerId: string | null }) {
   if (props.viewerId === null) {
@@ -61,26 +66,32 @@ function PostActions(props: { post: PostDetail; viewerId: string | null }) {
                    transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200
                    dark:hover:bg-gray-800"
       >
-        로그인하고 찜하기
+        로그인하고 채팅하기
       </Link>
     );
   }
 
   if (props.viewerId === props.post.seller.id) {
     return (
-      <span className="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-        내가 올린 상품이에요
-      </span>
+      <PostStatusControl
+        postId={props.post.id}
+        status={props.post.status}
+        buyer={props.post.buyer}
+        viewerId={props.viewerId}
+      />
     );
   }
 
   return (
-    <LikeButton
-      postId={props.post.id}
-      viewerId={props.viewerId}
-      isLiked={props.post.isLiked}
-      likeCount={props.post.likeCount}
-    />
+    <>
+      <LikeButton
+        postId={props.post.id}
+        viewerId={props.viewerId}
+        isLiked={props.post.isLiked}
+        likeCount={props.post.likeCount}
+      />
+      <StartChatButton postId={props.post.id} />
+    </>
   );
 }
 
@@ -144,7 +155,8 @@ function PostDetailPage() {
 
       <TradePlaceSection post={post} />
 
-      <div className="flex items-center gap-2 pt-2">
+      {/* 판매자에게는 상태 변경 패널이, 그 밖에는 찜·채팅 버튼이 온다. 높이가 달라 위로 맞춘다. */}
+      <div className="flex flex-wrap items-start gap-2 pt-2">
         <PostActions post={post} viewerId={viewerId} />
       </div>
     </main>

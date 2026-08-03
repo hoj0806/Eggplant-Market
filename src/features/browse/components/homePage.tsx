@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import NeighborhoodPostList from './neighborhoodPostList';
 import LogoutButton from '../../auth/components/logoutButton';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
+import ChatEntryLink from '../../chat/components/chatEntryLink';
 import ProfileAvatar from '../../profile/components/profileAvatar';
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
 import type { Profile } from '../../profile/types';
@@ -32,7 +33,7 @@ function GuestActions() {
 }
 
 /** 온보딩에서 정한 닉네임·프로필 사진과 지금 보고 있는 동네를 보여준다. */
-function MemberGreeting(props: { profile: Profile | undefined }) {
+function MemberGreeting(props: { profile: Profile | undefined; viewerId: string }) {
   const profile = props.profile;
 
   return (
@@ -55,7 +56,10 @@ function MemberGreeting(props: { profile: Profile | undefined }) {
           </Link>
         </div>
       </div>
-      <LogoutButton />
+      <div className="flex shrink-0 items-center gap-2">
+        <ChatEntryLink viewerId={props.viewerId} />
+        <LogoutButton />
+      </div>
     </div>
   );
 }
@@ -77,7 +81,9 @@ function HomePage() {
           <p className="text-gray-600 dark:text-gray-300">세션을 확인하는 중입니다…</p>
         ) : null}
 
-        {isMember ? <MemberGreeting profile={profileQuery.data} /> : null}
+        {isMember && user !== null ? (
+          <MemberGreeting profile={profileQuery.data} viewerId={user.id} />
+        ) : null}
 
         {/* 검색은 비로그인도 쓸 수 있어 로그인 여부와 상관없이 보여준다. */}
         <Link

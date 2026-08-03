@@ -19,3 +19,11 @@ if (typeof URL.createObjectURL !== 'function') {
     // 해제할 실제 자원이 없다. 호출만 받아 준다.
   };
 }
+
+// jsdom에는 scrollIntoView도 없다(레이아웃을 계산하지 않으므로 스크롤이라는 개념 자체가 없다).
+// 채팅방이 새 메시지마다 맨 아래로 내리는 데 쓴다.
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = function scrollIntoView(): void {
+    // 내릴 화면이 없다. 호출만 받아 준다.
+  };
+}

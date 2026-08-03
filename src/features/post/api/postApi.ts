@@ -13,7 +13,7 @@ const POST_SUMMARY_COLUMNS =
 // profiles는 seller_id 말고도 likes·recently_viewed를 통해 posts와 이어져 있어서
 // 관계를 FK 이름(posts_seller_id_fkey)으로 짚어 줘야 한다. 안 그러면 PGRST201로 거절당한다.
 const POST_DETAIL_COLUMNS =
-  'id, title, description, price, status, category_id, dong_name, trade_location_text, trade_location_lat, trade_location_lng, view_count, like_count, created_at, seller:profiles!posts_seller_id_fkey (id, nickname, avatar_url, manner_temp), category:categories (id, name), images:post_images (url, sort_order)';
+  'id, title, description, price, status, category_id, dong_name, trade_location_text, trade_location_lat, trade_location_lng, view_count, like_count, created_at, sold_at, seller:profiles!posts_seller_id_fkey (id, nickname, avatar_url, manner_temp), buyer:profiles!posts_buyer_id_fkey (id, nickname, avatar_url), category:categories (id, name), images:post_images (url, sort_order)';
 
 const DEFAULT_IMAGE_EXTENSION = 'jpg';
 const SAFE_EXTENSION_PATTERN = /^[a-zA-Z0-9]{1,5}$/;
@@ -49,12 +49,19 @@ type PostDetailRow = {
   view_count: number;
   like_count: number;
   created_at: string;
+  sold_at: string | null;
   seller: {
     id: string;
     nickname: string;
     avatar_url: string | null;
     manner_temp: number | string;
   };
+  /** 예약자 또는 구매자. 판매중이면 null. */
+  buyer: {
+    id: string;
+    nickname: string;
+    avatar_url: string | null;
+  } | null;
   category: { id: number; name: string } | null;
   images: Array<{ url: string; sort_order: number }>;
 };
@@ -149,7 +156,12 @@ function toPostDetail(row: PostDetailRow, isLiked: boolean): PostDetail {
     likeCount: row.like_count,
     isLiked,
     createdAt: row.created_at,
+    soldAt: row.sold_at,
     seller: toSeller(row.seller),
+    buyer:
+      row.buyer === null
+        ? null
+        : { id: row.buyer.id, nickname: row.buyer.nickname, avatarUrl: row.buyer.avatar_url },
   };
 }
 
@@ -392,6 +404,34 @@ export async function searchPosts(params: SearchPostsParams): Promise<PostSummar
 
   // RPC의 returns table이 목록 카드가 쓰는 컬럼과 같은 모양이라 변환도 그대로 재사용한다.
   return (data as PostSummaryRow[]).map(toPostSummary);
+}
+
+export type UpdatePostStatusInput = {
+  postId: number;
+  status: PostStatus;
+  /** 예약자·구매자. 고르지 않았으면 null. 판매중으로 되돌릴 때도 null이다. */
+  buyerId: string | null;
+};
+
+/**
+ * 거래 상태 변경.
+ *
+ * 서버가 세 가지를 대신 지켜 준다(0008).
+ *   · 판매자만 바꿀 수 있다 (posts_update using)
+ *   · 거래 상대는 채팅을 건 사람 중에서만 (posts_update with check)
+ *   · 거래완료는 되돌릴 수 없고, 판매중으로 오면 예약자가 지워진다 (전이 트리거)
+ *
+ * 그래서 여기서는 보내기만 한다. sold_at도 트리거가 찍으므로 payload에 넣지 않는다.
+ */
+export async function updatePostStatus(input: UpdatePostStatusInput): Promise<void> {
+  const { error } = await supabase
+    .from('posts')
+    .update({ status: input.status, buyer_id: input.buyerId })
+    .eq('id', input.postId);
+
+  if (error !== null) {
+    throw error;
+  }
 }
 
 /**

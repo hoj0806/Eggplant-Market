@@ -488,3 +488,299 @@ Jest는 201건 통과. 새로 붙인 것은 필터↔URL 변환(16), 커서 판�
 - 반경 기반 검색(`nearby_posts`, `profiles.search_radius_m`) — 여전히 법정동 코드 일치 기준이다
 - 지도에서 주변 물품 보기
 - 홈 화면의 최신 목록 — 검색창 진입점만 붙였고 목록 자체는 그대로다
+
+---
+
+## 채팅 · 거래 상태 (2026-08-03)
+
+`todo.md`의 네 줄 — 채팅 기능, 남의 게시물에서 "채팅하기", 당근마켓의 물건 상태 변화 재현,
+채팅에서 사진 전송.
+
+### 무엇을 만들었나
+
+1. **채팅** (`/chats`, `/chats/:roomId`) — 게시물당 1:1 방, 실시간 수신, 안 읽은 수, 위로 무한 스크롤.
+2. **채팅 사진** — 비공개 버킷 + 서명 URL. 한 장이 메시지 한 건이다.
+3. **거래 상태 변경** — 판매중 ⇄ 예약중 → 거래완료. 예약자·구매자를 채팅 상대 중에서 고른다.
+4. **입구** — 상세의 "채팅하기", 홈 헤더의 `💬 채팅`(안 읽은 수 뱃지).
+
+DB는 절반쯤 준비돼 있었다. `0001_init.sql`에 `chat_rooms`·`messages`·`message_type('text','image','price_offer')`·
+`post_status('selling','reserved','sold')`가 이미 있었고, `on_message_insert` 트리거가 방 요약과 알림까지 넣고 있었다.
+**없던 것은 규칙(누가 방을 팔 수 있는가·무엇을 고칠 수 있는가·상태는 어디로 갈 수 있는가)과
+배관(Realtime publication, 채팅 사진 저장소), 그리고 클라이언트 전부다.**
+
+### 당근마켓의 실제 상태 흐름 — 무엇을 재현했나
+
+| 전이 | 당근의 동작 | 이 앱 |
+| --- | --- | --- |
+| 판매중 → 예약중 | 채팅 상대 중 **예약자 선택**, 건너뛸 수 있음 | 같다 |
+| 예약중 → 판매중 | 자유롭게 되돌림 | 같다. 예약자는 서버가 지운다 |
+| → 거래완료 | "누구와 거래하셨나요?" + "거래한 이웃을 찾을 수 없어요" | 같다. 확인을 한 번 더 받는다 |
+| 거래완료 → ? | **되돌릴 수 없음** | 같다 (트리거가 막는다) |
+| 바꿀 수 있는 사람 | 판매자만 | 같다 |
+| 바꾸는 자리 | 게시물 상세 + 채팅방 | 같다. 채팅방에서는 그 방 상대가 미리 골라져 있다 |
+
+`거래완료 → 후기 작성`으로 이어지는 뒷부분은 이번 범위 밖이다. 구매자를 **지정**하는 데까지가 이번 작업이고,
+`reviews` 테이블은 그 지정된 `posts.buyer_id`를 근거로 다음에 붙는다.
+
+### 설계 결정
+
+#### 1. 채팅과 거래 상태는 한 작업이다
+
+따로 보면 별개 기능이지만, **당근에서 상태를 바꾸는 행위는 "누구와 거래했는지"를 고르는 행위**이고
+그 후보 목록이 곧 채팅 상대다. 채팅 없이 상태만 만들면 "누구와" 자리가 빈 채로 남는다.
+
+그래서 `posts.buyer_id`를 두고, 그 값이 될 수 있는 사람을 **서버가 채팅 상대로 한정**한다.
+`check` 제약으로는 못 막는다 — 상대가 누구인지는 `chat_rooms`에 있고 check는 다른 테이블을 볼 수 없다
+(0006에서 자기 글 찜을 막을 때와 같은 자리다).
+
+```sql
+-- 0008. 이 저장소의 다른 update 정책은 using만 쓴다. 여기만 with check가 붙는 이유다.
+create policy posts_update on posts for update
+  using (auth.uid() = seller_id)
+  with check (
+    auth.uid() = seller_id
+    and (buyer_id is null
+         or exists (select 1 from chat_rooms r
+                     where r.post_id = posts.id and r.buyer_id = posts.buyer_id))
+  );
+```
+
+예약자와 구매자를 컬럼 하나로 겸한다. 둘로 나누면 "예약자와 구매자가 다른" 상태를 표현할 수 있게 되는데
+그건 화면에 없는 상태다.
+
+#### 2. 전이 규칙은 트리거가, 버튼은 같은 규칙으로 잠근다
+
+```sql
+-- 0008
+if old.status = 'sold' then
+  raise exception '거래완료된 게시물의 상태는 되돌릴 수 없습니다.' using errcode = 'check_violation';
+end if;
+if new.status = 'selling' then new.buyer_id := null; end if;   -- 판매중엔 예약자가 없다
+if new.status = 'sold'    then new.sold_at  := now(); end if;
+```
+
+거래완료를 종착점으로 둔 이유는 후기·매너온도·구매내역이 전부 여기 매달리기 때문이다.
+되돌릴 수 있게 하면 "후기를 쓴 거래가 다시 판매중이 된" 상태를 뒷 기능들이 각자 처리해야 한다.
+
+화면 쪽 `postStatusTransition.ts`가 **같은 규칙**을 들고 버튼을 잠근다. 한쪽만 고치면
+눌리는데 서버가 거부하는 버튼이 생기므로, 두 파일에 서로를 가리키는 주석을 남겼다.
+
+#### 3. 채팅 사진만 비공개 버킷이다
+
+`avatars`·`post-images`는 공개다. 원래 남에게 보이라고 올리는 것이라 그래도 됐다.
+**채팅 사진은 1:1 대화 내용**이라 공개로 두면 URL을 아는 누구나 본다.
+
+그래서 `public = false`로 두고 경로 첫 칸을 `room_id`로 잡아 방 참여자만 읽게 했다.
+
+```
+{room_id}/{user_id}/{timestamp}-{index}.{ext}
+   └ 정책이 "이 방 사람인가"를 본다   └ "본인이 올린 것인가"를 본다
+```
+
+대가는 클라이언트에 붙는다. 공개 URL이 없으므로 `messages.content`에는 **저장 경로**가 들어가고,
+볼 때마다 `createSignedUrl`로 바꾼다. 서명 URL은 1시간짜리인데 캐시는 50분에 낡게 해서
+만료 직전 값을 붙들고 있다가 사진이 깨지는 일을 막는다.
+
+```ts
+// chat/hooks/useChatQueries.ts
+const CHAT_IMAGE_STALE_TIME_MS = (CHAT_IMAGE_SIGNED_URL_TTL_SECONDS - 600) * 1000;
+```
+
+사진을 여러 장 고르면 **한 장이 메시지 한 건**이다(당근과 같다). 실패 보상은 게시물 등록과 같은 방식이라,
+업로드는 됐는데 `messages` insert가 실패하면 방금 올린 파일을 지운다.
+
+#### 4. 메시지는 읽음 표시만 고칠 수 있다
+
+0001의 `messages_update`는 "방 참여자면 update 가능"이라 **상대가 보낸 메시지의 `content`까지 고칠 수 있었다.**
+대화 기록이 사후에 바뀌면 채팅을 신뢰할 수 없다.
+
+정책은 "어느 컬럼이 바뀌었는가"를 볼 수 없다(`with check`도 새 행만 본다).
+그래서 둘로 나눴다 — **정책이 "누가"를, 트리거가 "무엇을"을 막는다.**
+
+```sql
+create policy messages_update on messages for update
+  using (auth.uid() <> sender_id and exists (…방 참여자…));   -- 읽음은 받은 사람이 찍는다
+```
+
+`guard_message_update`가 `read_at`·`offer_status` 외의 변경을 거부한다.
+(`offer_status`는 다음 작업의 수락·거절을 위해 열어 뒀다.)
+
+덕분에 읽음 처리에 RPC가 필요 없다. 평범한 update 한 번이면 된다.
+
+#### 5. 안 읽은 수는 컬럼이 아니라 부분 인덱스
+
+`like_count`(0005)처럼 비정규화 컬럼을 둘 수도 있었다. 하지만 찜과 달리 **보내는 쪽과 읽는 쪽 양쪽에서**
+갱신해야 해 트리거가 둘 필요하다. 방 개수가 적으므로 세는 쪽을 골랐다.
+
+```sql
+create index messages_unread_idx on messages (room_id, sender_id) where read_at is null;
+```
+
+대신 목록에서 방마다 따로 세지 않도록 `fetch_chat_rooms()` RPC 하나가
+상대 프로필·게시물 요약·마지막 메시지·안 읽은 수를 한 번에 돌려준다.
+`search_posts`(0007)와 같이 **security invoker**다 — 호출자 권한이어야 `chat_rooms_select`가 그대로 걸린다.
+
+#### 6. "채팅하기"는 RPC다
+
+방이 없으면 만들고 있으면 들어가는 한 동작이다. 클라이언트가 `seller_id`를 보내지 않게 하려고
+서버가 `posts`에서 직접 읽는다. `unique (post_id, buyer_id)` 충돌은 오류가 아니라 "이미 있는 방"이라
+`exception when unique_violation`으로 받아 기존 방을 돌려준다 — 연타해도 같은 방이 나온다.
+
+`security definer`가 아니다. 0008의 `chat_rooms_insert` 정책을 그대로 통과해야 하고,
+함수 안의 `raise`는 **RLS에 걸리기 전에 왜 안 되는지 알려 주기 위한 것**이다(RLS는 이유를 말해 주지 않는다).
+
+#### 7. 낙관적 메시지를 만들지 않는다
+
+찜은 낙관적으로 뒤집었지만 메시지는 그러지 않는다. `insert`가 서버가 만든 행을 그대로 돌려주므로
+그것을 캐시에 얹으면 임시 id를 진짜 id로 갈아 끼우는 단계가 아예 없어진다.
+곧이어 Realtime 에코가 같은 행을 한 번 더 들고 오는데 `withInsertedMessage`가 id로 거른다.
+
+입력창은 서버 응답을 기다리지 않고 비운다. 대화는 리듬이 있어서 왕복을 기다리는 동안 글자가 남아 있으면
+두 번 보낸 것처럼 느껴진다.
+
+#### 8. 읽음 처리는 방 요약을 기다리지 않는다
+
+안 읽은 수를 **방 요약(`unread_count`)** 으로 판단하면 상대 메시지가 도착한 뒤
+"요약을 다시 받아오는" 왕복이 하나 더 낀다. 브라우저 두 창으로 실제로 대화해 보니
+그 왕복이 제때 돌지 않아 상대의 "안읽음"이 **21초** 동안 남아 있었다.
+
+안 읽은 수는 이미 화면에 있는 메시지로 셀 수 있고, 그 목록은 Realtime이 도착하는 순간 갱신된다.
+
+```ts
+// chat/hooks/useMarkRoomRead.ts
+export function countUnreadFromPartner(messages, viewerId) {
+  return messages.filter((m) => m.senderId !== viewerId && m.readAt === null).length;
+}
+```
+
+21초 → 0.8초가 됐다. 자세한 경위는 `troble.md` #6.
+
+#### 9. Realtime은 캐시만 갱신한다
+
+`docs/architecture.md`가 정한 방침 그대로다. 화면은 여전히 TanStack Query만 본다.
+
+`supabase` 를 아는 자리는 `api/chatApi.ts` 한 곳이라는 규칙이 구독에도 적용된다.
+훅이 직접 채널을 열면 화면 테스트가 `import.meta`에 닿아 로드 단계에서 죽는다(`troble.md` #5).
+그래서 `subscribeToRoomMessages`가 채널을 감싸고 훅은 콜백만 받는다.
+
+채팅 목록은 방마다 채널을 열지 않는다 — 방이 늘수록 채널이 늘고, 목록에 필요한 것은
+"무언가 바뀌었다"뿐이다. 필터 없이 `chat_rooms`를 구독해도 RLS가 내 방만 흘려보낸다.
+
+### 파일 구성
+
+```
+supabase/migrations/0008_chat_and_trade_status.sql
+  posts.buyer_id·sold_at / posts_update with check / 상태 전이 트리거
+  chat_rooms_insert 강화 / messages_update 축소 + guard 트리거
+  on_message_insert 사진 요약 / realtime publication / chat-images 비공개 버킷
+  RPC 4개: fetch_chat_rooms · fetch_chat_room · open_chat_room · fetch_post_chat_partners
+
+src/features/chat/
+├─ types.ts                    ChatRoomSummary · ChatMessage · PostChatPartner
+├─ api/chatApi.ts              supabase를 아는 유일한 자리(구독·스토리지 포함)
+├─ hooks/
+│  ├─ useChatQueries.ts        방 목록·방 하나·메시지(무한)·상대 후보·서명 URL
+│  ├─ useChatMutations.ts      방 열기·텍스트·사진
+│  ├─ useMarkRoomRead.ts       읽음 처리(곁가지라 실패를 알리지 않는다)
+│  └─ useChatRealtime.ts       구독 → 캐시 갱신
+├─ utils/
+│  ├─ chatCursor.ts            id keyset 커서 + 페이지를 화면 순서로 펴기
+│  ├─ chatMessageCache.ts      캐시에 메시지 얹기·갈아 끼우기(순수)
+│  ├─ validateChatInput.ts     빈 메시지·길이·사진 장수/용량/형식
+│  └─ chatErrorMessage.ts      0008이 남긴 한국어 문구를 그대로 살린다
+└─ components/                 목록·방·말풍선·사진·입력줄·채팅하기·상대 선택(9개)
+
+src/features/post/
+├─ utils/postStatusTransition.ts     전이 규칙(트리거와 같은 규칙) + 화면 문구
+├─ components/postStatusControl.tsx  판매자용 상태 변경 패널
+├─ hooks/useUpdatePostStatusMutation.ts
+└─ api·types                          buyer 임베드·soldAt 추가
+
+src/setupTests.ts                     jsdom에 없는 scrollIntoView 스텁 추가
+```
+
+`chat`이 `post`의 타입·뱃지를 읽고, `post`가 `chat`의 상대 선택 위젯을 읽는다.
+서로를 가리키지만 순환하지 않는다 — 채팅 화면은 `fetch_chat_room`이 주는 요약만 보고
+`postApi`를 아예 부르지 않는다. 그래서 채팅방 헤더는 "지금 예약자가 누구인지"를 모른다.
+대신 상대 선택 목록에 그 방 상대가 미리 골라져 있어 실제로 고르는 데는 지장이 없다.
+
+### 테스트
+
+Jest 273건 통과(새로 붙인 것 72건).
+
+| 파일 | 확인하는 것 |
+| --- | --- |
+| `chat/utils/chatCursor.test.ts` | 덜 찬 페이지면 종료, 최신순 페이지 뒤집기, 중복 제거 |
+| `chat/utils/chatMessageCache.test.ts` | 첫 페이지에 붙이기, id 중복 거르기, 읽음 갈아 끼우기 |
+| `chat/utils/validateChatInput.test.ts` | 공백만 있는 메시지, 길이·장수·용량·형식 경계 |
+| `chat/utils/chatErrorMessage.test.ts` | 0008의 raise 문구별 안내 |
+| `chat/hooks/useMarkRoomRead.test.ts` | 상대가 보낸 안 읽은 것만 세기 |
+| `chat/components/chatComposer.test.tsx` | 빈 입력 잠금, trim 전송, Enter/Shift+Enter, 사진 |
+| `chat/components/chatRoomListItem.test.tsx` | 안읽음 뱃지, 999+ 축약, 대화 없음 |
+| `chat/components/chatMessageList.test.tsx` | 내 메시지만 안읽음 표시, 사진은 경로로 서명 URL |
+| `chat/components/tradePartnerPicker.test.tsx` | 예약/거래완료 문구 차이, 건너뛰기(null), 상대 없음 |
+| `post/utils/postStatusTransition.test.ts` | sold에서 나가는 전이 전부 거부 |
+| `post/components/postStatusControl.test.tsx` | 현재 상태 잠금, 거래완료 확인, payload |
+
+### 실제 DB 검증 결과
+
+먼저 `authenticated` 역할과 실제 uid로 SQL에서 RLS·트리거를 훑었고,
+그다음 **앱이 실제로 타는 경로**(anon 키 + 사용자 JWT + Realtime 웹소켓 + Storage HTTP)를
+Node 스크립트로 재현해 30가지를 확인했다. 임시 사용자 3명을 `signUp`으로 만들어 썼다.
+
+```
+자기 글에 채팅        판매자 본인 open_chat_room → "내 게시물에는 채팅을 걸 수 없습니다."
+같은 사람 재호출       같은 방 id (unique 충돌 경로)
+seller_id 위조        RLS 거부(42501)
+Realtime             판매자가 텍스트·사진 2건 실시간 수신 / 제3자는 0건
+사진 업로드            방 참여자 성공, 방 밖 사람 거부
+서명 URL              참여자 발급·다운로드 200 / 제3자 발급 실패 / 공개 URL 400
+방 요약               사진 전송 후 last_message = "사진을 보냈어요"
+알림                  구매자→판매자 1건, 판매자→구매자 2건
+안 읽은 수             판매자 2 → 읽음 처리 후 0
+읽음 처리              수신자 성공 / 발신자 자기 메시지 0행
+메시지 내용 조작        "메시지는 읽음 표시만 바꿀 수 있습니다." (트리거)
+읽음 표시 실시간        UPDATE 이벤트로 도착
+채팅 안 한 사람 지정    RLS 거부
+예약중 전환            reserved + buyer_id 저장
+판매중 복귀            buyer_id가 null로 지워짐
+구매자가 상태 변경      0행 (판매자만 가능)
+거래완료               sold + sold_at 기록
+거래완료 되돌리기       "거래완료된 게시물의 상태는 되돌릴 수 없습니다." (트리거)
+채팅 상대 목록         판매자 1명 / 구매자 0명 (남의 글 문의자는 볼 수 없다)
+제3자 방 목록          0개
+```
+
+검증에 쓴 사용자·게시물·방·메시지·알림·사진은 모두 지웠다(`chat-images`도 0건).
+
+### 브라우저 검증 결과
+
+마지막으로 **실제 앱을 브라우저 두 창으로 눌러** 확인했다(Playwright, 판매자·구매자 계정 각 1개).
+21가지 모두 통과했다.
+
+```
+자기 글 상세          "채팅하기" 없음 / 상태 변경 버튼 있음
+남의 글 상세          "채팅하기" → 방 생성 → /chats/:id 이동
+채팅방                상품 요약·상태 뱃지 표시, 구매자에게는 상태 변경 없음
+판매자 채팅 목록       새 방이 상대 닉네임으로 뜸
+메시지                보낸 즉시 입력창 비움, 상대 창에 새로고침 없이 도착
+읽음                  상대가 방을 보고 있으면 "안읽음"이 0.8초 만에 사라짐
+사진                  상대 창에 도착하고 서명 URL로 실제로 그려짐(naturalWidth > 0)
+채팅 목록 요약         저장 경로가 아니라 "사진을 보냈어요"
+예약중                채팅방에서 변경 → 예약자 목록 → 선택 → 뱃지 반영
+거래완료              "되돌릴 수 없어요" 확인 → 구매자 선택 → 되돌리기 UI 사라짐
+거래 상대             "…님과 거래했어요" 표시
+반영 범위             상세·홈 목록의 뱃지가 함께 바뀜
+안 읽은 수            홈 헤더 💬 채팅에 뱃지
+```
+
+이 과정에서 위 8번(읽음 처리 21초)을 찾아 고쳤다. **단위 테스트로는 잡히지 않는 종류였다** —
+두 사용자가 동시에 있어야 드러난다.
+
+### 이번 범위 밖
+
+- 가격 제안(`price_offer`) — 컬럼과 말풍선 자리는 있으나 보내기·수락·거절이 없다
+- 거래 후기·매너온도(`feature.md` §2.3) — 구매자 **지정**까지만이다
+- 메시지 삭제, 채팅방 나가기·숨기기, 차단·신고
+- 알림 화면 — `notifications`에 행은 쌓이지만 모아 보는 곳이 없다
+- 하단 탭바 — 채팅 입구는 홈 헤더 링크다
