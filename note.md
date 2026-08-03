@@ -147,6 +147,10 @@ src/features/profile/                동네 "저장"은 profiles의 일이라 �
 `.env.local`의 `VITE_KAKAO_MAP_KEY`에 JavaScript 키를 넣는다.
 **Vite는 `.env.local`을 서버 시작 시 한 번만 읽으므로 값을 바꾸면 dev 서버를 다시 띄워야 한다.**
 
+2번의 도메인은 **포트까지 정확히 일치**해야 한다. 그래서 `vite.config.ts`에서 개발 서버 포트를
+`5173`으로 고정하고 `strictPort: true`를 켰다 — 포트가 밀리면(5174 등) 카카오가 401로 거부하는데,
+화면에는 "카카오 콘솔을 확인하라"는 엉뚱한 문구만 뜬다. 조용히 옮기는 대신 즉시 실패시킨다.
+
 ### 테스트
 
 카카오 SDK는 jsdom에서 로드할 수 없다. `regionApi.ts`가 그 의존성을 가두는 경계이므로

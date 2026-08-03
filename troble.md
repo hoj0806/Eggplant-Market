@@ -560,3 +560,104 @@ useMarkRoomRead(roomId, viewerId, countUnreadFromPartner(messages, viewerId));
 **교훈**: 실시간 화면에서 "이미 손에 있는 데이터로 판단할 수 있는 것"을 굳이 서버에 다시 묻지 않는다.
 왕복을 하나 끼우면 그 왕복이 실패하거나 늦는 만큼 화면 전체가 늦어진다.
 그리고 이 종류는 **단위 테스트로는 절대 안 잡힌다** — 두 사용자가 동시에 있어야 드러난다.
+
+---
+
+## 재접속 (2026-08-03)
+
+### 1. 잘 되던 카카오맵이 갑자기 거부됨 — 원인은 vite가 바꾼 포트였다
+
+**증상**: 동네 설정에서 "지도 서비스를 불러오지 못했습니다. 카카오 콘솔에서 카카오맵이
+활성화되어 있는지, 이 주소가 도메인으로 등록되어 있는지 확인해 주세요."가 떴다.
+콘솔 설정은 아무것도 건드린 적이 없고, 전날까지 잘 되던 기능이다.
+
+**원인 찾기**: 문구가 짚어 준 두 가지를 `Referer`를 바꿔 가며 확인했다.
+
+```bash
+for ref in "http://localhost:5173/" "http://localhost:5174/"; do
+  curl -s -o /dev/null -w "%{http_code}\n" -H "Referer: $ref" \
+    "https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KEY}&libraries=services&autoload=false"
+done
+# 5173 -> 200
+# 5174 -> 401
+```
+
+키도 카카오맵 활성화도 멀쩡했다. **주소가 달랐다.**
+5173 포트가 이미 점유돼 있어서 vite가 말없이 **5174**로 올린 상태였고,
+카카오 콘솔에 등록된 도메인은 `http://localhost:5173` 하나뿐이라 401이 났다.
+카카오의 도메인 검사는 포트까지 정확히 일치해야 한다.
+
+**해결**: 포트를 고정하고, 점유됐을 때 조용히 옮기는 대신 즉시 실패하게 했다.
+
+```ts
+// vite.config.ts
+server: { port: 5173, strictPort: true },
+```
+
+`strictPort`가 없으면 "포트가 밀렸다"는 사실이 로그 한 줄로 지나가고,
+증상은 엉뚱하게도 **카카오 콘솔 설정 문제처럼** 보인다.
+같은 주소가 Supabase Redirect URLs에도 등록돼 있어 인증까지 함께 깨질 수 있다.
+
+**교훈**: 외부 서비스에 **도메인을 등록해 쓰는 앱은 개발 서버 포트가 설정값의 일부**다.
+자동으로 옮겨 주는 편의 기능이 오히려 원인을 숨긴다. 고정하고 실패시키는 편이 낫다.
+
+---
+
+### 2. 한 번 실패한 SDK 로딩은 재시도해도 영영 끝나지 않았다
+
+**증상**: 위 문제를 쫓다가 발견했다. 로딩에 실패한 뒤 "다시 시도"를 눌러도
+오류도 성공도 없이 버튼이 계속 "불러오는 중"에 머물렀다.
+
+**원인**: 실패한 `<script>` 요소를 **재사용**했다.
+
+```ts
+const existing = document.getElementById(SCRIPT_ELEMENT_ID);
+const script = existing !== null ? existing : document.createElement('script');
+script.addEventListener('load', resolve);
+script.addEventListener('error', reject);   // ← 이미 끝난 요소라 둘 다 다시 안 온다
+```
+
+`load`/`error`는 일회성 이벤트다. 이미 발생을 마친 요소에 리스너를 새로 달면
+resolve도 reject도 되지 않아 Promise가 영원히 pending으로 남는다.
+로더는 실패 시 `loadPromise`를 null로 되돌려 재시도를 허용하는데,
+정작 그 재시도가 죽은 요소를 붙잡고 있었다.
+
+**해결**: 남아 있는 요소는 지우고 새로 붙인다. 동시 호출은 `loadPromise`가 이미 막고 있으므로
+요소 재사용으로 중복을 막을 이유가 없었다.
+
+```ts
+const stale = document.getElementById(SCRIPT_ELEMENT_ID);
+if (stale !== null) {
+  stale.remove();
+}
+const script = document.createElement('script');
+```
+
+**교훈**: 일회성 이벤트를 기다리는 캐시는 **성공 경로만 보면 멀쩡해 보인다.**
+"실패한 뒤 다시 시도"까지 따라가 봐야 드러난다.
+
+---
+
+### 3. 이미 가입한 계정에 프로필 설정 화면이 다시 떴다
+
+**증상**: 가입돼 있는 구글 계정으로 접속했는데 닉네임·사진부터 다시 정하라는 화면이 나왔다.
+
+**원인**: 동네 설정 기능 이전에 가입한 행은 `onboarded_at`과 닉네임은 차 있고 동네만 비어 있다.
+`isOnboardingComplete`가 이들을 온보딩으로 되돌리는 것 자체는 **의도한 동작**이지만
+(그래야 동네를 정할 기회가 생긴다), 온보딩 화면이 **항상 1단계부터** 시작하는 것이 문제였다.
+이미 정한 닉네임을 다시 물으니 "가입이 안 된 건가?"로 보인다.
+
+**해결**: 판정을 하나 더 두어 동네 단계만 보여준다.
+
+```ts
+// profile/utils/onboardingStatus.ts
+export function needsRegionOnly(profile: Profile): boolean {
+  return profile.onboardedAt !== null && toInitialNickname(profile).length > 0;
+}
+```
+
+닉네임이 임시값(`user_1a2b3c4d`)이면 사용자가 정한 적이 없다는 뜻이라 건너뛰지 않는다.
+건너뛰면 트리거가 넣은 임시 닉네임이 그대로 굳어 버린다.
+
+**교훈**: 마이그레이션으로 생긴 "중간 상태"의 사용자는 **가드를 통과시키는 것만으로 끝이 아니다.**
+그 다음에 보게 될 화면이 자신의 상태에 맞는지까지 봐야 한다.

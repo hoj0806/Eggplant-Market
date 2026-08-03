@@ -4,7 +4,7 @@ import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { useCompleteOnboardingMutation } from '../hooks/useProfileMutations';
 import { useMyProfileQuery } from '../hooks/useProfileQuery';
-import { isOnboardingComplete, toInitialNickname } from '../utils/onboardingStatus';
+import { isOnboardingComplete, needsRegionOnly, toInitialNickname } from '../utils/onboardingStatus';
 import { toProfileErrorMessage } from '../utils/profileErrorMessage';
 
 /**
@@ -63,6 +63,9 @@ function OnboardingPage() {
       ? toProfileErrorMessage(onboardingMutation.error)
       : null;
 
+  // 이미 가입을 마친 사용자는 동네만 비어 있다. 프로필을 처음부터 다시 정하라고 하면 안 된다.
+  const regionOnly = profile !== undefined && needsRegionOnly(profile);
+
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col justify-center gap-6 p-6">
       <header className="flex flex-col items-center gap-2 text-center">
@@ -70,10 +73,12 @@ function OnboardingPage() {
           🍆 가지마켓
         </span>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">
-          시작하기 전에 몇 가지만 알려 주세요
+          {regionOnly ? '거래할 동네를 정해 주세요' : '시작하기 전에 몇 가지만 알려 주세요'}
         </h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          이웃에게 보여질 프로필과 거래할 동네입니다.
+          {regionOnly
+            ? '동네를 정해야 이웃의 물건을 볼 수 있습니다. 나중에 언제든 바꿀 수 있어요.'
+            : '이웃에게 보여질 프로필과 거래할 동네입니다.'}
         </p>
       </header>
 
@@ -93,6 +98,7 @@ function OnboardingPage() {
 
         <OnboardingSteps
           initialNickname={profile === undefined ? '' : toInitialNickname(profile)}
+          regionOnly={regionOnly}
           isPending={onboardingMutation.isPending}
           onComplete={handleComplete}
         />

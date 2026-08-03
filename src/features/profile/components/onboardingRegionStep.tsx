@@ -6,7 +6,8 @@ type OnboardingRegionStepProps = {
   isPending: boolean;
   errorMessage?: string;
   onRegionChange(region: Region): void;
-  onBack(): void;
+  /** 없으면 '이전'을 숨긴다. 동네만 고치는 사용자에게는 돌아갈 앞 단계가 없다. */
+  onBack?: () => void;
   onFinish(): void;
 };
 
@@ -25,16 +26,18 @@ function OnboardingRegionStep(props: OnboardingRegionStepProps) {
       />
 
       <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={props.isPending}
-          onClick={props.onBack}
-          className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700
-                     transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60
-                     dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-        >
-          이전
-        </button>
+        {props.onBack === undefined ? null : (
+          <button
+            type="button"
+            disabled={props.isPending}
+            onClick={props.onBack}
+            className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700
+                       transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60
+                       dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            이전
+          </button>
+        )}
         <button
           type="button"
           disabled={props.isPending}

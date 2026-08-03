@@ -1,4 +1,4 @@
-import { isOnboardingComplete, toInitialNickname } from './onboardingStatus';
+import { isOnboardingComplete, needsRegionOnly, toInitialNickname } from './onboardingStatus';
 import type { Region } from '../../region/types';
 import type { Profile } from '../types';
 
@@ -49,5 +49,23 @@ describe('toInitialNickname', function toInitialNicknameSuite() {
 
   it('임시 닉네임과 모양만 비슷한 이름은 지우지 않는다', function lookalikeCase() {
     expect(toInitialNickname(createProfile({ nickname: 'user_hello' }))).toBe('user_hello');
+  });
+});
+
+describe('needsRegionOnly', function needsRegionOnlySuite() {
+  // 동네 설정 기능 이전에 가입한 사용자. 프로필은 이미 정했으니 동네만 물어야 한다.
+  it('가입을 마친 사용자에게는 동네 단계만 보여준다', function legacyUserCase() {
+    expect(needsRegionOnly(createProfile({ region: null }))).toBe(true);
+  });
+
+  it('갓 가입한 사용자는 프로필 단계부터 거친다', function freshUserCase() {
+    expect(needsRegionOnly(createProfile({ onboardedAt: null, region: null }))).toBe(false);
+  });
+
+  // 건너뛰면 트리거가 넣은 임시 닉네임이 그대로 굳는다.
+  it('닉네임이 임시값이면 건너뛰지 않는다', function tempNicknameCase() {
+    expect(
+      needsRegionOnly(createProfile({ nickname: 'user_1a2b3c4d', region: null })),
+    ).toBe(false);
   });
 });
