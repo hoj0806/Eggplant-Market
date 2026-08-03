@@ -788,3 +788,176 @@ Realtime             판매자가 텍스트·사진 2건 실시간 수신 / 제3
 - 메시지 삭제, 채팅방 나가기·숨기기, 차단·신고
 - 알림 화면 — `notifications`에 행은 쌓이지만 모아 보는 곳이 없다
 - 하단 탭바 — 채팅 입구는 홈 헤더 링크다
+
+---
+
+## 마이페이지 (2026-08-03)
+
+`todo.md`의 세 줄 — 마이페이지에서 내 정보 보기·관리, 네 목록(관심목록·최근 본 글·구매내역·판매관리),
+닉네임·프로필 사진 변경.
+
+### 무엇을 만들었나
+
+1. **`/my`** — 프로필 요약(사진·닉네임·매너온도·동네) + 네 목록으로 가는 메뉴 + 로그아웃.
+2. **목록 넷** — `/my/likes` · `/my/recent` · `/my/purchases` · `/my/sales`. 전부 무한 스크롤.
+3. **`/settings/profile`** — 닉네임·사진 변경. 기본 이미지로 되돌리기 포함.
+4. **최근 본 글 기록** — 게시물 상세에 들어가면 `recently_viewed`에 남는다.
+
+DB는 **거의 다 준비돼 있었다.** `likes`·`recently_viewed`(0001), `posts.buyer_id`/`sold_at`(0008)이
+이미 있었다. 다만 `recently_viewed`는 **읽는 코드도 쓰는 코드도 없었다** — 테이블만 서 있었다.
+새 테이블은 하나도 만들지 않았고, 0009는 읽는 RPC 넷 + 쓰는 RPC 하나가 전부다.
+
+### 설계 결정
+
+#### 1. 네 목록의 정렬 기준이 저마다 다른 테이블에 있다
+
+이것이 이번 작업의 핵심이다.
+
+| 목록 | 어디서 읽나 | 정렬 기준 |
+| --- | --- | --- |
+| 관심목록 | `likes` ⋈ `posts` | `likes.created_at` (찜한 순서) |
+| 최근 본 글 | `recently_viewed` ⋈ `posts` | `viewed_at` (본 순서) |
+| 구매내역 | `posts` | `sold_at` (거래완료 순서) |
+| 판매관리 | `posts` | `bumped_at` (끌올 순서) |
+
+PostgREST 임베드로는 **조인 상대의 컬럼으로 keyset 페이징**이 나오지 않는다.
+`.order('likes.created_at')` 같은 것을 쓸 수 없고, 쓸 수 있다 해도 커서 조건을 걸 자리가 없다.
+그래서 RPC 넷으로 간다 — `0007 search_posts`·`0008 fetch_chat_rooms`와 같은 판단이다.
+
+#### 2. 네 RPC가 **같은 컬럼**을 돌려준다
+
+```sql
+-- 앞 아홉 칸은 0007 search_posts와 글자 그대로 같다(= PostSummary).
+returns table (id, title, price, status, thumbnail_url, dong_name,
+               like_count, view_count, bumped_at,
+               sort_at timestamptz)   -- ← 이 하나만 목록마다 다르다
+```
+
+`sort_at` 하나로 정렬·커서·화면 문구가 전부 해결된다. 덕분에 클라이언트에는
+**행 변환 하나(`toMyPostSummary`), 커서 하나(`toNextMyPostCursor`), 훅 하나(`useMyPostsQuery`),
+목록 컴포넌트 하나(`MyPostList`)** 만 있으면 된다. `kind`만 갈아 끼운다.
+
+```ts
+const RPC_BY_KIND: Record<MyListKind, string> = {
+  likes: 'fetch_liked_posts',
+  recent: 'fetch_recently_viewed_posts',
+  purchases: 'fetch_purchased_posts',
+  sales: 'fetch_selling_posts',
+};
+```
+
+카드도 홈·검색과 같은 `PostCard`다. 같은 게시물이 화면마다 다르게 보일 이유가 없다.
+다만 **시간 자리의 뜻이 다르다** — 홈에서는 "언제 올라왔나"지만 여기서는 "내가 언제 이걸 했나"다.
+그래서 `PostCard`에 선택 prop `timeText` 하나를 열었다. 넘기지 않으면 지금까지와 같다.
+
+```ts
+// 목록마다 시각의 뜻이 다르다. 구매내역만 상대 표기가 아니라 날짜다 — 기록이기 때문이다.
+toMyListTimeText('likes',     sortAt) // "3일 전 찜"
+toMyListTimeText('recent',    sortAt) // "3일 전 봄"
+toMyListTimeText('purchases', sortAt) // "2026년 7월 30일 구매"
+toMyListTimeText('sales',     sortAt) // undefined → 카드 기본값(끌올 시각)
+```
+
+#### 3. 누구의 목록인지는 **보내지 않는다**
+
+네 RPC 모두 `auth.uid()`로 직접 판단한다. 클라이언트가 남의 id를 실어 보낼 여지를 두지 않는다.
+`security definer`도 쓰지 않는다 — 호출자 권한이어야 `recently_viewed_select`(본인 행만)가
+그대로 걸려 남의 발자취가 새지 않는다(0007·0008과 같은 이유).
+
+`likes`는 사정이 하나 더 있다. `likes_select`가 `using (true)`라 남의 찜도 읽힌다
+(게시물의 찜 개수를 세려면 그래야 한다). 그래서 이 RPC에서는 `l.user_id = auth.uid()`로 직접 좁힌다.
+
+#### 4. 최근 본 글은 조회수와 **규칙이 다르다**
+
+둘 다 "상세에 들어왔을 때" 일어나지만 같은 훅에 넣을 수 없다.
+
+| | 조회수 | 최근 본 글 |
+| --- | --- | --- |
+| 같은 글을 다시 보면 | 세지 **않는다** (탭당 1회) | `viewed_at`을 **갱신한다** |
+| 어디에 기록하나 | `sessionStorage` | `recently_viewed` 테이블 |
+| 비로그인 | 센다 | 남기지 않는다 |
+
+그래서 `useViewCount` 옆에 `useRecordRecentView`를 따로 두었다. StrictMode 이중 실행을 막는
+`ref` 패턴과 "실패해도 조용히 넘어간다"는 정책만 가져왔다.
+
+기록은 RPC(`record_recently_viewed`)로 감쌌다. 클라이언트 upsert 한 번으로도 되지만,
+**본인 글 제외**를 서버가 판단해야 하고(내 글은 판매관리에 이미 다 있다 — `increment_view_count`와 같은 자리),
+**오래된 기록 잘라 내기**(최근 100건)까지 한 번의 왕복으로 끝나기 때문이다.
+
+#### 5. 프로필 수정에서 "사진 없음"은 두 가지 뜻이다
+
+온보딩에는 없던 갈림길이다.
+
+```
+avatarFile === null && !removeAvatar  →  사진은 그대로 둔다 (payload에서 avatar_url을 뺀다)
+removeAvatar                          →  기본 이미지로 되돌린다 (avatar_url = null)
+```
+
+무조건 쓰면 사진을 안 건드리려던 사용자의 사진이 지워진다. `completeProfileOnboarding`이
+같은 이유로 payload에서 칸을 빼던 것을 그대로 이어받았다.
+
+새 사진을 고르면 되돌리기는 자동으로 풀린다. 두 뜻이 동시에 서면 무엇을 저장할지 알 수 없다.
+
+#### 6. 사진을 바꾸면 옛 파일을 지운다
+
+`uploadAvatar`는 파일명에 타임스탬프를 붙여 매번 새 파일을 만든다(CDN 캐시 때문에 그래야 한다).
+지워 주지 않으면 버킷에 아무도 안 보는 이미지가 계속 쌓인다.
+
+지우려면 URL이 아니라 경로가 필요한데 우리가 들고 있는 것은 `profiles.avatar_url`뿐이다.
+
+```ts
+// avatarStoragePath.ts — 우리 버킷 URL이 아니면 null. 남의 URL을 지우려 들지 않게 하는 안전선이다.
+toAvatarStoragePath('…/object/public/avatars/user-1/1754.png') // 'user-1/1754.png'
+toAvatarStoragePath('https://lh3.googleusercontent.com/a/abc')  // null
+```
+
+스토리지는 트랜잭션에 들어가지 않으므로 **양쪽으로 보상한다** — update가 실패하면 방금 올린 파일을 지우고
+(`createPost`와 같은 형태), 성공하면 이제 아무도 안 보는 옛 파일을 지운다.
+뒷정리 실패는 무시한다. 프로필은 이미 저장됐다.
+
+#### 7. 탭이 아니라 하위 라우트
+
+목록 넷을 `/my` 안의 탭으로 묶으면 새로고침·뒤로가기에서 어느 목록을 보던 중이었는지 잃는다.
+각자 주소를 갖게 하고 `/my`에는 링크만 둔다.
+
+가드는 두 겹이다. `RequireOnboarding`은 **게스트를 통과시킨다**(홈·검색·상세는 게스트에게도 보여야 한다).
+마이페이지는 내 것을 보는 자리라 보여줄 것이 없어 `RequireMember`를 한 겹 더 둘렀다.
+채팅 화면들은 같은 판단을 화면 안에 직접 적어 두었지만, 마이페이지는 화면이 여섯이라 컴포넌트로 뽑았다.
+
+#### 8. 판매관리에서 상태를 바꾸지 않는다
+
+상태 변경에는 거래 상대를 고르는 절차(`tradePartnerPicker`)가 따라붙는다. 목록 카드 안에 넣기에는 무겁고,
+게시물 상세에 이미 그 자리(`PostStatusControl`)가 있다. 카드를 누르면 그리로 간다.
+목록은 **보는 자리**로 두고 필터(전체/판매중/예약중/거래완료)만 얹었다.
+상태 문구와 순서는 `postStatusTransition`의 것을 그대로 쓴다 — 두 군데 적어 두면 갈라진다.
+
+### 홈에서 바뀐 것
+
+- 아바타·닉네임이 `/my`로 가는 링크가 됐다
+- **로그아웃을 홈 헤더에서 마이페이지로 옮겼다.** 자주 쓰지 않는 버튼이 검색·글쓰기 자리를 계속 차지했다
+
+### 검증
+
+`npx jest` 46 스위트 · 317건 통과(신규 6 스위트 · 22건). `tsc --noEmit`·`eslint` 무경고, `vite build` 성공.
+
+RPC는 **실제 DB에 실제 사용자로 가장해** 확인했다(`set local role authenticated` + `request.jwt.claims`).
+
+```
+판매관리 27건        1페이지 20 + 2페이지 7 = 27, 중복 0        ← keyset 커서
+상태 필터           판매중 22 / 예약중 2 / 거래완료 3 = 27
+관심목록            찜한 사람에게만 1건, 다른 계정에는 0건
+구매내역            buyer_id + sold=나 인 글만 1건
+최근 본 글          본인 글 → 0건 / 남의 글 → 1건, 두 번 봐도 1건(viewed_at 갱신)
+남의 발자취          다른 계정에서 조회 시 0건                  ← recently_viewed_select
+p_limit 방어        9999를 보내도 서버가 50으로 막는다
+```
+
+확인에 쓴 찜·거래 상대 데이터는 모두 되돌렸다(`leftover_likes` 0, `leftover_buyers` 0).
+
+### 이번 범위 밖
+
+- 게시물 **수정·삭제** — 판매관리는 목록과 필터까지다
+- 매너온도는 **보여주기만** 한다. 올리고 내리는 것은 `reviews`(§2.3)가 붙어야 한다
+- 회원탈퇴·비밀번호 변경(`feature.md` §1) — 마이페이지에 자리는 있으나 이번 `todo.md`에 없다
+- 다른 사람의 프로필 화면 — `/my`는 내 것만 본다
+- 관심목록에서 바로 찜 풀기 — 카드를 눌러 상세에서 한다
