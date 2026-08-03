@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import NeighborhoodPostList from './neighborhoodPostList';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
-import ChatEntryLink from '../../chat/components/chatEntryLink';
 import ProfileAvatar from '../../profile/components/profileAvatar';
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
 import type { Profile } from '../../profile/types';
@@ -36,12 +35,15 @@ function GuestActions() {
  *
  * 사진과 이름은 마이페이지로 가는 길이다 — 로그아웃도 그리로 옮겼다.
  * 홈 헤더에 두면 자주 쓰지 않는 버튼이 검색·글쓰기 자리를 계속 차지한다.
+ *
+ * 채팅 입구는 탭바로 옮겼다. 안 읽은 배지도 그리로 따라갔다 —
+ * 같은 숫자를 두 곳에 그리면 한쪽만 늦게 갱신될 때 어느 쪽이 맞는지 알 수 없다.
  */
-function MemberGreeting(props: { profile: Profile | undefined; viewerId: string }) {
+function MemberGreeting(props: { profile: Profile | undefined }) {
   const profile = props.profile;
 
   return (
-    <div className="flex w-full items-center justify-between gap-3">
+    <div className="flex w-full items-center gap-3">
       <div className="flex min-w-0 items-center gap-3">
         <Link to="/my" aria-label="마이페이지" className="shrink-0">
           <ProfileAvatar
@@ -65,9 +67,6 @@ function MemberGreeting(props: { profile: Profile | undefined; viewerId: string 
           </Link>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <ChatEntryLink viewerId={props.viewerId} />
-      </div>
     </div>
   );
 }
@@ -81,7 +80,7 @@ function HomePage() {
   const isMember = status === 'authenticated';
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
+    <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
       <header className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">🍆 가지마켓</h1>
 
@@ -89,9 +88,7 @@ function HomePage() {
           <p className="text-gray-600 dark:text-gray-300">세션을 확인하는 중입니다…</p>
         ) : null}
 
-        {isMember && user !== null ? (
-          <MemberGreeting profile={profileQuery.data} viewerId={user.id} />
-        ) : null}
+        {isMember && user !== null ? <MemberGreeting profile={profileQuery.data} /> : null}
 
         {/* 검색은 비로그인도 쓸 수 있어 로그인 여부와 상관없이 보여준다. */}
         <Link
@@ -106,17 +103,10 @@ function HomePage() {
 
       {isMember ? (
         <>
-          <section className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-              우리 동네 중고거래
-            </h2>
-            <Link
-              to="/posts/new"
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
-            >
-              + 글쓰기
-            </Link>
-          </section>
+          {/* 글쓰기 버튼은 탭바로 옮겼다. 어느 화면에서든 같은 자리에 있는 편이 찾기 쉽다. */}
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
+            우리 동네 중고거래
+          </h2>
 
           <NeighborhoodPostList regionCode={profileQuery.data?.region?.code ?? null} />
         </>

@@ -776,3 +776,61 @@ const resetLabel = currentAvatarUrl !== null && !isRemoved ? '선택 취소' : '
 
 **교훈**: 컴포넌트를 재사용할 때 **props보다 문구가 먼저 깨진다.** "무엇을 하는 버튼인가"는 같아도
 "무엇으로 돌아가는가"가 화면마다 다르면 같은 이름을 쓸 수 없다.
+
+---
+
+## 앱 껍데기 — 하단 탭바 · 다크모드 (2026-08-04)
+
+### 1. `.dark`를 켰더니 흰 바탕에 흰 글씨가 될 뻔했다
+
+**증상**: 다크모드 스위치를 붙이기 직전에 발견했다. `<html>`에 `.dark`를 붙이면 65개 파일의
+`dark:` 클래스가 한꺼번에 살아나는데, **바탕색을 칠하는 곳이 아무 데도 없었다.**
+
+**원인**: 화면들은 카드·버튼에만 배경을 준다(`dark:bg-gray-950`). 페이지의 바탕은 지금까지
+브라우저 기본값(흰색)이었고, 라이트모드에서는 그게 맞아 보여서 아무도 몰랐다.
+`.dark`를 켜는 순간 **바탕은 흰색 그대로인데 글자만 `dark:text-gray-50`(거의 흰색)** 이 된다.
+
+**해결**: 바탕은 화면이 아니라 `index.css`에서 한 번만 정한다.
+
+```css
+@layer base {
+  body {
+    @apply bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-50;
+  }
+}
+```
+
+페이지마다 배경을 칠하는 방법도 있지만, 그러면 어느 한 곳을 빠뜨렸을 때 다크모드에서 흰 판이 튀어나온다.
+빌드된 CSS에서 두 줄로 나오는 것까지 확인했다(`body{…}` / `body:where(.dark,.dark *){…}`).
+
+**교훈**: `dark:` 클래스를 아무리 성실히 붙여도 **아무 클래스도 없는 자리(바탕)** 는 커버되지 않는다.
+다크모드는 "색을 뒤집는 것"이 아니라 "두 벌을 다 칠하는 것"이다.
+
+### 2. 테스트는 통과하는데 스크린리더에는 안 들리는 배지
+
+**증상**: 탭바의 안 읽은 배지를 아이콘 안에 넣었다.
+
+```tsx
+<span aria-hidden="true">
+  {tab.icon}
+  <UnreadBadge count={unreadCount} />   {/* aria-label="안 읽은 메시지 3개" */}
+</span>
+```
+
+`getByLabelText('안 읽은 메시지 3개')`가 **통과한다.** 그런데 실제로는 들리지 않는다.
+
+**원인**: `aria-hidden`은 **하위 전체**를 접근성 트리에서 지운다. 배지에 붙인 `aria-label`도 함께 묻힌다.
+반면 Testing Library의 `getByLabelText`는 접근성 트리가 아니라 **DOM의 속성**을 본다
+(`getByRole`과 달리 `aria-hidden`을 걸러내지 않는다). 그래서 초록불이 거짓말을 한다.
+
+**해결**: 숨길 것은 그림뿐이다. 배지를 `aria-hidden` 밖으로 꺼낸다.
+
+```tsx
+<span className="relative">
+  <span aria-hidden="true">{tab.icon}</span>
+  <UnreadBadge count={unreadCount} />
+</span>
+```
+
+**교훈**: `aria-hidden`은 그 태그가 아니라 **그 아래 전부**에 걸린다. 그리고 접근성은
+`getByLabelText`로 검증되지 않는다 — 그 쿼리는 DOM을 볼 뿐이다.

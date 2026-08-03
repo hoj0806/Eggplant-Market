@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom';
 import MyPageMenu from './myPageMenu';
 import MyProfileCard from './myProfileCard';
 import PageSpinner from '../../../shared/ui/pageSpinner';
+import ThemeToggle from '../../../shared/ui/themeToggle';
 import LogoutButton from '../../auth/components/logoutButton';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { useMyProfileQuery } from '../hooks/useProfileQuery';
@@ -23,21 +23,20 @@ function MyPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-6 p-6">
-      <header className="flex items-center justify-between">
+    <main className="mx-auto flex max-w-screen-sm flex-col gap-6 p-6">
+      <header>
         <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">나의 가지마켓</h1>
-        <Link
-          to="/"
-          className="text-sm text-gray-500 transition hover:text-gray-700
-                     dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          홈으로 →
-        </Link>
       </header>
 
       <MyProfileCard profile={profileQuery.data} />
 
       <MyPageMenu />
+
+      {/* 테마는 계정이 아니라 이 기기의 설정이라 목록(MyPageMenu)이 아니라 여기 직접 놓는다. */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">화면 테마</h2>
+        <ThemeToggle />
+      </section>
 
       <div className="pt-2">
         <LogoutButton />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import PostFilterBar from './postFilterBar';
 import PostFilterPanel from './postFilterPanel';
 import PostSearchField from './postSearchField';
@@ -69,16 +69,10 @@ function SearchPage() {
   const isNarrowed = searchParams.toString() !== '';
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
+    <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
       <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
-          <Link
-            to="/"
-            className="text-sm font-semibold text-gray-500 transition hover:text-gray-700
-                       dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            ‹ 홈
-          </Link>
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">검색</h1>
           <span className="truncate text-sm text-gray-500 dark:text-gray-400">
             {activeRegion.region?.fullName ?? '동네 미설정'}
           </span>

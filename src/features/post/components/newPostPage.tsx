@@ -62,15 +62,8 @@ function NewPostPage() {
     createPostMutation.error !== null ? toPostErrorMessage(createPostMutation.error) : null;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-6 p-6">
+    <main className="mx-auto flex max-w-screen-sm flex-col gap-6 p-6">
       <header className="flex flex-col gap-2">
-        <Link
-          to="/"
-          className="text-sm text-gray-500 transition hover:text-gray-700
-                     dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          ← 홈으로
-        </Link>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">중고거래 글쓰기</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {region === null

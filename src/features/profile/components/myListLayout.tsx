@@ -9,7 +9,7 @@ type MyListLayoutProps = {
 /** 마이페이지 하위 목록 네 화면이 함께 쓰는 틀. 제목과 돌아가는 길만 다르지 않다. */
 function MyListLayout(props: MyListLayoutProps) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
+    <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
       <header className="flex flex-col gap-2">
         <Link
           to="/my"

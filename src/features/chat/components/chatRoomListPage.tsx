@@ -1,4 +1,4 @@
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import ChatRoomFilterTabs from './chatRoomFilterTabs';
 import ChatRoomListItem from './chatRoomListItem';
 import PageSpinner from '../../../shared/ui/pageSpinner';
@@ -70,15 +70,9 @@ function ChatRoomListPage() {
   const isReady = !roomsQuery.isLoading && !roomsQuery.isError;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
-      <header className="flex items-center justify-between">
+    <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
+      <header>
         <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">채팅</h1>
-        <Link
-          to="/"
-          className="text-sm text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          홈으로 →
-        </Link>
       </header>
 
       <ChatRoomFilterTabs
