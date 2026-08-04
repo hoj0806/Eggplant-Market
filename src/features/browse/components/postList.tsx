@@ -8,6 +8,13 @@ type PostListProps = {
   isError: boolean;
   /** 검색어나 필터가 하나라도 걸려 있는가. 결과가 0건일 때 안내 문구가 달라진다. */
   isNarrowed: boolean;
+  /**
+   * 0건일 때 대신 적을 문구.
+   *
+   * 홈·검색은 "우리 동네"를 전제로 말하지만 남의 프로필에서는 그 말이 맞지 않는다.
+   * 넘기지 않으면 지금까지와 같다.
+   */
+  emptyMessage?: string;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore(): void;
@@ -49,9 +56,10 @@ function PostList(props: PostListProps) {
   if (props.posts.length === 0) {
     return (
       <p className={MESSAGE_CLASS}>
-        {props.isNarrowed
-          ? '조건에 맞는 물건이 없어요. 검색어나 필터를 바꿔 보세요.'
-          : '아직 우리 동네에 올라온 물건이 없어요. 첫 글을 올려 보세요.'}
+        {props.emptyMessage ??
+          (props.isNarrowed
+            ? '조건에 맞는 물건이 없어요. 검색어나 필터를 바꿔 보세요.'
+            : '아직 우리 동네에 올라온 물건이 없어요. 첫 글을 올려 보세요.')}
       </p>
     );
   }

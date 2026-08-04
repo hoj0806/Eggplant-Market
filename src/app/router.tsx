@@ -20,6 +20,8 @@ import RegionSettingsPage from '../features/profile/components/regionSettingsPag
 import RequireMember from '../features/profile/components/requireMember';
 import RequireOnboarding from '../features/profile/components/requireOnboarding';
 import SellingPostsPage from '../features/profile/components/sellingPostsPage';
+import UserProfilePage from '../features/profile/components/userProfilePage';
+import ReviewWritePage from '../features/review/components/reviewWritePage';
 
 export const router = createBrowserRouter([
   {
@@ -138,6 +140,22 @@ export const router = createBrowserRouter([
     element: (
       <RequireOnboarding>
         <PostEditPage />
+      </RequireOnboarding>
+    ),
+  },
+  {
+    // 남의 프로필. 게시물 상세와 같은 조건이다 — 물건은 보이는데 파는 사람은 못 보면 이상하다.
+    path: '/users/:userId',
+    element: <UserProfilePage />,
+  },
+  {
+    // 후기는 끝난 거래의 당사자만 쓴다. 자격 판단은 화면 안에서(그리고 서버가 다시) 한다.
+    path: '/posts/:postId/review',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <ReviewWritePage />
+        </RequireMember>
       </RequireOnboarding>
     ),
   },

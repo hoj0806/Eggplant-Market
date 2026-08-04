@@ -13,6 +13,27 @@ export type Profile = {
   onboardedAt: string | null;
 };
 
+/**
+ * 남의 프로필. 내 프로필(`Profile`)과 담는 것이 다르다.
+ *
+ * 좌표(`Region.coords`)가 없다 — 남의 집을 찍는 값이라 서버가 아예 내려보내지 않는다(0012).
+ * 온보딩 여부도 없다. 그건 "내가 다음에 어디로 가야 하나"를 정하는 값이지 남을 볼 때 쓰는 값이 아니다.
+ * 대신 판매중·거래완료·받은 후기 개수가 붙는다 — 이 사람을 믿을지 판단하는 재료다.
+ */
+export type UserProfile = {
+  id: string;
+  nickname: string;
+  avatarUrl: string | null;
+  mannerTemp: number;
+  /** 동네를 아직 정하지 않았으면 null. */
+  dongName: string | null;
+  /** 가입 시각. "가지마켓 이웃이 된 지 3개월" 같은 문구의 재료다. */
+  createdAt: string;
+  sellingCount: number;
+  soldCount: number;
+  reviewCount: number;
+};
+
 /** 온보딩 1단계(프로필) 값. */
 export type ProfileOnboardingValues = {
   nickname: string;
