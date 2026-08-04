@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import PostImageCarousel from './postImageCarousel';
+import PostOwnerMenu from './postOwnerMenu';
 import PostSellerCard from './postSellerCard';
 import PostStatusBadge from './postStatusBadge';
 import PostStatusControl from './postStatusControl';
@@ -12,18 +13,8 @@ import LikeButton from '../../like/components/likeButton';
 import { usePostDetailQuery } from '../hooks/usePostQueries';
 import { useRecordRecentView } from '../hooks/useRecordRecentView';
 import { useViewCount } from '../hooks/useViewCount';
+import { toPostId } from '../utils/postId';
 import type { PostDetail } from '../types';
-
-/** 주소의 :postId는 문자열이다. 숫자가 아니면 없는 글로 본다. */
-function toPostId(raw: string | undefined): number | null {
-  if (raw === undefined) {
-    return null;
-  }
-
-  const parsed = Number(raw);
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
 
 function PostMeta(props: { post: PostDetail }) {
   return (
@@ -128,12 +119,19 @@ function PostDetailPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
-      <Link
-        to="/"
-        className="text-sm text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-      >
-        ← 홈으로
-      </Link>
+      {/* 판매자에게만 ⋯ 메뉴가 붙는다. 그 밖에는 지금까지와 똑같이 뒤로 가는 링크뿐이다. */}
+      <div className="flex items-center justify-between">
+        <Link
+          to="/"
+          className="text-sm text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+        >
+          ← 홈으로
+        </Link>
+
+        {viewerId !== null && viewerId === post.seller.id ? (
+          <PostOwnerMenu post={post} viewerId={viewerId} />
+        ) : null}
+      </div>
 
       <PostImageCarousel images={post.images} title={post.title} />
 

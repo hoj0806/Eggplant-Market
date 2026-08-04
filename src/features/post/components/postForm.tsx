@@ -9,11 +9,17 @@ import TradePlacePicker from '../../place/components/tradePlacePicker';
 import { hasPostFieldError, validatePostFormValues } from '../utils/validatePostInput';
 import type { TradePlace } from '../../place/types';
 import type { RegionCoords } from '../../region/types';
-import type { PostFieldErrors, PostFormValues } from '../types';
+import type { PostFieldErrors, PostFormValues, PostImageItem } from '../types';
+
+/** 등록과 수정은 같은 폼이다. 다른 것은 버튼 문구와 시작값뿐이다. */
+export type PostFormMode = 'create' | 'edit';
 
 type PostFormProps = {
+  mode: PostFormMode;
   /** 거래희망장소 검색의 중심. 사용자 동네 좌표를 넘긴다. */
   center: RegionCoords | null;
+  /** 수정 화면이 넘기는 시작값. 등록에서는 넘기지 않는다. */
+  initialValues?: PostFormValues;
   isPending: boolean;
   onSubmit(values: PostFormValues): void;
 };
@@ -23,12 +29,19 @@ const EMPTY_VALUES: PostFormValues = {
   description: '',
   price: '',
   categoryId: null,
-  imageFiles: [],
+  images: [],
   tradePlace: null,
 };
 
+const SUBMIT_LABEL: Record<PostFormMode, { idle: string; pending: string }> = {
+  create: { idle: '등록하기', pending: '등록 중…' },
+  edit: { idle: '수정하기', pending: '수정 중…' },
+};
+
 function PostForm(props: PostFormProps) {
-  const [values, setValues] = useState<PostFormValues>(EMPTY_VALUES);
+  // 시작값은 첫 렌더에서 한 번만 읽는다. 저장 중 상세 캐시가 갱신돼 새 객체가 내려와도
+  // 사용자가 입력하던 내용을 되돌려서는 안 된다.
+  const [values, setValues] = useState<PostFormValues>(props.initialValues ?? EMPTY_VALUES);
   const [errors, setErrors] = useState<PostFieldErrors>({});
 
   /** 고친 필드의 오류 문구는 즉시 지운다. 고쳤는데도 빨간 글씨가 남아 있으면 혼란스럽다. */
@@ -65,8 +78,8 @@ function PostForm(props: PostFormProps) {
     updateValue('categoryId', categoryId);
   }
 
-  function handleImagesChange(imageFiles: File[]): void {
-    updateValue('imageFiles', imageFiles);
+  function handleImagesChange(images: PostImageItem[]): void {
+    updateValue('images', images);
   }
 
   function handleTradePlaceChange(tradePlace: TradePlace | null): void {
@@ -101,10 +114,10 @@ function PostForm(props: PostFormProps) {
   return (
     <form className="flex flex-col gap-5" onSubmit={handleSubmit} onKeyDown={handleKeyDown}>
       <PostImagePicker
-        files={values.imageFiles}
-        errorMessage={errors.imageFiles}
+        images={values.images}
+        errorMessage={errors.images}
         disabled={props.isPending}
-        onFilesChange={handleImagesChange}
+        onImagesChange={handleImagesChange}
       />
 
       <TextField
@@ -151,7 +164,11 @@ function PostForm(props: PostFormProps) {
         onChange={handleTradePlaceChange}
       />
 
-      <SubmitButton label="등록하기" pendingLabel="등록 중…" isPending={props.isPending} />
+      <SubmitButton
+        label={SUBMIT_LABEL[props.mode].idle}
+        pendingLabel={SUBMIT_LABEL[props.mode].pending}
+        isPending={props.isPending}
+      />
     </form>
   );
 }

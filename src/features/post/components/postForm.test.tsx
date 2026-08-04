@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PostForm from './postForm';
 import type { CategoryTree } from '../../category/types';
+import type { PostFormValues } from '../types';
 
 // 두 api 모듈 모두 import.meta(supabaseClient·kakaoMapLoader)에 닿는다.
 // ts-jest가 CommonJS로 옮기면서 import.meta를 그대로 뱉으므로 실제 모듈을 로드하면 죽는다.
@@ -45,7 +46,32 @@ function renderForm(onSubmit: jest.Mock, isPending = false) {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <PostForm center={CENTER} isPending={isPending} onSubmit={onSubmit} />
+      <PostForm mode="create" center={CENTER} isPending={isPending} onSubmit={onSubmit} />
+    </QueryClientProvider>,
+  );
+}
+
+const EDIT_VALUES: PostFormValues = {
+  title: '맥북 에어 M2',
+  description: '2년 정도 사용했고 배터리 성능 90%입니다.',
+  price: '850000',
+  categoryId: 14,
+  images: [{ kind: 'existing', url: 'https://example.supabase.co/a.jpg' }],
+  tradePlace: null,
+};
+
+function renderEditForm(onSubmit: jest.Mock) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <PostForm
+        mode="edit"
+        center={CENTER}
+        initialValues={EDIT_VALUES}
+        isPending={false}
+        onSubmit={onSubmit}
+      />
     </QueryClientProvider>,
   );
 }
@@ -101,7 +127,8 @@ describe('PostForm', function postFormSuite() {
     expect(values.title).toBe('맥북 에어 M2');
     expect(values.price).toBe('850000');
     expect(values.categoryId).toBe(14);
-    expect(values.imageFiles).toHaveLength(1);
+    expect(values.images).toHaveLength(1);
+    expect(values.images[0].kind).toBe('new');
     // 거래희망장소는 선택 사항이라 고르지 않아도 제출된다.
     expect(values.tradePlace).toBeNull();
   });
@@ -135,5 +162,47 @@ describe('PostForm', function postFormSuite() {
     renderForm(jest.fn(), true);
 
     expect(screen.getByRole('button', { name: '등록 중…' })).toBeDisabled();
+  });
+
+  describe('수정 모드', function editSuite() {
+    it('시작값을 채운 채로 열리고 버튼 문구가 바뀐다', async function initialValuesCase() {
+      renderEditForm(jest.fn());
+
+      expect(screen.getByLabelText('제목')).toHaveValue('맥북 에어 M2');
+      expect(screen.getByLabelText('가격')).toHaveValue('850000');
+      expect(screen.getByRole('button', { name: '수정하기' })).toBeInTheDocument();
+      // 이미 올라가 있던 사진은 파일 없이도 미리보기 자리를 차지한다.
+      expect(screen.getByAltText('상품 사진 1')).toBeInTheDocument();
+    });
+
+    it('사진을 다 지우면 제출되지 않는다', async function removeAllImagesCase() {
+      const handleSubmit = jest.fn();
+      renderEditForm(handleSubmit);
+
+      await userEvent.click(screen.getByRole('button', { name: '상품 사진 1 삭제' }));
+      await userEvent.click(screen.getByRole('button', { name: '수정하기' }));
+
+      expect(await screen.findByText('상품 사진을 최소 1장 올려 주세요.')).toBeInTheDocument();
+      expect(handleSubmit).not.toHaveBeenCalled();
+    });
+
+    it('기존 사진과 새로 고른 사진을 순서대로 함께 넘긴다', async function mixedImagesCase() {
+      const handleSubmit = jest.fn();
+      renderEditForm(handleSubmit);
+
+      await userEvent.upload(screen.getByLabelText('상품 사진 추가'), makeImageFile('new.jpg'));
+      await userEvent.click(screen.getByRole('button', { name: '수정하기' }));
+
+      await waitFor(function assertSubmitted() {
+        expect(handleSubmit).toHaveBeenCalledTimes(1);
+      });
+      const values = handleSubmit.mock.calls[0][0];
+      expect(values.images).toHaveLength(2);
+      expect(values.images[0]).toEqual({
+        kind: 'existing',
+        url: 'https://example.supabase.co/a.jpg',
+      });
+      expect(values.images[1].kind).toBe('new');
+    });
   });
 });

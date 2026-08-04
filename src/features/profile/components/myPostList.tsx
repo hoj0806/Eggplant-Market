@@ -1,6 +1,7 @@
 import PostCard from '../../browse/components/postCard';
 import { useInfiniteScroll } from '../../../shared/hooks/useInfiniteScroll';
 import { toMyListTimeText } from '../utils/myListTimeText';
+import type { ReactNode } from 'react';
 import type { MyPostsQueryResult } from '../hooks/useMyPostsQuery';
 import type { MyListKind, MyPostSummary } from '../types';
 
@@ -9,6 +10,13 @@ type MyPostListProps = {
   query: MyPostsQueryResult;
   /** 목록이 비었을 때 보여줄 문구. 목록마다 할 말이 다르다. */
   emptyMessage: string;
+  /**
+   * 카드마다 아래에 붙일 것. 지금은 판매관리의 끌어올리기 버튼 하나뿐이다.
+   *
+   * 어떤 버튼인지는 목록이 정한다 — 여기는 "네 목록이 함께 쓰는 몸통"이라
+   * 특정 목록만의 사정을 알고 있으면 그만큼 다음 목록이 붙기 어려워진다.
+   */
+  renderAction?(post: MyPostSummary, now: Date): ReactNode;
 };
 
 const MESSAGE_CLASS = 'py-8 text-center text-sm text-gray-500 dark:text-gray-400';
@@ -62,6 +70,7 @@ function MyPostList(props: MyPostListProps) {
               post={post}
               now={now}
               timeText={toMyListTimeText(props.kind, post.sortAt, now)}
+              action={props.renderAction?.(post, now)}
             />
           );
         })}

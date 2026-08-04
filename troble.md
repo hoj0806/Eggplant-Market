@@ -834,3 +834,73 @@ const resetLabel = currentAvatarUrl !== null && !isRemoved ? '선택 취소' : '
 
 **교훈**: `aria-hidden`은 그 태그가 아니라 **그 아래 전부**에 걸린다. 그리고 접근성은
 `getByLabelText`로 검증되지 않는다 — 그 쿼리는 DOM을 볼 뿐이다.
+
+## 게시물 수정 · 삭제 · 끌어올리기 (2026-08-04)
+
+### 1. 서버가 정성껏 써 보낸 거절 사유가 "권한이 없습니다"로 뭉개졌다
+
+**증상**: `bump_post`가 남의 글 끌올을 거절하면서 `42501`과 함께 문구를 돌려주는데,
+화면에는 엉뚱한 말이 떴다.
+
+```
+서버: { code: '42501', message: '내가 올린 글만 끌어올릴 수 있습니다.' }
+화면: 권한이 없습니다. 다시 로그인해 주세요.
+```
+
+로그인은 멀쩡한데 다시 로그인하라고 한다. 쿨다운 거절(`23514`)은 아예 기본 문구
+("게시물을 저장하지 못했습니다")로 떨어져 **왜 안 되는지 알 길이 없었다.**
+
+**원인**: `toPostErrorMessage`는 `code + message`를 한 문자열로 이어 패턴에 태운다.
+0005~0009의 오류는 전부 Postgres·Storage가 영어로 뱉는 것이라 이 방식이 맞았다.
+그런데 0010의 `raise exception`은 **우리가 한국어로 직접 쓴 문구**다. 사용자에게 보여줄 말이
+이미 서버에 있는데, 그걸 errcode로 되돌려 뭉뚱그리고 있었다.
+
+```ts
+[/row-level security|permission denied|42501|.../, '권한이 없습니다. 다시 로그인해 주세요.'],
+```
+
+**해결**: 서버가 한국어로 말했으면 그 말을 그대로 쓴다. 아니면 지금까지처럼 패턴에 태운다.
+
+```ts
+export function toPostActionErrorMessage(error: unknown): string {
+  const raw = toRawMessage(error).trim();     // code는 붙이지 않는다
+  if (/[가-힣]/.test(raw)) {
+    return raw;
+  }
+  return toPostErrorMessage(error);
+}
+```
+
+`code`를 떼고 `message`만 날것으로 읽는 것이 핵심이다. `extractErrorText`를 그대로 쓰면
+`"p0001 끌어올리기는 24시간에…"`처럼 사용자에게 보일 수 없는 문자열이 된다.
+
+**교훈**: 오류 문구를 서버에 둘지 클라이언트에 둘지는 **오류마다** 다르다.
+DB가 뱉는 것(23503, 42501)은 클라이언트가 번역해야 하지만, 우리가 `raise exception`으로 쓴 것은
+이미 번역된 결과다. 후자를 전자와 같은 길로 흘려보내면 애써 구분한 사유가 도로 하나가 된다.
+
+### 2. "20시간 뒤"를 기대했는데 "19시간 뒤"가 나왔다
+
+**증상**: 끌올 쿨다운 문구 테스트가 1시간씩 어긋났다.
+
+```tsx
+// bumped_at = 지금으로부터 4시간 전 → 남은 시간 20시간
+renderMenu(makePost({ bumpedAt: new Date(NOW - 4 * HOUR_MS).toISOString() }));
+expect(screen.getByText('20시간 뒤에 다시 끌어올릴 수 있어요'));
+// → Unable to find text. 화면에는 "19시간 뒤에 다시 끌어올릴 수 있어요"
+```
+
+**원인**: 테스트의 `NOW`는 **모듈이 로드될 때** 찍히고, 컴포넌트는 **렌더될 때** `new Date()`를
+부른다. 그 사이 몇 ms가 흐르므로 남은 시간은 정확히 20시간이 아니라 `19시간 59분 59.9초`다.
+`Math.floor(remaining / HOUR_MS)`가 19를 돌려준다 — 코드도 테스트도 맞는데 결과만 어긋난다.
+
+**해결**: 경계에 딱 붙이지 않는다. 반 시간을 걸쳐 두면 몇 ms의 드리프트로는 단위가 바뀌지 않는다.
+
+```tsx
+renderMenu(makePost({ bumpedAt: new Date(NOW - 3.5 * HOUR_MS).toISOString() }));  // 남은 20.5시간
+```
+
+경계 자체(24시간 정각, 1분 미만)는 시각을 인자로 받는 순수 함수(`postBumpCooldown.ts`)에서
+고정된 `NOW`로 따로 검증한다. 렌더 시각이 끼어들지 않으니 거기서는 정확히 잴 수 있다.
+
+**교훈**: 실제 시계를 쓰는 컴포넌트 테스트에서 **버림(floor)이 걸린 값을 경계에 붙이면** 깨진다.
+경계는 순수 함수에서, 컴포넌트에서는 경계에서 떨어진 값으로.

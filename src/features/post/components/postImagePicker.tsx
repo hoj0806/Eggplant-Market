@@ -1,14 +1,12 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
-import {
-  ALLOWED_POST_IMAGE_TYPES,
-  MAX_POST_IMAGE_COUNT,
-} from '../utils/validatePostInput';
+import { ALLOWED_POST_IMAGE_TYPES, MAX_POST_IMAGE_COUNT } from '../utils/validatePostInput';
+import type { PostImageItem } from '../types';
 
 type PostImagePickerProps = {
-  files: File[];
+  images: PostImageItem[];
   errorMessage?: string;
   disabled?: boolean;
-  onFilesChange(files: File[]): void;
+  onImagesChange(images: PostImageItem[]): void;
 };
 
 const INPUT_ID = 'postImages';
@@ -17,27 +15,40 @@ const ERROR_ID = 'postImages-error';
 /**
  * 상품 사진 여러 장을 고른다. 첫 장이 목록 썸네일이 되므로 그 사실을 화면에 적어 둔다.
  *
- * 미리보기 URL은 파일 목록이 바뀔 때마다 통째로 다시 만들고 이전 것을 해제한다.
+ * 수정 화면에서는 이미 올라가 있는 사진과 방금 고른 사진이 한 줄에 섞인다.
+ * 보여줄 주소를 만드는 방법만 다르고(공개 URL 그대로 / blob URL) 나머지는 같다.
+ *
+ * blob URL은 파일 목록이 바뀔 때마다 통째로 다시 만들고 이전 것을 해제한다.
  * 해제하지 않으면 사진을 여러 번 갈아 끼우는 동안 blob이 메모리에 계속 쌓인다.
+ * 이미 올라간 사진의 URL은 우리가 만든 것이 아니므로 해제 대상이 아니다.
  */
 function PostImagePicker(props: PostImagePickerProps) {
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const hasError = props.errorMessage !== undefined;
+  const images = props.images;
 
   useEffect(
     function syncPreviewUrls() {
-      const objectUrls = props.files.map(function toObjectUrl(file: File): string {
-        return URL.createObjectURL(file);
+      const createdUrls: string[] = [];
+
+      const urls = images.map(function toPreviewUrl(image: PostImageItem): string {
+        if (image.kind === 'existing') {
+          return image.url;
+        }
+        const objectUrl = URL.createObjectURL(image.file);
+        createdUrls.push(objectUrl);
+        return objectUrl;
       });
-      setPreviewUrls(objectUrls);
+
+      setPreviewUrls(urls);
 
       return function revokePreviewUrls(): void {
-        for (const url of objectUrls) {
+        for (const url of createdUrls) {
           URL.revokeObjectURL(url);
         }
       };
     },
-    [props.files],
+    [images],
   );
 
   function handleChange(event: ChangeEvent<HTMLInputElement>): void {
@@ -49,12 +60,16 @@ function PostImagePicker(props: PostImagePickerProps) {
       return;
     }
 
-    props.onFilesChange([...props.files, ...selected]);
+    const added = selected.map(function toNewImage(file: File): PostImageItem {
+      return { kind: 'new', file };
+    });
+
+    props.onImagesChange([...images, ...added]);
   }
 
   function handleRemove(index: number): void {
-    props.onFilesChange(
-      props.files.filter(function keepOthers(_file: File, current: number): boolean {
+    props.onImagesChange(
+      images.filter(function keepOthers(_image: PostImageItem, current: number): boolean {
         return current !== index;
       }),
     );
@@ -74,7 +89,7 @@ function PostImagePicker(props: PostImagePickerProps) {
         >
           <span className="text-lg">＋</span>
           <span>
-            {props.files.length}/{MAX_POST_IMAGE_COUNT}
+            {images.length}/{MAX_POST_IMAGE_COUNT}
           </span>
         </label>
 

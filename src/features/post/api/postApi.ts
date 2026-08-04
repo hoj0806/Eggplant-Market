@@ -1,10 +1,9 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
+import { POST_IMAGE_BUCKET, toPostImagePaths } from '../utils/postImagePath';
 import type { PostSearchFilters } from '../../browse/types';
 import type { TradePlace } from '../../place/types';
 import type { Region } from '../../region/types';
-import type { PostDetail, PostSeller, PostStatus, PostSummary } from '../types';
-
-const POST_IMAGE_BUCKET = 'post-images';
+import type { PostDetail, PostImageItem, PostSeller, PostStatus, PostSummary } from '../types';
 
 // 한 줄 리터럴이어야 한다. 문자열을 +로 이으면 리터럴 타입을 잃어
 // supabase-js가 select 결과를 GenericStringError로 추론한다.
@@ -13,7 +12,7 @@ const POST_SUMMARY_COLUMNS =
 // profiles는 seller_id 말고도 likes·recently_viewed를 통해 posts와 이어져 있어서
 // 관계를 FK 이름(posts_seller_id_fkey)으로 짚어 줘야 한다. 안 그러면 PGRST201로 거절당한다.
 const POST_DETAIL_COLUMNS =
-  'id, title, description, price, status, category_id, dong_name, trade_location_text, trade_location_lat, trade_location_lng, view_count, like_count, created_at, sold_at, seller:profiles!posts_seller_id_fkey (id, nickname, avatar_url, manner_temp), buyer:profiles!posts_buyer_id_fkey (id, nickname, avatar_url), category:categories (id, name), images:post_images (url, sort_order)';
+  'id, title, description, price, status, category_id, dong_name, trade_location_text, trade_location_lat, trade_location_lng, view_count, like_count, created_at, bumped_at, sold_at, seller:profiles!posts_seller_id_fkey (id, nickname, avatar_url, manner_temp), buyer:profiles!posts_buyer_id_fkey (id, nickname, avatar_url), category:categories (id, name), images:post_images (url, sort_order)';
 
 const DEFAULT_IMAGE_EXTENSION = 'jpg';
 const SAFE_EXTENSION_PATTERN = /^[a-zA-Z0-9]{1,5}$/;
@@ -49,6 +48,7 @@ type PostDetailRow = {
   view_count: number;
   like_count: number;
   created_at: string;
+  bumped_at: string;
   sold_at: string | null;
   seller: {
     id: string;
@@ -156,6 +156,7 @@ function toPostDetail(row: PostDetailRow, isLiked: boolean): PostDetail {
     likeCount: row.like_count,
     isLiked,
     createdAt: row.created_at,
+    bumpedAt: row.bumped_at,
     soldAt: row.sold_at,
     seller: toSeller(row.seller),
     buyer:
@@ -295,6 +296,215 @@ export async function createPost(input: CreatePostInput): Promise<number> {
   }
 
   return postId;
+}
+
+export type UpdatePostInput = {
+  postId: number;
+  sellerId: string;
+  title: string;
+  description: string;
+  price: number;
+  categoryId: number;
+  /** 화면에 보이는 순서 그대로. 첫 장이 새 썸네일이 된다. */
+  images: PostImageItem[];
+  tradePlace: TradePlace | null;
+};
+
+type PostImageRow = {
+  url: string;
+  sort_order: number;
+};
+
+async function fetchPostImageRows(postId: number): Promise<PostImageRow[]> {
+  const { data, error } = await supabase
+    .from('post_images')
+    .select('url, sort_order')
+    .eq('post_id', postId)
+    .order('sort_order');
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return data as PostImageRow[];
+}
+
+/**
+ * 폼이 들고 있던 순서대로 최종 URL 목록을 만든다.
+ *
+ * 이미 올라가 있던 사진은 자기 주소를 그대로 쓰고, 새로 고른 사진은 방금 업로드한 결과에서
+ * 앞에서부터 하나씩 가져온다 — uploadPostImages가 넘겨받은 파일 순서대로 돌려주기 때문이다.
+ */
+function toFinalImageUrls(images: PostImageItem[], uploaded: UploadedImage[]): string[] {
+  let uploadedIndex = 0;
+
+  return images.map(function toUrl(image: PostImageItem): string {
+    if (image.kind === 'existing') {
+      return image.url;
+    }
+
+    const next = uploaded[uploadedIndex];
+    uploadedIndex += 1;
+    return next.url;
+  });
+}
+
+async function updatePostRow(input: UpdatePostInput, thumbnailUrl: string): Promise<void> {
+  const { error } = await supabase
+    .from('posts')
+    .update({
+      title: input.title,
+      description: input.description,
+      price: input.price,
+      category_id: input.categoryId,
+      thumbnail_url: thumbnailUrl,
+      // 동네(region_code·dong_name·location)는 건드리지 않는다.
+      // 올린 뒤에 이사를 갔더라도 이 글이 올라온 동네가 바뀌지는 않는다.
+      // 장소를 지웠으면 두 컬럼을 함께 비운다. 이름만 남으면 지도에 찍을 수 없다.
+      trade_location_text: input.tradePlace?.name ?? null,
+      trade_location:
+        input.tradePlace === null
+          ? null
+          : toPointLiteral(input.tradePlace.coords.lat, input.tradePlace.coords.lng),
+    })
+    .eq('id', input.postId);
+
+  if (error !== null) {
+    throw error;
+  }
+}
+
+async function insertPostImageRows(postId: number, rows: PostImageRow[]): Promise<void> {
+  const { error } = await supabase.from('post_images').insert(
+    rows.map(function toRow(row: PostImageRow) {
+      return { post_id: postId, url: row.url, sort_order: row.sort_order };
+    }),
+  );
+
+  if (error !== null) {
+    throw error;
+  }
+}
+
+/**
+ * 사진 행을 통째로 갈아 끼운다.
+ *
+ * 순서(sort_order)까지 바뀔 수 있어 행마다 맞춰 고치는 것보다 지우고 다시 넣는 편이 단순하다.
+ * 지운 뒤 넣기 전에 실패하면 사진 없는 게시물이 되므로, 그때는 지웠던 행을 도로 넣는다.
+ */
+async function replacePostImageRows(postId: number, urls: string[]): Promise<void> {
+  const previous = await fetchPostImageRows(postId);
+
+  const { error: deleteError } = await supabase.from('post_images').delete().eq('post_id', postId);
+  if (deleteError !== null) {
+    throw deleteError;
+  }
+
+  try {
+    await insertPostImageRows(
+      postId,
+      urls.map(function toRow(url: string, index: number): PostImageRow {
+        return { url, sort_order: index };
+      }),
+    );
+  } catch (error) {
+    await insertPostImageRows(postId, previous).catch(function ignoreRestoreFailure(): void {
+      // 되돌리기까지 실패하면 원래 오류를 덮지 않고 그대로 올린다.
+    });
+    throw error;
+  }
+}
+
+/**
+ * 게시물 수정.
+ *
+ * 등록과 같은 문제를 안고 있다 — 스토리지와 테이블을 함께 묶는 트랜잭션이 없다.
+ * 그래서 순서를 "되돌리기 쉬운 쪽"으로 잡는다.
+ *   ① 새 사진 업로드  (실패해도 아직 아무것도 안 바뀌었다)
+ *   ② 본문 갱신       (실패하면 방금 올린 파일을 지운다)
+ *   ③ 사진 행 교체     (실패하면 지웠던 행을 되돌리고 방금 올린 파일도 지운다)
+ *   ④ 빠진 사진 정리   (여기서 실패해도 수정은 이미 끝났다 — 고아 파일만 남는다)
+ *
+ * ④를 앞으로 당기지 않는 이유가 이것이다. 먼저 지웠다가 ②·③이 실패하면 화면에는 남아 있는데
+ * 파일은 사라진 사진이 생긴다. 되돌릴 수 없는 일은 맨 뒤에 둔다.
+ */
+export async function updatePost(input: UpdatePostInput): Promise<void> {
+  const newFiles: File[] = [];
+  for (const image of input.images) {
+    if (image.kind === 'new') {
+      newFiles.push(image.file);
+    }
+  }
+
+  const previousUrls = (await fetchPostImageRows(input.postId)).map(function toUrl(
+    row: PostImageRow,
+  ): string {
+    return row.url;
+  });
+
+  const uploaded = await uploadPostImages(input.sellerId, newFiles);
+  const finalUrls = toFinalImageUrls(input.images, uploaded);
+
+  try {
+    await updatePostRow(input, finalUrls[0]);
+    await replacePostImageRows(input.postId, finalUrls);
+  } catch (error) {
+    await removeUploadedImages(uploaded);
+    throw error;
+  }
+
+  const removedUrls = previousUrls.filter(function isDropped(url: string): boolean {
+    return !finalUrls.includes(url);
+  });
+  await removePostImageFiles(removedUrls);
+}
+
+/** 공개 URL로 남아 있는 사진 파일을 스토리지에서 치운다. 뒷정리라 실패해도 넘어간다. */
+async function removePostImageFiles(urls: ReadonlyArray<string>): Promise<void> {
+  const paths = toPostImagePaths(urls);
+  if (paths.length === 0) {
+    return;
+  }
+
+  await supabase.storage.from(POST_IMAGE_BUCKET).remove(paths);
+}
+
+/**
+ * 게시물 삭제.
+ *
+ * post_images·likes·recently_viewed·chat_rooms는 FK가 on delete cascade라 따라 지워지지만
+ * **스토리지 파일은 아무도 지워 주지 않는다.** 그래서 지우기 전에 주소를 먼저 챙긴다.
+ *
+ * 행을 먼저 지우고 파일을 나중에 치운다. 반대로 하면 파일 삭제 뒤 행 삭제가 거절당했을 때
+ * (RLS·네트워크) 사진이 전부 깨진 게시물이 남는다. 이 순서라면 최악이 고아 파일이다.
+ */
+export async function deletePost(postId: number): Promise<void> {
+  const urls = (await fetchPostImageRows(postId)).map(function toUrl(row: PostImageRow): string {
+    return row.url;
+  });
+
+  const { error } = await supabase.from('posts').delete().eq('id', postId);
+  if (error !== null) {
+    throw error;
+  }
+
+  await removePostImageFiles(urls);
+}
+
+/**
+ * 끌어올리기. 갱신된 bumped_at을 돌려준다.
+ *
+ * 판매자 본인인지, 판매중인지, 24시간이 지났는지는 전부 서버가 본다(0010).
+ * 화면의 잠금은 같은 규칙의 사본일 뿐이라 여기서 다시 검사하지 않는다.
+ */
+export async function bumpPost(postId: number): Promise<string> {
+  const { data, error } = await supabase.rpc('bump_post', { p_post_id: postId });
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return data as string;
 }
 
 /** 로그인한 사용자가 이 글을 찜했는지. 비로그인은 요청하지 않는다. */

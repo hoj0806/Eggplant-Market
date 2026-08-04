@@ -9,6 +9,7 @@ import ChatRoomListPage from '../features/chat/components/chatRoomListPage';
 import ChatRoomPage from '../features/chat/components/chatRoomPage';
 import NewPostPage from '../features/post/components/newPostPage';
 import PostDetailPage from '../features/post/components/postDetailPage';
+import PostEditPage from '../features/post/components/postEditPage';
 import LikedPostsPage from '../features/profile/components/likedPostsPage';
 import MyPage from '../features/profile/components/myPage';
 import OnboardingPage from '../features/profile/components/onboardingPage';
@@ -130,6 +131,15 @@ export const router = createBrowserRouter([
     // 상세는 비로그인도 볼 수 있다. 찜만 로그인을 요구한다.
     path: '/posts/:postId',
     element: <PostDetailPage />,
+  },
+  {
+    // 수정은 글쓰기와 같은 조건이다 — 동네가 있어야 하고, 화면 안에서 판매자 본인인지 한 번 더 본다.
+    path: '/posts/:postId/edit',
+    element: (
+      <RequireOnboarding>
+        <PostEditPage />
+      </RequireOnboarding>
+    ),
   },
   {
     path: '/chats/:roomId',

@@ -18,3 +18,37 @@ const MESSAGE_BY_PATTERN: ReadonlyArray<readonly [RegExp, string]> = [
 export function toPostErrorMessage(error: unknown): string {
   return matchErrorMessage(error, MESSAGE_BY_PATTERN, DEFAULT_POST_ERROR_MESSAGE);
 }
+
+const HANGUL_PATTERN = /[가-힣]/;
+
+/** PostgrestError든 Error든 message 하나만 날것으로 꺼낸다(code는 붙이지 않는다). */
+function toRawMessage(error: unknown): string {
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (error === null || typeof error !== 'object') {
+    return '';
+  }
+
+  const message = (error as { message?: unknown }).message;
+
+  return typeof message === 'string' ? message : '';
+}
+
+/**
+ * RPC가 직접 던진 한국어 문구는 그대로 보여준다.
+ *
+ * 0010 bump_post는 거절 사유를 문구로 구분해 돌려준다("판매중인 글만…", "24시간에 한 번만…").
+ * 그 문구가 이미 사용자에게 보여줄 말인데, errcode만 보고 패턴에 태우면 42501이 뭉뚱그려져
+ * "권한이 없습니다"가 된다 — 왜 막혔는지 알 수 없게 된다.
+ * 한글이 섞여 있으면 우리가 쓴 문구로 보고 그대로 쓴다.
+ */
+export function toPostActionErrorMessage(error: unknown): string {
+  const raw = toRawMessage(error).trim();
+
+  if (HANGUL_PATTERN.test(raw)) {
+    return raw;
+  }
+
+  return toPostErrorMessage(error);
+}
