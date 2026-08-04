@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import UserProfileCard from './userProfileCard';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
+import SafetyMenu from '../../block/components/safetyMenu';
 import PostList from '../../browse/components/postList';
 import ReviewList from '../../review/components/reviewList';
 import { useUserReviewsQuery } from '../../review/hooks/useReviewQueries';
@@ -86,7 +87,14 @@ function UserProfilePage() {
           >
             내 프로필 관리
           </Link>
-        ) : null}
+        ) : (
+          // 게시물이 없는 자리라 신고 대상은 사람뿐이다. 게스트에게는 스스로 그리지 않는다.
+          <SafetyMenu
+            viewerId={viewer?.id ?? null}
+            targetUserId={profile.id}
+            targetNickname={profile.nickname}
+          />
+        )}
       </div>
 
       <UserProfileCard profile={profile} />

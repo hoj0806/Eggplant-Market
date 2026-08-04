@@ -4,6 +4,7 @@ import ChatMessageList from './chatMessageList';
 import ChatPostHeader from './chatPostHeader';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
+import SafetyMenu from '../../block/components/safetyMenu';
 import ProfileAvatar from '../../profile/components/profileAvatar';
 import { useChatMessagesQuery, useChatRoomQuery } from '../hooks/useChatQueries';
 import { useChatRoomRealtime } from '../hooks/useChatRealtime';
@@ -93,9 +94,19 @@ function ChatRoomPage() {
           avatarUrl={room.partner.avatarUrl}
           size="sm"
         />
-        <h1 className="truncate text-base font-semibold text-gray-900 dark:text-gray-50">
+        <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-gray-900 dark:text-gray-50">
           {room.partner.nickname}
         </h1>
+
+        {/*
+          대화 중에 이상함을 느끼는 자리다. 차단하면 이 방이 목록에서 사라지고
+          주소로도 열리지 않으므로(0014의 fetch_chat_rooms) 곧바로 "채팅방을 찾을 수 없습니다"가 된다.
+        */}
+        <SafetyMenu
+          viewerId={viewerId}
+          targetUserId={room.partner.id}
+          targetNickname={room.partner.nickname}
+        />
       </header>
 
       <ChatPostHeader room={room} viewerId={viewerId} />

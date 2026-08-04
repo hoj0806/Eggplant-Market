@@ -1121,3 +1121,161 @@ check (coalesce(array_length(manner_tags, 1), 0) <= 5
 
 **교훈**: 배열 컬럼에 "원소마다"를 걸고 싶으면 제약이 아니라 트리거이거나, 애초에 별도 테이블이다.
 제약으로 끝내려면 질문을 **행 하나로 답할 수 있는 형태**로 바꿔야 한다.
+
+## 안전 — 차단 · 신고 (2026-08-05)
+
+### 1. `insert ... returning`이 RLS에 막혔다 — 넣는 건 되는데 넣고 나서 죽는다
+
+**증상**: `create_report`를 0013의 `create_review`와 같은 모양으로 썼다.
+
+```sql
+returns bigint ...
+  insert into reports (reporter_id, target_type, target_id, reason, detail)
+  values (...) returning id into v_id;
+  return v_id;
+```
+
+실제 사용자(`role authenticated` + jwt)로 부르니 이렇게 돌아왔다.
+
+```
+42501: new row violates row-level security policy for table "reports"
+```
+
+`reports_insert`는 `auth.uid() = reporter_id`뿐이고 `reporter_id`에는 `auth.uid()`를 넣었다.
+정책은 분명히 통과해야 하는 값이다.
+
+**원인**: 막힌 것은 insert가 아니라 **RETURNING**이다. RETURNING은 방금 넣은 행을 **다시
+읽는** 일이라 SELECT 정책을 함께 탄다. 그런데 `reports`에는 select 정책이 **아예 없다**
+(0001이 "조회 불가 = 관리자 전용"으로 일부러 그렇게 뒀다). 정책이 없으면 아무 행도 보이지
+않으므로 RETURNING이 실패하고, 오류 문구는 insert 쪽 것으로 나온다.
+
+RETURNING을 떼고 넣어 보면 같은 자리에서 성공한다.
+
+```
+[returning없음:성공] [returning있음:42501 new row violates row-level security policy]
+```
+
+**해결**: `returns void`로 바꿨다. 돌려줄 id도 신고자가 두 번 다시 쓸 수 없는 값이라
+아쉬울 것이 없다(`reports`를 조회할 길이 없으므로).
+
+같은 이유로 **중복 검사도 통하지 않았다.** 미리 `exists (select 1 from reports ...)`로 보려
+했는데, 조회가 언제나 0건이라 검사가 있으나 마나였다. 사전 검사를 지우고 unique 인덱스에
+맡긴 뒤 그 `23505`를 받아 한국어로 바꿨다.
+
+```sql
+create unique index reports_reporter_target_idx on reports (reporter_id, target_type, target_id);
+...
+exception
+  when unique_violation then
+    raise exception '이미 신고한 대상입니다.' using errcode = 'unique_violation';
+```
+
+**교훈**: **select 정책이 없는 테이블은 "쓰기 전용"이 아니라 "읽는 순간 전부 막히는" 테이블이다.**
+insert 자체와 insert의 결과를 읽는 일은 다른 권한이고, RETURNING·`exists` 사전검사·
+`.select()` 체이닝은 전부 뒤쪽에 속한다. 0013의 `create_review`를 그대로 베낄 수 없었던 것은
+`reviews`가 `select using (true)`라 그 차이가 드러나지 않았기 때문이다.
+
+### 2. 차단은 양방향인데 `blocks`는 한 방향만 보여준다 — 정책을 더하면 차단이 드러난다
+
+**밟기 전에 확인한 것**: "차단한 사람의 글을 목록에서 뺀다"를 이렇게 쓰려 했다.
+
+```sql
+and not exists (select 1 from blocks b
+                 where (b.blocker_id = auth.uid() and b.blocked_id = p.seller_id)
+                    or (b.blocker_id = p.seller_id and b.blocked_id = auth.uid()))
+```
+
+돌려 보면 **아랫줄이 아무 일도 하지 않는다.** `blocks_select`(0001)가
+`auth.uid() = blocker_id`라 내가 건 차단만 읽히기 때문이다. RLS 정책 안이든 `security invoker`
+함수 안이든 다른 테이블을 조회하면 그 테이블의 정책이 그대로 걸린다 — 이 규칙이 여기서 물었다.
+
+그렇다고 `auth.uid() = blocked_id` 정책을 더할 수는 없었다. 그 순간 **누가 나를 차단했는지
+목록으로 조회할 수 있게 된다.** 차단은 상대가 모르는 것이 요건이라, 기능을 고치려다 기능을
+망가뜨리는 수정이다.
+
+**어떻게 비켰나**: `security definer` 함수를 두되 **PostgREST가 라우팅하지 않는 스키마**에
+넣었다.
+
+```sql
+create schema if not exists private;
+create function private.blocked_user_ids() returns uuid[] ... security definer ...
+grant usage on schema private to anon, authenticated, service_role;
+```
+
+`security definer`라 정책을 넘어 양방향을 보고, `private`이라 클라이언트가 직접 부를 수 없다.
+anon 키로 실제 확인했다.
+
+```
+POST /rest/v1/rpc/is_blocked                      -> 404
+POST /rest/v1/rpc/blocked_user_ids  (Accept-Profile: private)
+-> PGRST106 Only the following schemas are exposed: public, graphql_public
+```
+
+`grant usage on schema private`이 필요한 이유는 함수를 **부르는 쪽**이 여전히 로그인 사용자이기
+때문이다(`search_posts`도 정책도 `security invoker`다). 권한을 열어도 REST로는 닿지 않는다 —
+두 가지가 서로 다른 문이다.
+
+**교훈**: Supabase에서 "정책을 넘어서 봐야 하는 판단"은 정책을 넓히는 것이 아니라
+`security definer` + 비노출 스키마로 옮긴다. 정책을 넓히면 그 판단에 쓰인 **데이터까지 함께
+열린다** — 여기서는 그 데이터가 곧 감춰야 할 것이었다.
+
+### 3. 목록에서 지우기만 하면 차단당한 쪽이 계속 말할 수 있다
+
+**밟기 전에 확인한 것**: `search_posts`와 `fetch_chat_rooms`에 필터를 넣고 "6-1 끝"이라고 볼
+뻔했다. 그런데 차단은 대개 **대화를 나눈 뒤에** 누른다. 즉 방은 이미 있다.
+
+- 차단한 쪽: 방이 목록에서 사라진다 (`fetch_chat_rooms`) ✔
+- 차단당한 쪽: **자기 화면에는 방이 그대로 있다.** 계속 쓸 수 있다 ✘
+
+이러면 상대의 말이 차단한 사람에게는 안 보이는 채로 쌓이고, 차단을 풀면 그동안의 말이 한꺼번에
+나타난다. "차단했는데 왜 이 사람 메시지가 300개 와 있나"가 된다.
+
+**어떻게 비켰나**: 막을 자리를 네 곳으로 세었다 — 목록 둘(`search_posts`·`fetch_chat_rooms`),
+새 대화(`open_chat_room`), **이미 열린 방으로 넣기(`messages_insert` 정책)**.
+마지막 것만 정책이고 나머지는 RPC다. 조회는 RPC가, 쓰기는 정책이 막는다.
+
+거절 문구는 어느 쪽이 걸었는지 말하지 않는다. `open_chat_room`은 내가 걸었든 상대가 걸었든
+`차단한 사용자와는 대화할 수 없습니다.` 하나고, 메시지 쪽은 정책이라 문구를 고를 수 없어
+화면에서 받아 바꿨다.
+
+```ts
+// 아래 42501 문구("다시 로그인")로 뭉뚱그리면 엉뚱한 곳을 고치게 된다.
+[/row-level security policy for table "messages"/, '지금은 이 대화에 메시지를 보낼 수 없습니다.'],
+```
+
+**교훈**: "안 보이게 한다"는 기능은 **보는 길**과 **넣는 길**을 따로 세어야 한다.
+목록에서 지우는 것은 보는 길 하나를 막은 것뿐이고, 데이터는 여전히 들어온다.
+
+### 4. `props.post`를 콜백 안에서 좁힌 줄 알았는데 풀려 있었다
+
+**증상**: `SafetyMenu`에서 게시물이 있을 때만 "게시물 신고"를 그리려고 이렇게 썼다.
+
+```tsx
+{props.post === undefined ? null : (
+  <button onClick={function reportPost() {
+    openReport({ type: 'post', id: String(props.post.id), label: props.post.title });
+  }}>
+```
+
+`props.post`가 `Object is possibly 'undefined'`로 잡힌다. 바깥에서 분명히 걸렀는데도.
+
+**원인**: TypeScript의 좁힘은 **콜백 안으로 따라 들어가지 않는다.** `props`는 재할당될 수 있는
+객체라, 콜백이 실제로 실행되는 시점에 `props.post`가 그대로라는 보장이 없기 때문이다.
+`?.`와 `?? ''`로 달래면 컴파일은 통과하지만, 그건 "있을 리 없는 경우"에 빈 문자열을 신고
+대상으로 보내는 코드다.
+
+**해결**: 좁힌 값을 **지역 상수**로 받았다. `const`는 재할당되지 않으므로 좁힘이 콜백까지 간다.
+
+```tsx
+const post = props.post ?? null;
+...
+{post === null ? null : (<button onClick={function reportPost() {
+  openReport({ type: 'post', id: String(post.id), label: post.title });
+}}>)}
+```
+
+`viewerId`도 같은 이유로 지역 상수로 받아 뒀다(early return으로 이미 걸렀는데도
+`BlockToggleButton`의 `string` prop에 넣을 때 다시 걸린다).
+
+**교훈**: props의 필드를 조건부로 쓸 때는 **먼저 지역 상수로 꺼낸다.** `?.`를 덧붙여
+컴파일러를 달래는 순간, 타입 오류가 알려 주려던 "정말 없을 때 무슨 값이 나가는가"를 놓친다.
