@@ -1,15 +1,11 @@
 import { Link } from 'react-router-dom';
 import ProfileAvatar from './profileAvatar';
+import { toTemperatureText } from '../utils/mannerTemperature';
 import type { Profile } from '../types';
 
 type MyProfileCardProps = {
   profile: Profile;
 };
-
-/** 매너온도는 소수 한 자리까지 보여준다. 기본값 36.5°가 그대로 읽혀야 한다(postSellerCard와 같은 규칙). */
-function toTemperatureText(mannerTemp: number): string {
-  return `${mannerTemp.toFixed(1)}°C`;
-}
 
 const ACTION_CLASS =
   'flex-1 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm font-medium ' +

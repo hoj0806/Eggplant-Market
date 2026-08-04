@@ -1024,3 +1024,100 @@ disabled={props.isSending || amount.trim().length === 0}
 
 **교훈**: 입력이 둘 이상인 화면에서 "폼 하나에 다 넣기"는 Enter의 주인을 흐린다.
 제출 단위가 다르면 폼도 나누고, 나눌 수 없으면 형제로 둔다.
+
+---
+
+## 신뢰 — 프로필 · 거래후기 (2026-08-05)
+
+이번에는 터진 것보다 **밟기 전에 확인한 것**이 많다. 후기는 남의 신뢰 점수를 건드리는 기능이라
+"돌아가는가"보다 "새는 데가 없는가"를 먼저 봤다.
+
+### 1. 아무나 아무에게나 −99점을 줄 수 있었다
+
+**터졌을 것**: 0001의 후기 정책은 이것 한 줄이다.
+
+```sql
+create policy reviews_insert on reviews for insert with check (auth.uid() = reviewer_id);
+```
+
+"내 이름으로 쓰는 후기인가"만 본다. 화면을 붙이고 나면 다음이 전부 통과한다.
+
+- 거래한 적 없는 이웃에게 후기 남기기 (`post_id`는 아무 글이나 된다)
+- `score` 칸에 `-99` 넣기 → 상대 매너온도가 **한 번에 바닥(0°)**
+- 판매중인 글, 상대를 안 고르고 끝낸 거래에도 후기 남기기
+
+화면에서 버튼을 안 그리는 것으로는 아무것도 막지 못한다. `supabase-js`가 손에 있는 사용자는
+테이블에 바로 insert할 수 있고, 그게 RLS가 있는 이유다.
+
+**어떻게 비켰나**: 두 겹으로 나눠 막았다. 어느 쪽도 혼자서는 부족했다.
+
+```sql
+-- ① 정책 — 다른 테이블(posts)을 봐야 하는 조건. check 제약으로는 못 쓴다
+create policy reviews_insert on reviews for insert with check (
+  auth.uid() = reviewer_id and reviewer_id <> reviewee_id
+  and exists (select 1 from posts p
+               where p.id = reviews.post_id and p.status = 'sold' and p.buyer_id is not null
+                 and ((p.seller_id = reviews.reviewer_id and p.buyer_id  = reviews.reviewee_id)
+                   or (p.buyer_id  = reviews.reviewer_id and p.seller_id = reviews.reviewee_id)))
+);
+
+-- ② 제약 — 같은 행 안에서 끝나는 조건. 정책을 통과한 뒤에도 점수는 셋 중 하나뿐이다
+alter table reviews add constraint reviews_score_allowed check (score in (-0.5, 0.1, 0.5));
+```
+
+정책만 두면 **진짜 거래 상대가** 온도를 −99만큼 깎는 길이 남고, 제약만 두면 아무나 −0.5씩
+깎는 길이 남는다. "누가 쓸 수 있는가"와 "무엇을 쓸 수 있는가"는 다른 질문이라 막는 자리도 다르다.
+
+**교훈**: 스키마가 미리 깔려 있다고 정책까지 완성돼 있는 것은 아니다. **화면이 없어서 아무도
+안 쓰던 테이블**은 정책이 검증된 적도 없다는 뜻이다 — 첫 화면을 붙이는 사람이 정책을 먼저 읽어야 한다.
+
+### 2. `MyPostList`에 다섯 번째 목록을 붙일 수 없었다
+
+**터졌을 것**: 남의 프로필에 판매 목록을 그리려는데, 0012가 0009와 같은 열 벌을 돌려주므로
+`MyPostList`를 그대로 쓰면 될 것 같았다. 그런데 그 컴포넌트의 `kind`는 화면 문구용 이름이
+아니라 **RPC를 고르는 열쇠**다.
+
+```ts
+const RPC_BY_KIND: Record<MyListKind, string> = {
+  likes: 'fetch_liked_posts', recent: 'fetch_recently_viewed_posts',
+  purchases: 'fetch_purchased_posts', sales: 'fetch_selling_posts',
+};
+```
+
+`MyListKind`에 `'user'`를 더하면 `Record`가 값을 요구한다. 넣을 이름이 없다 —
+`fetch_user_posts`는 `p_user_id`를 받는 다른 모양이고, 나머지 넷은 "누구의 것"인지 아예 묻지
+않는 함수들이다. 억지로 넣으면 마이페이지 목록에 남의 id를 넘기는 길이 열린다.
+
+**어떻게 비켰나**: 목록의 껍데기를 `MyPostList`가 아니라 `PostList`(홈·검색)에서 가져왔다.
+차이는 0건 문구뿐이라 `emptyMessage` 한 칸을 optional로 열었다.
+
+**교훈**: 같은 데이터를 그린다고 같은 컴포넌트를 써야 하는 것은 아니다. 재사용의 경계는
+**모양이 아니라 그 컴포넌트가 쥐고 있는 권한**이다 — `MyPostList`는 "내 것만 본다"는 보장을
+함께 들고 있고, 그 보장이 필요 없는 화면에 그것을 끌어오면 보장이 헐거워진다.
+
+### 3. check 제약 안에는 서브쿼리를 쓸 수 없다
+
+**터졌을 것**: 매너 태그(`text[]`)에 원소마다 길이 제한을 걸려고 이렇게 썼다.
+
+```sql
+check ((select bool_and(char_length(t) <= 30) from unnest(manner_tags) t))
+-- ERROR: cannot use subquery in check constraint
+```
+
+`unnest`가 집합을 돌려주므로 서브쿼리가 되고, check 제약은 **같은 행 안에서 끝나는 식**만 받는다.
+(0008에서 "다른 테이블을 봐야 하는 조건은 check가 아니라 RLS"라고 적어 둔 것과 같은 벽인데,
+이번에는 다른 테이블이 아니라 **같은 컬럼 안의 여러 값**이 걸렸다.)
+
+**어떻게 비켰나**: 원소별 길이를 포기하고 **이어 붙인 전체 길이**를 봤다. 스칼라 식이라 통과한다.
+
+```sql
+check (coalesce(array_length(manner_tags, 1), 0) <= 5
+       and char_length(array_to_string(manner_tags, ',')) <= 200)
+```
+
+막으려던 것이 애초에 "이상한 태그"가 아니라 **분량**이었으므로 이걸로 충분하다. 내용까지
+화이트리스트로 묶지 않은 이유는 `comment`가 어차피 자유 문구라서다 — 태그만 잠가 봐야
+막는 것이 없다.
+
+**교훈**: 배열 컬럼에 "원소마다"를 걸고 싶으면 제약이 아니라 트리거이거나, 애초에 별도 테이블이다.
+제약으로 끝내려면 질문을 **행 하나로 답할 수 있는 형태**로 바꿔야 한다.

@@ -10,6 +10,7 @@ import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import StartChatButton from '../../chat/components/startChatButton';
 import LikeButton from '../../like/components/likeButton';
+import ReviewPrompt from '../../review/components/reviewPrompt';
 import { usePostDetailQuery } from '../hooks/usePostQueries';
 import { useRecordRecentView } from '../hooks/useRecordRecentView';
 import { useViewCount } from '../hooks/useViewCount';
@@ -159,6 +160,12 @@ function PostDetailPage() {
       <div className="flex flex-wrap items-start gap-2 pt-2">
         <PostActions post={post} viewerId={viewerId} />
       </div>
+
+      {/*
+        거래가 끝났고 아직 후기를 안 남겼을 때만 스스로를 그린다.
+        판매자·구매자 모두 여기서 같은 안내를 만난다 — 조건 판단은 전부 안에 있다.
+      */}
+      <ReviewPrompt postId={post.id} viewerId={viewerId} />
     </main>
   );
 }

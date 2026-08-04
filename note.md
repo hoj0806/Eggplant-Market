@@ -1432,3 +1432,157 @@ chat/
   `postStatusControl`에서 직접 바꾼다
 - **여러 제안 히스토리 화면** — 주고받은 제안을 따로 모아 보는 자리. 대화 흐름 안에서
   말풍선으로 보는 것으로 충분하다고 봤다
+
+---
+
+## 신뢰 — 다른 사용자 프로필 · 거래후기 (2026-08-05)
+
+`todo.md` 5단계. `reviews` 테이블도, 매너온도를 더하고 알림까지 넣는 `recalc_manner_temp`
+트리거도 0001부터 있었는데 **후기를 쓸 화면이 없어 전원이 36.5°에 멈춰 있던** 자리다.
+남의 프로필을 볼 곳도 없어서 `postSellerCard`는 링크가 아닌 그냥 카드였다.
+
+### 무엇을 만들었나
+
+1. **다른 사용자 프로필** (`/users/:userId`) — 매너온도 눈금, 판매중·거래완료·받은 후기 개수,
+   판매 상품과 받은 후기 두 탭. 게시물 상세의 판매자 줄이 이리로 온다.
+2. **거래후기 작성** (`/posts/:postId/review`) — 평가(좋아요·보통·별로) + 매너 태그 + 한 줄.
+   판매자·구매자가 서로를 평가한다.
+3. **후기 진입점 셋** — 게시물 상세의 거래완료 직후 안내, 구매내역·판매관리 목록의 버튼.
+4. **후기 구멍 막기** — 아무나 아무에게나, 아무 점수나 줄 수 있던 0001의 정책을 좁혔다.
+
+마이그레이션은 둘이다. `0012_user_profile.sql`(읽는 길)과 `0013_review.sql`(쓰는 길 + 규칙).
+`todo.md`는 5-2를 "마이그레이션 없음"으로 적어 뒀지만, 아래 2번의 구멍을 화면 규칙으로 둘 수
+없어서 파일이 하나 늘었다. 그만큼 6단계 차단 필터는 `0014`가 된다.
+
+### 설계 결정
+
+#### 1. 후기 대상은 **클라이언트가 고르지 않는다**
+
+`create_review(p_post_id, p_rating, p_manner_tags, p_comment)` — 인자에 `reviewee_id`가 없다.
+서버가 게시물을 보고 "내가 판매자면 구매자를, 구매자면 판매자를" 상대로 정한다.
+
+```sql
+if v_user = v_seller then      v_reviewee := v_buyer;
+elsif v_user = v_buyer then    v_reviewee := v_seller;
+else raise exception '이 거래의 당사자만 후기를 남길 수 있습니다.';
+```
+
+`record_recently_viewed`가 `user_id`를 받지 않고, 마이페이지 목록 RPC들이 "누구의 것"인지
+묻지 않는 것과 같은 판단이다. **클라이언트가 남의 id를 실어 보낼 자리를 아예 만들지 않는다.**
+
+#### 2. 점수는 서버가 정하고, 컬럼이 한 번 더 막는다
+
+0001의 `reviews_insert`는 `auth.uid() = reviewer_id` 하나뿐이었다. 그래서
+거래한 적 없는 이웃에게 `score = -99`를 꽂아 **남의 매너온도를 한 번에 0으로 만들 수 있었다**
+(트리거가 0~99로 자르므로 죽지는 않고 바닥에 닿는다).
+
+두 겹으로 막았다.
+
+- **정책** — 후기는 `status='sold'`이고 `buyer_id`가 있는 거래의 **두 당사자 사이에서만**,
+  방향이 서로를 향할 때만 들어간다. 이건 `posts`를 봐야 판단할 수 있어 check 제약으로는
+  못 막는다(0008 `posts_update`와 같은 자리, troble.md #13).
+- **제약** — `score in (-0.5, 0.1, 0.5)`. RPC를 거치지 않고 테이블에 직접 insert하는 길이
+  여전히 열려 있으니 마지막 방어선은 컬럼에 둔다.
+
+화면은 점수를 아예 모른다. `good·normal·bad`만 보내고, 받은 후기를 읽을 때도 점수 대신
+같은 세 낱말이 온다 — 몇 도가 오르는지 알면 "몇 도 줄까"를 고르는 화면이 되어 버린다.
+
+#### 3. "후기 남기기" 버튼은 서버가 정한 목록으로 그린다
+
+목록 카드마다 버튼을 붙이려면 "이 거래에 후기를 남길 수 있나"를 알아야 하는데, 그 답은
+세 가지에 달려 있다 — 거래완료인가 · 거래 상대가 있는가 · 이미 남기지 않았는가.
+
+0009의 네 RPC는 같은 열 벌을 돌려주기로 한 약속이 있어 컬럼을 더할 수 없었다. 그래서
+`fetch_pending_reviews()`를 따로 두고 목록과 나란히 한 번 부른다. 화면은 `post_id`가 그 목록에
+있는지만 본다(`findPendingReview`).
+
+```tsx
+const pending = findPendingReview(pendingReviewsQuery.data, post.id);
+return pending === null ? null : <WriteReviewButton pending={pending} />;
+```
+
+**없으면 아무것도 그리지 않는다.** 이미 남겼든, 거래 상대를 안 골랐든, 내 거래가 아니든
+답은 같다. 눌러 봐야 서버가 거절하는 버튼을 놓지 않는 것은 끌어올리기 버튼을 판매중에만
+그리는 것과 같은 판단이다.
+
+거래완료 직후 안내(`ReviewPrompt`)도 같은 목록을 본다. 그래서 게시물 상세에 조건 없이
+붙여 두기만 하면 판매자·구매자 양쪽에서 알아서 나타났다 사라진다.
+
+#### 4. 프로필의 판매 목록은 `MyPostList`가 아니라 `PostList`를 쓴다
+
+반환 모양이 같아서(0012가 0009의 열 벌을 그대로 따랐다) `MyPostList`를 쓰고 싶었지만
+그쪽 `kind`는 `RPC_BY_KIND`의 열쇠라 다섯 번째 값을 넣을 수 없다 — 남의 프로필 목록은
+`p_user_id`를 받는 다른 함수다(troble.md 같은 절 2번).
+
+대신 홈·검색이 쓰는 `PostList`에 `emptyMessage` 한 칸을 열었다. 그쪽 0건 문구가
+"아직 우리 동네에 올라온 물건이 없어요"라 남의 프로필에서는 맞지 않는다.
+
+#### 5. 매너온도 문구를 한 곳으로 모았다
+
+`toTemperatureText`가 마이페이지 카드와 판매자 카드에 따로 적혀 있었다. 프로필 카드까지
+셋이 되면 한 곳만 고쳐졌을 때 같은 온도가 화면마다 다르게 보인다.
+`profile/utils/mannerTemperature.ts`로 옮기고 눈금 비율(`toTemperatureRatio`)을 더했다.
+
+#### 6. 후기는 고칠 수 없다
+
+수정·삭제 정책을 두지 않았다(0001부터 없다). 매너온도를 더하는 트리거가 insert에만 붙어
+있어서, 후기를 고치면 **온도는 그대로고 문구만 바뀌는** 앞뒤 안 맞는 상태가 된다.
+고치려면 트리거를 update까지 확장하고 "옛 점수를 빼고 새 점수를 더하는" 계산을 넣어야 하는데,
+당근도 후기 수정을 열어 두지 않는다.
+
+### 파일 구성
+
+```
+supabase/migrations/
+├─ 0012_user_profile.sql            fetch_user_profile · fetch_user_posts
+└─ 0013_review.sql                  정책·제약 · create_review · fetch_user_reviews
+                                    · fetch_pending_reviews
+
+review/                             (여태 .gitkeep만 있던 폴더)
+├─ api/reviewApi.ts
+├─ hooks/useReviewQueries.ts        useUserReviewsQuery · usePendingReviewsQuery
+├─ hooks/useCreateReviewMutation.ts
+├─ utils/reviewRating.ts            평가 문구 · 태그 목록 · toggleMannerTag
+├─ utils/reviewTarget.ts            toReviewEligibility (0013과 같은 규칙)
+├─ utils/pendingReview.ts           findPendingReview
+├─ utils/reviewCursor.ts
+├─ utils/validateReviewInput.ts
+├─ utils/reviewErrorMessage.ts
+└─ components/                      reviewForm · reviewWritePage · reviewList
+                                    · reviewListItem · reviewPrompt · writeReviewButton
+
+profile/
+├─ api/userProfileApi.ts            (신설)
+├─ hooks/useUserProfileQuery.ts     (신설)
+├─ utils/mannerTemperature.ts       (신설 — 두 카드에서 모아 옴)
+└─ components/userProfilePage.tsx · userProfileCard.tsx   (신설)
+```
+
+### 검증
+
+`npx jest` 68 스위트 · 484건 통과(신규 7 스위트 40건). `tsc --noEmit`·`eslint` 무경고,
+`vite build` 성공.
+
+실제 DB에서 `set local role authenticated` + `request.jwt.claims`로 세 사용자를 흉내 내
+확인한 것(임시 거래 한 건을 만들어 쓰고 전부 되돌렸다).
+
+- 구매자가 남긴 `good` 후기 하나로 판매자 매너온도가 **36.5 → 37.0**, `type='review'` 알림 1건
+- 같은 사람이 다시 → `23505 이미 후기를 남긴 거래입니다.`
+- 제3자가 RPC로 → `42501 이 거래의 당사자만 후기를 남길 수 있습니다.`
+- 제3자가 테이블에 직접 insert → `new row violates row-level security policy`
+- 당사자가 `score = -99`로 직접 insert → `23514 reviews_score_allowed`
+- 판매중인 글에 후기 → `23514 거래완료된 거래에만 후기를 남길 수 있습니다.`
+- 판매자가 남긴 `normal` 후기로 구매자 온도 36.5 → **36.6**, 이후 양쪽 모두
+  `fetch_pending_reviews()` 0건
+- 한 줄 후기의 앞뒤 공백은 잘리고, 빈 문자열은 `null`로 눕는다
+
+검증 뒤 후기 2건·알림·임시 게시물을 지우고 두 사람의 매너온도를 36.5로 되돌렸다.
+
+### 이번 범위 밖
+
+- **후기 수정·삭제** — 위 6번. 매너온도 재계산까지 따라와야 한다
+- **매너 태그 통계** — 당근은 프로필에 "시간 약속을 잘 지켜요 12"처럼 태그를 세어 보여준다.
+  `manner_tags`가 `text[]`라 `unnest` + `group by`면 되지만, 후기가 쌓이기 전에는 볼 것이 없다
+- **후기 알림 화면** — `recalc_manner_temp`가 넣는 `type='review'` 알림은 여전히 읽을 곳이
+  없다. 7단계의 몫이다
+- **첫 거래 안내** — "첫 후기를 받았어요" 같은 축하 화면. 지금은 온도만 조용히 오른다

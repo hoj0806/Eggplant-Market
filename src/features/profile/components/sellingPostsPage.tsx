@@ -4,6 +4,9 @@ import MyPostList from './myPostList';
 import SellingStatusFilter from './sellingStatusFilter';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import PostBumpButton from '../../post/components/postBumpButton';
+import WriteReviewButton from '../../review/components/writeReviewButton';
+import { usePendingReviewsQuery } from '../../review/hooks/useReviewQueries';
+import { findPendingReview } from '../../review/utils/pendingReview';
 import { useMyPostsQuery } from '../hooks/useMyPostsQuery';
 import type { MyPostSummary, SellingStatusFilter as StatusFilter } from '../types';
 
@@ -30,10 +33,22 @@ function SellingPostsPage() {
   const viewerId = user?.id ?? null;
 
   const postsQuery = useMyPostsQuery('sales', viewerId, statusFilter);
+  const pendingReviewsQuery = usePendingReviewsQuery(viewerId);
 
-  function renderBumpButton(post: MyPostSummary, now: Date): ReactNode {
+  /**
+   * 카드 아래 버튼은 상태에 따라 갈린다.
+   *
+   * 판매중이면 끌어올리기, 끝난 거래면 후기 남기기다. 한 카드에 둘이 함께 붙는 일은 없다 —
+   * 끌어올리기는 판매중에만, 후기는 거래완료에만 뜬다.
+   */
+  function renderCardAction(post: MyPostSummary, now: Date): ReactNode {
     if (viewerId === null) {
       return null;
+    }
+
+    const pending = findPendingReview(pendingReviewsQuery.data, post.id);
+    if (pending !== null) {
+      return <WriteReviewButton pending={pending} />;
     }
 
     return (
@@ -55,7 +70,7 @@ function SellingPostsPage() {
         kind="sales"
         query={postsQuery}
         emptyMessage={EMPTY_MESSAGE_BY_FILTER[statusFilter ?? 'all']}
-        renderAction={renderBumpButton}
+        renderAction={renderCardAction}
       />
     </MyListLayout>
   );

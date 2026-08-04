@@ -18,7 +18,13 @@ const RPC_BY_KIND: Record<MyListKind, string> = {
   sales: 'fetch_selling_posts',
 };
 
-type MyPostRow = {
+/**
+ * 목록 RPC가 돌려주는 한 행.
+ *
+ * 0009의 네 RPC가 이 모양을 공유하기로 한 약속이고, 0012의 `fetch_user_posts`(남의 프로필에서
+ * 보는 판매 목록)도 같은 모양으로 맞췄다. 그래서 행 변환은 저장소 전체에 이것 하나뿐이다.
+ */
+export type MyPostRow = {
   id: number;
   title: string;
   price: number;
@@ -39,7 +45,7 @@ export type FetchMyPostsParams = {
   cursor: MyPostCursor | null;
 };
 
-function toMyPostSummary(row: MyPostRow): MyPostSummary {
+export function toMyPostSummary(row: MyPostRow): MyPostSummary {
   return {
     id: row.id,
     title: row.title,
