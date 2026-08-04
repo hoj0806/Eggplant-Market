@@ -2,7 +2,7 @@ import PostCard from './postCard';
 import { useInfiniteScroll } from '../../../shared/hooks/useInfiniteScroll';
 import type { PostSummary } from '../../post/types';
 
-type PostSearchResultListProps = {
+type PostListProps = {
   posts: PostSummary[];
   isLoading: boolean;
   isError: boolean;
@@ -16,12 +16,15 @@ type PostSearchResultListProps = {
 const MESSAGE_CLASS = 'py-8 text-center text-sm text-gray-500 dark:text-gray-400';
 
 /**
- * 검색 결과 목록.
+ * 게시물 목록. 홈과 검색이 함께 쓴다.
  *
  * 데이터는 모두 부모가 가져온다. 이 컴포넌트는 "받은 것을 어떻게 보여줄지"만 안다.
  * 마지막 항목 뒤의 표식이 화면에 들어오면 다음 페이지를 부른다.
+ *
+ * 두 화면이 같은 껍데기를 쓰는 이유는 목록이 같은 RPC(search_posts)에서 같은 모양으로
+ * 내려오기 때문이다. 로딩·오류·0건·무한스크롤을 각자 그리면 한쪽만 고쳐진 채로 어긋난다.
  */
-function PostSearchResultList(props: PostSearchResultListProps) {
+function PostList(props: PostListProps) {
   const sentinelRef = useInfiniteScroll({
     hasNextPage: props.hasNextPage,
     isFetching: props.isFetchingNextPage,
@@ -69,4 +72,4 @@ function PostSearchResultList(props: PostSearchResultListProps) {
   );
 }
 
-export default PostSearchResultList;
+export default PostList;

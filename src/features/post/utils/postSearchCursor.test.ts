@@ -8,7 +8,9 @@ jest.mock('../api/postApi', function mockPostApi() {
   return { POST_SEARCH_PAGE_SIZE: 20 };
 });
 
-function toPost(id: number, bumpedAt: string): PostSummary {
+const BUMPED_AT = '2026-08-02T05:00:00.000Z';
+
+function toPost(id: number, overrides: Partial<PostSummary> = {}): PostSummary {
   return {
     id,
     title: `물건 ${id}`,
@@ -18,35 +20,59 @@ function toPost(id: number, bumpedAt: string): PostSummary {
     dongName: '서울특별시 성북구 석관동',
     likeCount: 0,
     viewCount: 0,
-    bumpedAt,
+    bumpedAt: BUMPED_AT,
+    ...overrides,
   };
 }
 
-function toFullPage(): PostSummary[] {
+/** 마지막 글만 커서에 쓰이므로, 앞의 채움용 글은 기본값으로 둔다. */
+function toFullPage(lastPost: PostSummary): PostSummary[] {
   const posts: PostSummary[] = [];
 
-  for (let index = 0; index < POST_SEARCH_PAGE_SIZE; index += 1) {
-    posts.push(toPost(index + 1, '2026-08-02T05:00:00.000Z'));
+  for (let index = 0; index < POST_SEARCH_PAGE_SIZE - 1; index += 1) {
+    posts.push(toPost(index + 1));
   }
+  posts.push(lastPost);
 
   return posts;
 }
 
 describe('toNextPostSearchCursor', function toNextPostSearchCursorSuite() {
   it('페이지가 다 차지 않았으면 다음 페이지가 없다', function partialPage() {
-    expect(toNextPostSearchCursor([toPost(1, '2026-08-02T05:00:00.000Z')])).toBeUndefined();
+    expect(toNextPostSearchCursor([toPost(1)], 'latest')).toBeUndefined();
   });
 
   it('빈 페이지도 다음이 없는 것으로 본다', function emptyPage() {
-    expect(toNextPostSearchCursor([])).toBeUndefined();
+    expect(toNextPostSearchCursor([], 'latest')).toBeUndefined();
   });
 
-  it('페이지가 가득 찼으면 마지막 글을 커서로 삼는다', function fullPage() {
-    const page = toFullPage();
+  it('최신순은 마지막 글의 끌올 시각을 커서로 삼는다', function latestSort() {
+    const page = toFullPage(toPost(99, { bumpedAt: '2026-08-01T00:00:00.000Z' }));
 
-    expect(toNextPostSearchCursor(page)).toEqual({
-      bumpedAt: '2026-08-02T05:00:00.000Z',
-      id: POST_SEARCH_PAGE_SIZE,
+    expect(toNextPostSearchCursor(page, 'latest')).toEqual({
+      value: '2026-08-01T00:00:00.000Z',
+      id: 99,
     });
+  });
+
+  it('조회순은 조회수를, 찜순은 찜 수를 커서로 삼는다', function countSorts() {
+    const page = toFullPage(toPost(99, { viewCount: 42, likeCount: 7 }));
+
+    expect(toNextPostSearchCursor(page, 'popular')).toEqual({ value: '42', id: 99 });
+    expect(toNextPostSearchCursor(page, 'likes')).toEqual({ value: '7', id: 99 });
+  });
+
+  it('가격순은 오름·내림 모두 가격을 커서로 삼는다', function priceSorts() {
+    const page = toFullPage(toPost(99, { price: 35000 }));
+
+    expect(toNextPostSearchCursor(page, 'price_asc')).toEqual({ value: '35000', id: 99 });
+    expect(toNextPostSearchCursor(page, 'price_desc')).toEqual({ value: '35000', id: 99 });
+  });
+
+  it('0원·0회도 값이 있는 것으로 본다', function zeroValues() {
+    const page = toFullPage(toPost(99, { price: 0, viewCount: 0 }));
+
+    expect(toNextPostSearchCursor(page, 'price_asc')).toEqual({ value: '0', id: 99 });
+    expect(toNextPostSearchCursor(page, 'popular')).toEqual({ value: '0', id: 99 });
   });
 });

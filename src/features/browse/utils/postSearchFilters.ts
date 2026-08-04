@@ -9,7 +9,8 @@
  * 화면이 죽는 것보다 낫다.
  */
 
-import type { PostSearchFilters } from '../types';
+import { DEFAULT_POST_SORT, SORT_PARAM, toPostSortOption } from './postSort';
+import type { PostSearchFilters, PostSortOption } from '../types';
 
 export const KEYWORD_PARAM = 'q';
 export const CATEGORY_PARAM = 'category';
@@ -59,8 +60,16 @@ export function fromSearchParams(params: URLSearchParams): PostSearchFilters {
   };
 }
 
+/** 정렬도 필터와 같은 자리(URL)에 둔다. 모르는 값이면 기본 정렬로 되돌린다. */
+export function sortFromSearchParams(params: URLSearchParams): PostSortOption {
+  return toPostSortOption(params.get(SORT_PARAM));
+}
+
 /** 기본값인 항목은 키 자체를 넣지 않는다. 주소창이 짧아야 사용자가 무엇을 걸었는지 읽을 수 있다. */
-export function toSearchParams(filters: PostSearchFilters): URLSearchParams {
+export function toSearchParams(
+  filters: PostSearchFilters,
+  sort: PostSortOption = DEFAULT_POST_SORT,
+): URLSearchParams {
   const params = new URLSearchParams();
 
   if (filters.keyword !== '') {
@@ -77,6 +86,9 @@ export function toSearchParams(filters: PostSearchFilters): URLSearchParams {
   }
   if (filters.availableOnly) {
     params.set(AVAILABLE_PARAM, AVAILABLE_ON);
+  }
+  if (sort !== DEFAULT_POST_SORT) {
+    params.set(SORT_PARAM, sort);
   }
 
   return params;
