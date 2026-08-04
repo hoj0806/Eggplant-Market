@@ -2,9 +2,28 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChatComposer from './chatComposer';
 
-function renderComposer(onSendText: jest.Mock, onSendImages: jest.Mock, isSending = false) {
+type ComposerOverrides = {
+  isSending?: boolean;
+  canOfferPrice?: boolean;
+  hasPendingOffer?: boolean;
+  onSendPriceOffer?: jest.Mock;
+};
+
+function renderComposer(
+  onSendText: jest.Mock,
+  onSendImages: jest.Mock,
+  overrides: ComposerOverrides = {},
+) {
   render(
-    <ChatComposer isSending={isSending} onSendText={onSendText} onSendImages={onSendImages} />,
+    <ChatComposer
+      isSending={overrides.isSending ?? false}
+      canOfferPrice={overrides.canOfferPrice ?? false}
+      postPrice={50000}
+      hasPendingOffer={overrides.hasPendingOffer ?? false}
+      onSendText={onSendText}
+      onSendImages={onSendImages}
+      onSendPriceOffer={overrides.onSendPriceOffer ?? jest.fn()}
+    />,
   );
 }
 
@@ -84,10 +103,69 @@ describe('ChatComposer', function chatComposerSuite() {
   });
 
   it('보내는 중에는 전송 버튼을 잠근다', async function locksWhileSending() {
-    renderComposer(jest.fn(), jest.fn(), true);
+    renderComposer(jest.fn(), jest.fn(), { isSending: true });
 
     await userEvent.type(screen.getByLabelText('메시지 입력'), '안녕');
 
     expect(screen.getByRole('button', { name: '전송' })).toBeDisabled();
+  });
+
+  it('파는 쪽에게는 가격 제안 버튼이 없다', function sellerHasNoOfferButton() {
+    renderComposer(jest.fn(), jest.fn(), { canOfferPrice: false });
+
+    expect(screen.queryByRole('button', { name: '가격 제안' })).not.toBeInTheDocument();
+  });
+
+  it('가격 제안 버튼을 눌러야 금액 칸이 열린다', async function opensOfferForm() {
+    renderComposer(jest.fn(), jest.fn(), { canOfferPrice: true });
+
+    expect(screen.queryByLabelText('얼마에 거래하고 싶으세요?')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '가격 제안' }));
+
+    expect(screen.getByLabelText('얼마에 거래하고 싶으세요?')).toBeInTheDocument();
+    expect(screen.getByText('판매가 50,000원')).toBeInTheDocument();
+  });
+
+  it('금액을 제안하면 숫자로 넘기고 칸을 닫는다', async function sendsOffer() {
+    const onSendPriceOffer = jest.fn();
+    renderComposer(jest.fn(), jest.fn(), { canOfferPrice: true, onSendPriceOffer });
+
+    await userEvent.click(screen.getByRole('button', { name: '가격 제안' }));
+    await userEvent.type(screen.getByLabelText('얼마에 거래하고 싶으세요?'), '40000');
+    await userEvent.click(screen.getByRole('button', { name: '제안' }));
+
+    expect(onSendPriceOffer).toHaveBeenCalledWith(40000);
+    expect(screen.queryByLabelText('얼마에 거래하고 싶으세요?')).not.toBeInTheDocument();
+  });
+
+  it('숫자가 아닌 금액은 보내지 않고 이유를 알려 준다', async function rejectsNonNumeric() {
+    const onSendPriceOffer = jest.fn();
+    renderComposer(jest.fn(), jest.fn(), { canOfferPrice: true, onSendPriceOffer });
+
+    await userEvent.click(screen.getByRole('button', { name: '가격 제안' }));
+    await userEvent.type(screen.getByLabelText('얼마에 거래하고 싶으세요?'), '4만원');
+    await userEvent.click(screen.getByRole('button', { name: '제안' }));
+
+    expect(onSendPriceOffer).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('금액은 숫자만 입력할 수 있습니다.');
+  });
+
+  it('답을 기다리는 제안이 있으면 금액 칸 대신 이유가 뜬다', async function blocksSecondOffer() {
+    renderComposer(jest.fn(), jest.fn(), { canOfferPrice: true, hasPendingOffer: true });
+
+    await userEvent.click(screen.getByRole('button', { name: '가격 제안' }));
+
+    expect(screen.queryByLabelText('얼마에 거래하고 싶으세요?')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('먼저 보낸 제안의 답을 기다리는 중입니다.');
+  });
+
+  it('취소하면 금액 칸이 닫힌다', async function cancelsOffer() {
+    renderComposer(jest.fn(), jest.fn(), { canOfferPrice: true });
+
+    await userEvent.click(screen.getByRole('button', { name: '가격 제안' }));
+    await userEvent.click(screen.getByRole('button', { name: '취소' }));
+
+    expect(screen.queryByLabelText('얼마에 거래하고 싶으세요?')).not.toBeInTheDocument();
   });
 });

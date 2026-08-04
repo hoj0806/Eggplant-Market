@@ -10,6 +10,8 @@ const MESSAGE_BY_PATTERN: ReadonlyArray<readonly [RegExp, string]> = [
   [/내 게시물에는 채팅/, '내가 올린 상품에는 채팅을 걸 수 없습니다.'],
   [/거래완료된 게시물/, '거래완료된 상품의 상태는 되돌릴 수 없습니다.'],
   [/읽음 표시만/, '이미 보낸 메시지는 고칠 수 없습니다.'],
+  // respondToOffer가 0행을 받았을 때다. 상대가 먼저 답했거나 이미 답한 제안이다.
+  [/이미 답한 제안/, '이미 답변이 끝난 제안입니다.'],
   [/게시물을 찾을 수 없/, '게시물을 찾을 수 없습니다. 삭제되었을 수 있습니다.'],
   [/payload too large|maximum allowed size|entity too large/, '사진 용량이 너무 큽니다. 5MB 이하로 보내 주세요.'],
   [/mime type|invalid_mime_type/, '지원하지 않는 사진 형식입니다.'],

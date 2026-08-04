@@ -3,6 +3,7 @@ import {
   MAX_CHAT_IMAGE_COUNT,
   validateChatImages,
   validateMessageText,
+  validateOfferAmount,
 } from './validateChatInput';
 
 function toFile(name: string, type: string, size: number): File {
@@ -72,5 +73,39 @@ describe('validateChatImages', function validateChatImagesSuite() {
 
   it('정확히 5MB는 통과한다', function atByteLimit() {
     expect(validateChatImages([toImage(5 * 1024 * 1024)])).toBeUndefined();
+  });
+});
+
+describe('validateOfferAmount', function validateOfferAmountSuite() {
+  it('금액을 비워 두면 막는다', function empty() {
+    expect(validateOfferAmount('  ')).toBe('제안할 금액을 입력해 주세요.');
+  });
+
+  it('숫자가 아니면 막는다', function notANumber() {
+    expect(validateOfferAmount('3만원')).toBe('금액은 숫자만 입력할 수 있습니다.');
+  });
+
+  it('천 단위 구분 기호도 숫자가 아니다', function grouped() {
+    expect(validateOfferAmount('30,000')).toBe('금액은 숫자만 입력할 수 있습니다.');
+  });
+
+  it('음수는 막는다', function negative() {
+    expect(validateOfferAmount('-1000')).toBe('금액은 숫자만 입력할 수 있습니다.');
+  });
+
+  it('0원은 제안이 아니다', function zero() {
+    expect(validateOfferAmount('0')).toBe('1원 이상으로 제안해 주세요.');
+  });
+
+  it('int4를 넘는 금액은 막는다', function overLimit() {
+    expect(validateOfferAmount('1000000000')).toBe('금액은 999,999,999원 이하여야 합니다.');
+  });
+
+  it('상한값 자체는 통과한다', function atLimit() {
+    expect(validateOfferAmount('999999999')).toBeUndefined();
+  });
+
+  it('앞뒤 공백은 떼고 본다', function trimmed() {
+    expect(validateOfferAmount(' 30000 ')).toBeUndefined();
   });
 });

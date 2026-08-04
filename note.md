@@ -1317,3 +1317,118 @@ PostgREST가 돌려주는 `2026-08-02T06:55:00+00:00` 문자열이 그대로 `::
   거는 일이 아니라 따로 다룬다
 - **거리순** — `nearby_posts`(PostGIS)와 `profiles.search_radius_m`이 아직 잠들어 있다.
   지도 기능과 함께 꺼내는 편이 맞다
+
+## 채팅 가격 제안 (2026-08-05)
+
+`todo.md` 4단계. 스키마에는 `message_type='price_offer'`·`offer_amount`·`offer_status`가 처음부터
+있었고 말풍선에 분기까지 있었는데 **보내는 길도 답하는 길도 없어** 한 번도 쓰이지 않던 자리다.
+마이그레이션 없이 api/hooks/components만 얹어 그 길을 냈다.
+
+### 무엇을 만들었나
+
+1. **제안 보내기** — 입력줄의 `₩` 버튼이 금액 칸을 연다. 사는 쪽에게만, 판매중일 때만 보인다.
+2. **수락 · 거절** — 받은 제안 말풍선에 버튼 둘. 답이 끝나면 결과 글자만 남는다.
+3. **중복 제안 막기** — 내가 보낸 제안이 대기 중이면 새 제안을 열지 않는다.
+
+### 설계 결정
+
+#### 1. 제안은 한 방향으로만 흐른다
+
+가격 제안을 **사는 쪽만** 걸 수 있게 했다(`canSendPriceOffer`). 파는 쪽은 값을 내리고 싶으면
+게시물 가격을 고치면 되므로(2단계) 제안할 이유가 없다.
+
+방향을 하나로 묶은 진짜 이유는 화면이다. 양쪽이 다 제안할 수 있으면 "이 말풍선에 답할 사람이
+누구인가"가 방마다·메시지마다 달라진다. 한 방향이면 **받은 쪽 = 판매자**로 고정돼
+수락·거절 버튼의 자리가 흔들리지 않는다.
+
+서버는 이 방향을 강제하지 않는다. `messages_insert`(0001)는 방 참여자면 통과시키므로
+판매자가 API를 직접 찔러 제안을 넣는 것 자체는 막히지 않는다. 다만 그렇게 들어온 행도
+`canRespondToOffer`가 "발신자가 아닌 쪽"만 답하게 하므로 화면은 깨지지 않는다.
+
+#### 2. 답하는 권한은 서버가 이미 정해 두고 있었다
+
+수락·거절에 RPC를 만들지 않았다. 0008이 이미 두 겹으로 막아 뒀기 때문이다.
+
+- `messages_update` 정책 — **발신자가 아닌** 방 참여자만 (누가)
+- `guard_message_update` 트리거 — `read_at`·`offer_status` 외의 컬럼 변경 금지 (무엇을)
+
+그래서 평범한 `update` 한 줄이면 된다. 읽음 표시(`markRoomRead`)가 RPC 없이 도는 것과 같은 이유다.
+
+```ts
+.update({ offer_status: input.status })
+.eq('id', input.messageId)
+.eq('type', 'price_offer')
+.eq('offer_status', 'pending')
+```
+
+마지막 조건이 핵심이다. **이미 답한 제안을 두 번째 답이 덮어쓰지 못하게** 한다 — 버튼을 두 번
+눌렀거나 상대 화면이 조금 낡았을 때 마지막 클릭이 이기는 일이 없다. 조건에 걸리면 update는
+오류가 아니라 **빈 결과**로 돌아오므로(`maybeSingle` → `null`) 거기서 뜻을 붙여 준다.
+
+#### 3. 수락해도 게시물 가격은 바꾸지 않는다
+
+당근에서도 제안 수락은 "그 값에 하자"는 **합의 표시**일 뿐 판매글의 가격표를 고치는 일이 아니다.
+가격을 따라 바꾸면 그 글을 보는 다른 이웃에게도 8,000원짜리로 보이는데, 합의는 이 방 둘 사이의
+것이다. 실제 DB에서도 수락 뒤 `posts.price`가 그대로임을 확인했다.
+
+#### 4. 대기 중인 제안은 한 번에 하나
+
+`hasPendingOfferFrom`이 참이면 금액 칸을 열지 않는다. 대기 중인 제안이 여러 개 쌓이면 판매자
+화면에 수락 버튼이 여러 개 남고, **그중 어느 것을 눌러도 "합의된 금액"이 되어 버린다.**
+
+막는 방식은 잠긴 버튼이 아니라 **열어서 이유를 보여주는 쪽**을 골랐다. `₩` 버튼은 언제나 눌리고,
+눌러서 열린 자리에 "먼저 보낸 제안의 답을 기다리는 중입니다"가 적힌다. 잠긴 버튼은 이유를
+말해 주지 않는다(troble.md 같은 절 1번).
+
+이건 화면 규칙일 뿐이라 서버는 두 번째 제안도 받는다. 서버에 두려면 트리거가 필요하고
+그건 마이그레이션인데, 어겼을 때 손해가 "판매자 화면이 조금 지저분해진다" 정도라 화면에 뒀다.
+
+#### 5. 제안 폼은 대화 입력줄과 **형제**다
+
+`chatComposer`의 뿌리가 `<form>`이라 제안 입력을 그 안에 넣으면 폼이 중첩된다.
+`<div>`으로 감싸 둘을 나란히 뒀다. HTML 규칙 이전에 **Enter의 주인**이 갈리기 때문이다 —
+대화 입력에서 Enter는 전송인데, 한 폼이면 금액을 치다 Enter를 눌렀을 때 어느 쪽이 나갈지 모른다.
+
+### 파일 구성
+
+```
+chat/
+├─ api/chatApi.ts                    sendPriceOfferMessage · respondToOffer
+├─ hooks/useChatMutations.ts         useSendPriceOfferMutation · useRespondToOfferMutation
+├─ utils/priceOffer.ts               canSendPriceOffer · canRespondToOffer · hasPendingOfferFrom
+├─ utils/validateChatInput.ts        validateOfferAmount
+├─ components/priceOfferForm.tsx     금액 입력 (신설)
+└─ components/chatMessageBubble.tsx  제안 말풍선 + 수락·거절
+```
+
+답변은 새 메시지가 아니라 있던 행의 갱신이라 캐시도 `withUpdatedMessage`로 **갈아 끼운다.**
+채팅방 요약은 건드리지 않는다 — `last_message`를 고치는 트리거는 insert에만 붙어 있어
+답변으로는 목록의 마지막 메시지도 안 읽은 수도 변하지 않는다. 상대 화면은 Realtime UPDATE가
+같은 자리를 갈아 끼워 따라온다(`messages`는 replica identity full).
+
+### 검증
+
+`npx jest` 60 스위트 · 444건 통과(신규 1 스위트, 기존 2 스위트 보강).
+`tsc --noEmit`·`eslint` 무경고, `vite build` 성공.
+
+실제 DB에서 `set local role authenticated` + `request.jwt.claims`로 양쪽 사용자를 흉내 내
+확인한 것:
+
+- 구매자가 넣은 `price_offer` 한 건이 채팅방 요약을 `8000원 제안`으로 만들고,
+  판매자에게 `type='price_offer'` 알림을 남긴다 (7단계가 읽을 자리)
+- **구매자가 자기 제안에 답할 수 없다** — 0행 (`messages_update`가 발신자를 뺀다)
+- 판매자의 수락은 1행, 이어진 두 번째 답변은 0행 (`offer_status='pending'` 조건)
+- 수락 뒤에도 `posts.price`는 10,000원 그대로
+- 판매자가 `offer_amount`를 고치려 하면 `23514 메시지는 읽음 표시만 바꿀 수 있습니다.`
+
+넣은 행은 검증 뒤 모두 지우고 방 요약을 원래 값으로 되돌렸다.
+
+### 이번 범위 밖
+
+- **제안 취소** — `messages_update`가 발신자를 아예 뺐기 때문에 구매자가 자기 제안을 무를 길이
+  없다. 정책을 "발신자는 offer_status를 `cancelled`로만" 쪽으로 손대야 하는데, 그러면
+  enum 값 추가까지 마이그레이션이 된다. `todo.md`가 처음부터 이 조건을 달아 뒀다
+- **제안 수락 → 예약 자동 전환** — 수락이 곧 거래 약속은 아니다. 상태는 판매자가
+  `postStatusControl`에서 직접 바꾼다
+- **여러 제안 히스토리 화면** — 주고받은 제안을 따로 모아 보는 자리. 대화 흐름 안에서
+  말풍선으로 보는 것으로 충분하다고 봤다
