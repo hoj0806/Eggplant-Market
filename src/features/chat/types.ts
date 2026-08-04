@@ -1,10 +1,16 @@
 import type { PostStatus } from '../post/types';
 
-/** 0001의 message_type enum과 같은 값이다. price_offer는 아직 화면이 없다. */
+/** 0001의 message_type enum과 같은 값이다. */
 export type MessageType = 'text' | 'image' | 'price_offer';
 
 /** 0001의 offer_status enum과 같은 값이다. */
 export type OfferStatus = 'pending' | 'accepted' | 'rejected';
+
+/**
+ * 제안에 대한 답. `pending`으로 되돌리는 길은 없다 —
+ * 한 번 답한 제안은 그 자리에서 끝나고, 마음이 바뀌면 새 제안을 주고받는다.
+ */
+export type OfferResponse = Exclude<OfferStatus, 'pending'>;
 
 /** 채팅 목록 한 줄. 0008의 fetch_chat_rooms가 이 모양 그대로 돌려준다. */
 export type ChatRoomSummary = {
@@ -63,4 +69,16 @@ export type SendImageMessageInput = {
   roomId: number;
   senderId: string;
   files: File[];
+};
+
+/** 가격 제안 한 건. content는 비우고 금액만 싣는다 — 문구는 화면이 만든다. */
+export type SendPriceOfferInput = {
+  roomId: number;
+  senderId: string;
+  amount: number;
+};
+
+export type RespondToOfferInput = {
+  messageId: number;
+  status: OfferResponse;
 };

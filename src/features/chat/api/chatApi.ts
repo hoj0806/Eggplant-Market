@@ -6,8 +6,10 @@ import type {
   MessageType,
   OfferStatus,
   PostChatPartner,
+  RespondToOfferInput,
   SendImageMessageInput,
   SendMessageInput,
+  SendPriceOfferInput,
 } from '../types';
 
 const CHAT_IMAGE_BUCKET = 'chat-images';
@@ -254,6 +256,62 @@ export async function sendImageMessages(input: SendImageMessageInput): Promise<C
   }
 
   return sent;
+}
+
+/**
+ * 가격 제안을 보낸다.
+ *
+ * content는 비운다 — 금액은 offer_amount 칸에 있고, 화면 문구는 볼 때 만든다.
+ * 채팅 목록에 뜰 요약(`35000원 제안`)은 0008의 on_message_insert가 만들어 준다.
+ */
+export async function sendPriceOfferMessage(input: SendPriceOfferInput): Promise<ChatMessage> {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      room_id: input.roomId,
+      sender_id: input.senderId,
+      type: 'price_offer',
+      offer_amount: input.amount,
+      offer_status: 'pending',
+    })
+    .select(MESSAGE_COLUMNS)
+    .single();
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return toChatMessage(data as unknown as MessageRow);
+}
+
+/**
+ * 받은 제안에 답한다.
+ *
+ * 누가 답할 수 있는지는 서버가 정한다 — messages_update(0008)가 발신자 본인을 막고,
+ * guard_message_update가 offer_status 말고는 못 바꾸게 막는다. 그래서 평범한 update로 충분하다.
+ *
+ * `offer_status = 'pending'` 조건이 핵심이다. 이미 답한 제안을 두 번째 답이 덮어쓰지 못하게 한다 —
+ * 상대 화면이 조금 낡았거나 버튼을 두 번 눌렀을 때 마지막 클릭이 이기는 일이 없다.
+ * 조건에 걸려 한 행도 안 바뀌면 update는 오류가 아니라 빈 결과이므로 여기서 뜻을 붙여 준다.
+ */
+export async function respondToOffer(input: RespondToOfferInput): Promise<ChatMessage> {
+  const { data, error } = await supabase
+    .from('messages')
+    .update({ offer_status: input.status })
+    .eq('id', input.messageId)
+    .eq('type', 'price_offer')
+    .eq('offer_status', 'pending')
+    .select(MESSAGE_COLUMNS)
+    .maybeSingle();
+
+  if (error !== null) {
+    throw error;
+  }
+  if (data === null) {
+    throw new Error('이미 답한 제안입니다.');
+  }
+
+  return toChatMessage(data as unknown as MessageRow);
 }
 
 /**

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import ChatMessageList from './chatMessageList';
 import type { ChatMessage } from '../types';
 
@@ -36,7 +37,14 @@ function toMessage(overrides: Partial<ChatMessage> & { id: number }): ChatMessag
   };
 }
 
-function renderList(messages: ChatMessage[], isLoading = false, isError = false) {
+type ListOverrides = {
+  isLoading?: boolean;
+  isError?: boolean;
+  isRespondingToOffer?: boolean;
+  onRespondToOffer?: jest.Mock;
+};
+
+function renderList(messages: ChatMessage[], overrides: ListOverrides = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
   render(
@@ -44,14 +52,26 @@ function renderList(messages: ChatMessage[], isLoading = false, isError = false)
       <ChatMessageList
         messages={messages}
         viewerId={VIEWER_ID}
-        isLoading={isLoading}
-        isError={isError}
+        isLoading={overrides.isLoading ?? false}
+        isError={overrides.isError ?? false}
         hasNextPage={false}
         isFetchingNextPage={false}
+        isRespondingToOffer={overrides.isRespondingToOffer ?? false}
         onLoadMore={jest.fn()}
+        onRespondToOffer={overrides.onRespondToOffer ?? jest.fn()}
       />
     </QueryClientProvider>,
   );
+}
+
+function toOffer(overrides: Partial<ChatMessage> & { id: number }): ChatMessage {
+  return toMessage({
+    type: 'price_offer',
+    content: null,
+    offerAmount: 40000,
+    offerStatus: 'pending',
+    ...overrides,
+  });
 }
 
 describe('ChatMessageList', function chatMessageListSuite() {
@@ -67,13 +87,13 @@ describe('ChatMessageList', function chatMessageListSuite() {
   });
 
   it('불러오는 중에는 그 사실만 보여준다', function loading() {
-    renderList([], true);
+    renderList([], { isLoading: true });
 
     expect(screen.getByText('대화를 불러오는 중입니다…')).toBeInTheDocument();
   });
 
   it('실패하면 알림으로 알려 준다', function failed() {
-    renderList([], false, true);
+    renderList([], { isError: true });
 
     expect(screen.getByRole('alert')).toHaveTextContent('대화를 불러오지 못했습니다');
   });
@@ -102,5 +122,49 @@ describe('ChatMessageList', function chatMessageListSuite() {
     });
 
     expect(texts).toEqual(['메시지 1', '메시지 2', '메시지 3']);
+  });
+
+  it('받은 제안에는 수락·거절 버튼이 붙는다', function offerButtons() {
+    renderList([toOffer({ id: 1, senderId: 'partner' })]);
+
+    expect(screen.getByText('40,000원')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '수락' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '거절' })).toBeInTheDocument();
+  });
+
+  it('내가 보낸 제안에는 답변 버튼 대신 기다린다는 표시가 붙는다', function myOffer() {
+    renderList([toOffer({ id: 1 })]);
+
+    expect(screen.queryByRole('button', { name: '수락' })).not.toBeInTheDocument();
+    expect(screen.getByText('답변 대기 중')).toBeInTheDocument();
+  });
+
+  it('답이 끝난 제안은 양쪽 모두 결과만 본다', function answeredOffer() {
+    renderList([
+      toOffer({ id: 1, senderId: 'partner', offerStatus: 'accepted' }),
+      toOffer({ id: 2, offerStatus: 'rejected' }),
+    ]);
+
+    expect(screen.queryByRole('button', { name: '수락' })).not.toBeInTheDocument();
+    expect(screen.getByText('수락됨')).toBeInTheDocument();
+    expect(screen.getByText('거절됨')).toBeInTheDocument();
+  });
+
+  it('수락·거절을 누르면 메시지 번호와 함께 알려 준다', async function respondsToOffer() {
+    const onRespondToOffer = jest.fn();
+    renderList([toOffer({ id: 42, senderId: 'partner' })], { onRespondToOffer });
+
+    await userEvent.click(screen.getByRole('button', { name: '수락' }));
+    expect(onRespondToOffer).toHaveBeenCalledWith(42, 'accepted');
+
+    await userEvent.click(screen.getByRole('button', { name: '거절' }));
+    expect(onRespondToOffer).toHaveBeenCalledWith(42, 'rejected');
+  });
+
+  it('답변이 도는 중에는 두 버튼을 함께 잠근다', function locksWhileResponding() {
+    renderList([toOffer({ id: 1, senderId: 'partner' })], { isRespondingToOffer: true });
+
+    expect(screen.getByRole('button', { name: '수락' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '거절' })).toBeDisabled();
   });
 });

@@ -1,11 +1,15 @@
 import ChatImageMessage from './chatImageMessage';
 import { formatPrice } from '../../../shared/utils/formatPrice';
-import type { ChatMessage } from '../types';
+import { canRespondToOffer, OFFER_STATUS_LABEL } from '../utils/priceOffer';
+import type { ChatMessage, OfferResponse } from '../types';
 
 type ChatMessageBubbleProps = {
   message: ChatMessage;
   /** 내가 보낸 메시지면 오른쪽에 붙고 "안읽음"을 함께 보여준다. */
   isMine: boolean;
+  /** 수락·거절 요청이 도는 중. 답이 오기 전에 두 번 눌리지 않게 잠근다. */
+  isRespondingToOffer: boolean;
+  onRespondToOffer(messageId: number, status: OfferResponse): void;
 };
 
 const TIME_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
@@ -13,25 +17,78 @@ const TIME_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
   minute: '2-digit',
 });
 
+const OFFER_BUTTON_CLASS = 'rounded-lg px-3 py-1 text-xs font-semibold transition disabled:opacity-50';
+
 function toTimeText(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? '' : TIME_FORMATTER.format(date);
 }
 
-function MessageBody(props: { message: ChatMessage }) {
+/**
+ * 가격 제안 말풍선.
+ *
+ * 받은 쪽에는 수락·거절 버튼이, 보낸 쪽에는 기다린다는 말이 붙는다.
+ * 답이 끝나면 양쪽 모두 결과만 남는다 — 되돌리는 길은 없고, 마음이 바뀌면 새로 제안한다.
+ *
+ * 수락해도 게시물 가격은 그대로다. 당근에서도 제안 수락은 "그 값에 하자"는 합의 표시일 뿐,
+ * 판매글의 가격표를 바꾸는 일이 아니다.
+ */
+function PriceOfferBody(props: ChatMessageBubbleProps) {
+  const message = props.message;
+  const status = message.offerStatus;
+
+  return (
+    <div
+      className="flex flex-col gap-1.5 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2
+                 dark:border-amber-900 dark:bg-amber-950"
+    >
+      <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-200">가격 제안</span>
+      <span className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+        {formatPrice(message.offerAmount ?? 0)}
+      </span>
+
+      {canRespondToOffer(message, props.isMine) ? (
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            disabled={props.isRespondingToOffer}
+            onClick={function accept(): void {
+              props.onRespondToOffer(message.id, 'accepted');
+            }}
+            className={`${OFFER_BUTTON_CLASS} bg-amber-600 text-white hover:bg-amber-700`}
+          >
+            수락
+          </button>
+          <button
+            type="button"
+            disabled={props.isRespondingToOffer}
+            onClick={function reject(): void {
+              props.onRespondToOffer(message.id, 'rejected');
+            }}
+            className={`${OFFER_BUTTON_CLASS} border border-amber-300 text-amber-800
+                        hover:bg-amber-100 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900`}
+          >
+            거절
+          </button>
+        </div>
+      ) : (
+        <span className="text-[11px] text-amber-800 dark:text-amber-200">
+          {status === null ? OFFER_STATUS_LABEL.pending : OFFER_STATUS_LABEL[status]}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MessageBody(props: ChatMessageBubbleProps) {
   const message = props.message;
 
   if (message.type === 'image') {
     return <ChatImageMessage path={message.content} />;
   }
 
-  // 가격 제안은 아직 보내는 화면이 없다. 다음 작업에서 수락·거절 버튼이 붙는 자리다.
   if (message.type === 'price_offer') {
-    return (
-      <span className="rounded-2xl bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-900 dark:text-amber-100">
-        {formatPrice(message.offerAmount ?? 0)} 제안
-      </span>
-    );
+    return <PriceOfferBody {...props} />;
   }
 
   return <span className="whitespace-pre-wrap break-words">{message.content}</span>;
@@ -54,7 +111,7 @@ function ChatMessageBubble(props: ChatMessageBubbleProps) {
             : 'max-w-[75%]'
         }
       >
-        <MessageBody message={message} />
+        <MessageBody {...props} />
       </div>
 
       <div className="flex flex-col items-end">

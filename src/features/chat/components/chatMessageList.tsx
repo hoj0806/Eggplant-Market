@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import ChatMessageBubble from './chatMessageBubble';
 import { useInfiniteScroll } from '../../../shared/hooks/useInfiniteScroll';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, OfferResponse } from '../types';
 
 type ChatMessageListProps = {
   messages: ChatMessage[];
@@ -11,7 +11,10 @@ type ChatMessageListProps = {
   /** 위로 더 거슬러 올라갈 대화가 있는가. */
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
+  /** 제안 답변이 도는 중. 말풍선의 수락·거절 버튼을 함께 잠근다. */
+  isRespondingToOffer: boolean;
   onLoadMore(): void;
+  onRespondToOffer(messageId: number, status: OfferResponse): void;
 };
 
 const MESSAGE_CLASS = 'py-8 text-center text-sm text-gray-500 dark:text-gray-400';
@@ -74,6 +77,8 @@ function ChatMessageList(props: ChatMessageListProps) {
               key={message.id}
               message={message}
               isMine={message.senderId === props.viewerId}
+              isRespondingToOffer={props.isRespondingToOffer}
+              onRespondToOffer={props.onRespondToOffer}
             />
           );
         })}

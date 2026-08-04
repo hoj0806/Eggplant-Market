@@ -8,12 +8,16 @@ import ProfileAvatar from '../../profile/components/profileAvatar';
 import { useChatMessagesQuery, useChatRoomQuery } from '../hooks/useChatQueries';
 import { useChatRoomRealtime } from '../hooks/useChatRealtime';
 import {
+  useRespondToOfferMutation,
   useSendImageMessagesMutation,
+  useSendPriceOfferMutation,
   useSendTextMessageMutation,
 } from '../hooks/useChatMutations';
 import { countUnreadFromPartner, useMarkRoomRead } from '../hooks/useMarkRoomRead';
 import { toMessageTimeline } from '../utils/chatCursor';
 import { toChatErrorMessage } from '../utils/chatErrorMessage';
+import { canSendPriceOffer, hasPendingOfferFrom } from '../utils/priceOffer';
+import type { OfferResponse } from '../types';
 
 /** 주소의 :roomId는 문자열이다. 숫자가 아니면 없는 방으로 본다. */
 function toRoomId(raw: string | undefined): number | null {
@@ -44,6 +48,8 @@ function ChatRoomPage() {
   // roomId가 null이면 훅은 아무것도 하지 않지만 훅 자체는 언제나 같은 순서로 불려야 한다.
   const sendText = useSendTextMessageMutation(roomId ?? 0, viewerId);
   const sendImages = useSendImageMessagesMutation(roomId ?? 0, viewerId);
+  const sendOffer = useSendPriceOfferMutation(roomId ?? 0, viewerId);
+  const respondToOffer = useRespondToOfferMutation(roomId ?? 0);
 
   if (status === 'loading') {
     return <PageSpinner message="세션을 확인하는 중입니다…" />;
@@ -71,7 +77,7 @@ function ChatRoomPage() {
   }
 
   const room = roomQuery.data;
-  const sendError = sendText.error ?? sendImages.error;
+  const sendError = sendText.error ?? sendImages.error ?? sendOffer.error ?? respondToOffer.error;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-3 p-6">
@@ -101,8 +107,12 @@ function ChatRoomPage() {
         isError={messagesQuery.isError}
         hasNextPage={messagesQuery.hasNextPage}
         isFetchingNextPage={messagesQuery.isFetchingNextPage}
+        isRespondingToOffer={respondToOffer.isPending}
         onLoadMore={function loadOlder(): void {
           void messagesQuery.fetchNextPage();
+        }}
+        onRespondToOffer={function handleRespond(messageId: number, status: OfferResponse): void {
+          respondToOffer.mutate({ messageId, status });
         }}
       />
 
@@ -113,12 +123,18 @@ function ChatRoomPage() {
       )}
 
       <ChatComposer
-        isSending={sendText.isPending || sendImages.isPending}
+        isSending={sendText.isPending || sendImages.isPending || sendOffer.isPending}
+        canOfferPrice={canSendPriceOffer(room, viewerId)}
+        postPrice={room.postPrice}
+        hasPendingOffer={hasPendingOfferFrom(messages, viewerId)}
         onSendText={function handleSendText(text: string): void {
           sendText.mutate({ text });
         }}
         onSendImages={function handleSendImages(files: File[]): void {
           sendImages.mutate({ files });
+        }}
+        onSendPriceOffer={function handleSendOffer(amount: number): void {
+          sendOffer.mutate({ amount });
         }}
       />
     </main>

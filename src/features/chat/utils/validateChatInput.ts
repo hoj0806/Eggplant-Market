@@ -61,3 +61,31 @@ export function validateChatImages(files: ReadonlyArray<File>): string | undefin
 export function canSendMessageText(text: string): boolean {
   return validateMessageText(text) === undefined;
 }
+
+/** 게시물 가격과 같은 상한이다. messages.offer_amount도 integer라 int4를 넘으면 안 된다. */
+const MAX_OFFER_AMOUNT = 999_999_999;
+
+/**
+ * 제안 금액. 입력 중이라 아직 문자열이다.
+ *
+ * 게시물 가격과 달리 0원을 받지 않는다. 나눔을 요청하는 것은 값을 부르는 일이 아니라
+ * 말로 물어볼 일이고, 금액 0인 제안은 말풍선에 '나눔 제안'으로 떠 뜻이 흐려진다.
+ */
+export function validateOfferAmount(amount: string): string | undefined {
+  const trimmed = amount.trim();
+
+  if (trimmed.length === 0) {
+    return '제안할 금액을 입력해 주세요.';
+  }
+  if (!/^\d+$/.test(trimmed)) {
+    return '금액은 숫자만 입력할 수 있습니다.';
+  }
+  if (Number(trimmed) === 0) {
+    return '1원 이상으로 제안해 주세요.';
+  }
+  if (Number(trimmed) > MAX_OFFER_AMOUNT) {
+    return `금액은 ${MAX_OFFER_AMOUNT.toLocaleString('ko-KR')}원 이하여야 합니다.`;
+  }
+
+  return undefined;
+}
