@@ -3,6 +3,7 @@ import {
   EMPTY_POST_SEARCH_FILTERS,
   fromSearchParams,
   hasActiveFilter,
+  sortFromSearchParams,
   toNonNegativeInteger,
   toSearchParams,
   validatePriceRange,
@@ -86,7 +87,29 @@ describe('toSearchParams', function toSearchParamsSuite() {
       availableOnly: true,
     };
 
-    expect(fromSearchParams(toSearchParams(filters))).toEqual(filters);
+    const params = toSearchParams(filters, 'price_asc');
+
+    expect(fromSearchParams(params)).toEqual(filters);
+    expect(sortFromSearchParams(params)).toBe('price_asc');
+  });
+
+  it('기본 정렬은 주소창에 남기지 않는다', function omitsDefaultSort() {
+    expect(toSearchParams(EMPTY_POST_SEARCH_FILTERS, 'latest').toString()).toBe('');
+    expect(toSearchParams(EMPTY_POST_SEARCH_FILTERS, 'likes').get('sort')).toBe('likes');
+  });
+});
+
+describe('sortFromSearchParams', function sortFromSearchParamsSuite() {
+  it('쿼리에 없거나 모르는 값이면 최신순이다', function fallsBackToDefault() {
+    expect(sortFromSearchParams(new URLSearchParams(''))).toBe('latest');
+    expect(sortFromSearchParams(new URLSearchParams('sort=cheapest'))).toBe('latest');
+  });
+
+  it('필터와 정렬이 섞여 있어도 각자 읽는다', function readsAlongsideFilters() {
+    const params = new URLSearchParams('q=의자&available=1&sort=price_desc');
+
+    expect(sortFromSearchParams(params)).toBe('price_desc');
+    expect(fromSearchParams(params).keyword).toBe('의자');
   });
 });
 

@@ -1180,3 +1180,140 @@ for each row when (
 - **수정 이력** — 당근처럼 "수정됨" 표시를 붙이지 않았다(`updated_at`은 쌓이고 있다)
 - **동네 변경** — 수정해도 글이 올라온 동네는 바뀌지 않는다. 올린 뒤에 이사를 갔더라도
   그 글이 그 동네 글이었다는 사실은 그대로다
+
+## 탐색 — 정렬 · 홈 무한 스크롤 (2026-08-04)
+
+`todo.md` 3단계. `feature.md` §2.2가 요구하던 "조회수별·방금전·찜 많은 순·가격" 정렬을 붙이고,
+홈에서 21번째 글에 닿는 길을 냈다.
+
+### 무엇을 만들었나
+
+1. **정렬 5종** — 최신순 · 조회 많은 순 · 찜 많은 순 · 낮은 가격순 · 높은 가격순.
+   검색 화면의 필터 줄 오른쪽에 select 하나. 필터와 같이 URL(`?sort=`)에 산다.
+2. **홈 피드 무한 스크롤** — `NEIGHBORHOOD_POSTS_LIMIT=20`에서 잘려 있던 홈이 끝까지 내려간다.
+3. **목록 컴포넌트 하나로 합치기** — 홈과 검색이 `postList.tsx`를 같이 쓴다.
+
+마이그레이션은 `0011_post_sort.sql` 하나다.
+
+### 설계 결정
+
+#### 1. 정렬이 바뀌면 커서도 바뀐다 — 이게 이번 단계의 전부다
+
+정렬 자체는 `order by`를 바꾸면 끝이다. 진짜 일은 **keyset 커서**에 있었다.
+0007의 커서는 `(bumped_at, id)`였는데, 이건 "최신순으로 볼 때의" 커서다. 찜순으로 보면서
+`bumped_at`을 커서로 보내면 서버는 `like_count`와 시각을 견주게 된다.
+
+정렬 기준마다 커서 타입을 따로 받는 안(`p_cursor_bumped_at` + `p_cursor_number`)을 먼저
+생각했다가 접었다. 정렬을 하나 더 붙일 때마다 인자가 늘고, 클라이언트는 "이번엔 어느 칸에
+넣어야 하나"를 매번 판단해야 한다. **커서 값을 text 한 칸으로 받고, 정렬 기준을 아는 서버가
+알맞은 타입으로 되돌리기로** 했다.
+
+```sql
+p_cursor_value text default null   -- '2026-08-02T06:55:00+00:00' 이거나 '35000' 이거나
+...
+or %1$s %2$s $7::%3$s              -- 정렬 컬럼 / 부등호 / 캐스팅할 타입
+```
+
+클라이언트 쪽은 `toNextPostSearchCursor(lastPage, sort)` 한 곳에서만 정렬을 안다.
+
+#### 2. tie-breaker는 언제나 `id desc`
+
+`order by price asc`인데 두 번째 키는 `id desc`다. 어색해 보이지만 의도한 것이다 —
+같은 가격 안에서는 새 글이 먼저 보이는 편이 자연스럽고, 커서 비교식이
+`(정렬값이 다음이거나) or (정렬값이 같고 id가 더 작다)` 한 모양으로 통일된다.
+방향까지 정렬 기준마다 뒤집으면 커서 조건이 네 갈래로 갈라진다.
+
+#### 3. `order by case`를 쓰지 않은 이유는 인덱스다
+
+한 줄로 끝낼 수 있는 길이 있었다.
+
+```sql
+order by case p_sort when 'popular' then p.view_count when 'likes' then p.like_count ... end desc
+```
+
+이러면 **어떤 인덱스도 이 표현식과 맞지 않아** 동네 글을 전부 읽고 메모리에서 정렬한다.
+20개를 보여주려고 5천 개를 정렬하는 셈이다. 정렬 컬럼이 쿼리 문자열에 박혀 있어야 인덱스를 탄다.
+그래서 본문을 `format()` + `execute`로 짰다.
+
+주입 걱정은 없다. `p_sort`는 **컬럼명을 만들어 내지 않고 화이트리스트에서 고르기만** 하고,
+목록에 없으면 `invalid_parameter_value`로 거절한다. 사용자 입력(검색어·가격·커서)은 전부
+`$n` 파라미터로 바인딩된다.
+
+```sql
+case coalesce(p_sort, 'latest')
+  when 'popular' then v_column := 'p.view_count'; v_direction := 'desc'; v_type := 'integer';
+  ...
+  else raise exception '알 수 없는 정렬 기준입니다: %', p_sort using errcode = 'invalid_parameter_value';
+end case;
+```
+
+인덱스는 정렬 기준마다 하나씩, `(region_code, 정렬컬럼 방향, id desc)` 모양으로 채웠다.
+**방향까지 같아야 한다** — `(price asc, id desc)`를 거꾸로 읽으면 `(price desc, id asc)`가 되어
+tie-breaker가 어긋나므로 가격은 오름·내림 두 벌이다. 0007의 `posts_region_price_idx`는
+오름차순 인덱스가 앞부분을 그대로 품고 있어 지웠다.
+
+#### 4. `create or replace`가 교체가 아니라 **추가**가 되는 자리
+
+인자 목록이 바뀌면 `create or replace function`은 기존 함수를 고치지 않고 **오버로드를 하나 더
+만든다.** 그대로 두면 `search_posts`가 두 개가 되고, PostgREST가 공통 인자만 담긴 요청을 받았을 때
+어느 쪽인지 고르지 못해 PGRST203으로 거절한다. 그래서 0011은 옛 시그니처를 먼저 지운다.
+
+```sql
+drop function if exists search_posts(
+  text, text, bigint, integer, integer, boolean, timestamptz, bigint, integer
+);
+```
+
+#### 5. 홈도 `search_posts`를 쓴다
+
+홈 목록은 조건을 하나도 걸지 않은 검색과 결과가 같다(0007이 그렇게 설계돼 있었다).
+그래서 `fetchNeighborhoodPosts`는 PostgREST 쿼리 빌더를 버리고 같은 RPC를 부른다.
+
+```ts
+export async function fetchNeighborhoodPosts(regionCode, cursor) {
+  return searchPosts({ regionCode, filters: EMPTY_POST_SEARCH_FILTERS, sort: DEFAULT_POST_SORT, cursor });
+}
+```
+
+목록을 두 갈래로 두면 "목록이라면 모두 적용돼야 하는 규칙"을 넣을 때마다 두 곳을 고쳐야 한다.
+6단계의 차단 사용자 제외가 곧 그런 규칙이다 — 이제 `search_posts` 한 곳만 고치면 홈까지 따라온다.
+
+캐시 키는 검색과 나눠 뒀다(`['posts','neighborhood',code]`). 결과는 같아도 **스크롤 위치가
+같으면 안 된다** — 검색에서 열 페이지를 내린 뒤 홈 탭을 누르면 홈이 처음부터 200개를 그린다.
+
+#### 6. 정렬은 "필터 초기화"의 대상이 아니다
+
+`hasActiveFilter`도 `clearFilters`도 정렬을 세지 않는다. 초기화는 조건을 푸는 버튼이지
+보던 순서를 되돌리는 버튼이 아니다. 같은 이유로 결과 0건 안내도 갈랐다 —
+`isNarrowed`를 `searchParams.toString() !== ''`로 재던 것을 검색어·필터만 보도록 고쳤다.
+정렬만 바꾼 0건은 "조건에 맞는 물건이 없다"가 아니라 "동네에 글이 없다"는 뜻이다.
+
+필터 시트의 `key`에서도 정렬을 뺐다. 가격을 입력하는 중에 정렬을 바꿨다고 draft가 날아가면 안 된다.
+
+### 검증
+
+`npx jest` 59 스위트 · 413건 통과(신규 2 스위트, 기존 2 스위트 보강). `tsc --noEmit`·`eslint`
+무경고, `vite build` 성공.
+
+실제 DB(27건)에서 확인한 것:
+
+- 다섯 정렬이 모두 기대한 순서로 나온다
+- **같은 값 경계**에서 keyset이 안 샌다 — 가격 10000원짜리 두 건(id 14, 2)이 페이지 경계에
+  걸리도록 `p_limit => 3`으로 끊었을 때, 2페이지가 정확히 `2:10000`부터 시작한다
+- `p_sort => 'sqli; drop table posts'` → `22023`으로 거절, `posts` 27건 그대로
+- `escape_like_pattern`이 동적 SQL 안에서도 산다 — `%` 검색이 전체가 아니라
+  "100% 새제품 텀블러" 한 건만 잡고, `_` 검색은 0건
+- `enable_seqscan=off`로 확인한 실행계획이 `Index Only Scan using posts_region_price_asc_idx`,
+  Sort 노드 없음 (27행뿐이라 평소에는 planner가 seq scan을 고른다)
+
+앱이 실제로 쓰는 경로(PostgREST + anon 키)로도 같은 페이로드를 보내 커서 왕복을 확인했다.
+PostgREST가 돌려주는 `2026-08-02T06:55:00+00:00` 문자열이 그대로 `::timestamptz`로 되돌아간다.
+
+### 이번 범위 밖
+
+- **홈의 정렬 선택** — 홈은 "지금 뭐가 올라왔나"를 훑는 자리라 최신순이 전제다.
+  순서를 고르고 싶은 순간에는 이미 찾는 것이 있으므로 검색이 맡는다
+- **인기순의 정의** — 조회수 하나로 잡았다. 조회·찜·채팅을 섞은 점수는 기준을 정하는 일이지
+  거는 일이 아니라 따로 다룬다
+- **거리순** — `nearby_posts`(PostGIS)와 `profiles.search_radius_m`이 아직 잠들어 있다.
+  지도 기능과 함께 꺼내는 편이 맞다

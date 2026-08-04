@@ -904,3 +904,62 @@ renderMenu(makePost({ bumpedAt: new Date(NOW - 3.5 * HOUR_MS).toISOString() }));
 
 **교훈**: 실제 시계를 쓰는 컴포넌트 테스트에서 **버림(floor)이 걸린 값을 경계에 붙이면** 깨진다.
 경계는 순수 함수에서, 컴포넌트에서는 경계에서 떨어진 값으로.
+
+## 탐색 — 정렬 · 홈 무한 스크롤 (2026-08-04)
+
+이번 단계는 **막혀서 되돌린 곳이 없었다.** 코드가 한 번에 돌았다는 뜻이 아니라, 밟으면 크게
+아팠을 함정 둘을 밟기 전에 확인하고 지나갔다는 뜻이다. 증상이 없으니 "증상 → 원인 → 해결"
+대신 "무엇이 터졌을 것인가 → 왜 → 어떻게 비켰나"로 남긴다.
+
+### 1. `create or replace function`이 함수를 **하나 더** 만든다
+
+**터졌을 것**: 0011은 `search_posts`에 `p_sort`를 더하고 `p_cursor_bumped_at`(timestamptz)을
+`p_cursor_value`(text)로 바꾼다. 이름이 같으니 `create or replace`면 교체될 것 같지만,
+**Postgres는 인자 목록이 다르면 다른 함수로 본다.** 옛 함수가 그대로 남아 `search_posts`가
+두 개가 된다.
+
+여기까지는 조용하다. 터지는 곳은 PostgREST다. supabase-js가 보내는 것은 JSON 키 묶음이고,
+서버는 그 키로 함수를 고른다. 두 함수가 모두 받아들일 수 있는 요청(예: `p_region_code`만)이
+오는 순간 `PGRST203 Could not choose the best candidate function`으로 거절한다.
+**앱이 아니라 스키마가 고장 난 상태라, 프론트를 아무리 들여다봐도 원인이 안 보인다.**
+
+**어떻게 비켰나**: 옛 시그니처를 이름이 아니라 **인자 목록으로** 지목해 먼저 지운다.
+
+```sql
+drop function if exists search_posts(
+  text, text, bigint, integer, integer, boolean, timestamptz, bigint, integer
+);
+```
+
+`drop function search_posts(...)`에 인자를 안 적으면(오버로드가 여럿일 때) 그것도 거절당한다.
+**교훈**: RPC의 인자를 고치는 마이그레이션은 언제나 `drop` + `create` 짝이다.
+`create or replace` 한 줄로 끝나는 것은 본문만 바꿀 때뿐이다.
+
+### 2. `format()` 안에서 `%`는 더 이상 LIKE 와일드카드가 아니다
+
+**터졌을 것**: 정렬 컬럼을 쿼리 문자열에 박으려고 본문을 `format()` + `execute`로 옮겼는데,
+0007에서 가져온 검색 조건에는 `%`가 들어 있다.
+
+```sql
+p.title ilike '%' || escape_like_pattern(btrim($2)) || '%'
+```
+
+`format()`은 `%`를 **자기 자리표시자**(`%s`, `%1$s`)로 읽는다. 그대로 옮기면 `'%'`가
+`' || escape…`를 잡아먹어 `unrecognized format() type specifier`로 죽거나, 운이 나쁘면
+엉뚱한 인자가 끼워진 쿼리가 만들어진다. 0007이 애써 만든 와일드카드 이스케이프가
+**한 겹 위에서** 무너지는 자리다.
+
+**어떻게 비켰나**: 쿼리 문자열 안의 LIKE 와일드카드를 전부 `'%%'`로 적었다.
+그리고 그게 실제로 살아 있는지는 문법이 아니라 **결과로** 확인했다 —
+`%`로 검색했을 때 동네 글 전체가 아니라 `100% 새제품 텀블러` 한 건만,
+`_`로 검색했을 때 0건이 나오면 이스케이프가 두 겹 모두 제자리에 있다는 뜻이다.
+
+```
+p_keyword => '%'  → 1건 (100% 새제품 텀블러)
+p_keyword => '_'  → 0건
+p_keyword => null → 20건 (한 페이지)
+```
+
+**교훈**: 정적 SQL을 동적 SQL로 옮길 때는 문자열이 **두 번 해석된다.** 옮기기 전에 잘 돌던
+쿼리라도 `%`·`''`·`\`가 들어 있으면 그 자리를 하나씩 짚어야 하고, 통과 여부는 파싱이 아니라
+"이스케이프가 필요한 입력"으로 재 봐야 한다.

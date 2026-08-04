@@ -1,14 +1,14 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
+import { EMPTY_POST_SEARCH_FILTERS } from '../../browse/utils/postSearchFilters';
+import { DEFAULT_POST_SORT } from '../../browse/utils/postSort';
 import { POST_IMAGE_BUCKET, toPostImagePaths } from '../utils/postImagePath';
-import type { PostSearchFilters } from '../../browse/types';
+import type { PostSearchFilters, PostSortOption } from '../../browse/types';
 import type { TradePlace } from '../../place/types';
 import type { Region } from '../../region/types';
 import type { PostDetail, PostImageItem, PostSeller, PostStatus, PostSummary } from '../types';
 
 // 한 줄 리터럴이어야 한다. 문자열을 +로 이으면 리터럴 타입을 잃어
 // supabase-js가 select 결과를 GenericStringError로 추론한다.
-const POST_SUMMARY_COLUMNS =
-  'id, title, price, status, thumbnail_url, dong_name, like_count, view_count, bumped_at';
 // profiles는 seller_id 말고도 likes·recently_viewed를 통해 posts와 이어져 있어서
 // 관계를 FK 이름(posts_seller_id_fkey)으로 짚어 줘야 한다. 안 그러면 PGRST201로 거절당한다.
 const POST_DETAIL_COLUMNS =
@@ -17,9 +17,7 @@ const POST_DETAIL_COLUMNS =
 const DEFAULT_IMAGE_EXTENSION = 'jpg';
 const SAFE_EXTENSION_PATTERN = /^[a-zA-Z0-9]{1,5}$/;
 
-export const NEIGHBORHOOD_POSTS_LIMIT = 20;
-
-/** 검색 결과 한 페이지 크기. search_posts가 서버에서 50으로 한 번 더 막는다. */
+/** 목록 한 페이지 크기. 홈·검색이 같은 RPC를 쓰므로 값도 하나다. search_posts가 서버에서 50으로 한 번 더 막는다. */
 export const POST_SEARCH_PAGE_SIZE = 20;
 
 type PostSummaryRow = {
@@ -547,35 +545,18 @@ export async function fetchPostDetail(
 }
 
 /**
- * 내 동네 최신 글 목록.
- *
- * 기준은 법정동 코드가 같은지다. 반경(profiles.search_radius_m)과 nearby_posts RPC를 쓰는
- * 거리 기반 검색은 필터·무한스크롤과 함께 붙인다.
- */
-export async function fetchNeighborhoodPosts(regionCode: string): Promise<PostSummary[]> {
-  const { data, error } = await supabase
-    .from('posts')
-    .select(POST_SUMMARY_COLUMNS)
-    .eq('region_code', regionCode)
-    .order('bumped_at', { ascending: false })
-    .limit(NEIGHBORHOOD_POSTS_LIMIT);
-
-  if (error !== null) {
-    throw error;
-  }
-
-  return (data as PostSummaryRow[]).map(toPostSummary);
-}
-
-/**
- * 검색 결과의 다음 페이지를 가리키는 자리.
+ * 목록의 다음 페이지를 가리키는 자리.
  *
  * offset이 아니라 마지막으로 읽은 행 자체다. 스크롤하는 동안 누가 글을 올려도
  * 이미 본 글이 다시 나오거나 못 본 글이 밀려 사라지지 않는다.
- * `bumped_at`만으로는 같은 시각 글을 가를 수 없어 `id`까지 함께 들고 간다.
+ *
+ * `value`가 문자열인 것은 **정렬 기준마다 커서 컬럼이 달라서**다(0011).
+ * 최신순이면 bumped_at, 찜순이면 like_count가 들어온다 — 타입이 제각각이라 하나로 받으려면
+ * 문자열이 가장 단순하다. 되돌리는 캐스팅은 정렬 기준을 아는 서버가 한다.
+ * 정렬값 하나로는 같은 값을 가진 글을 가를 수 없어 `id`까지 함께 들고 간다.
  */
 export type PostSearchCursor = {
-  bumpedAt: string;
+  value: string;
   id: number;
 };
 
@@ -583,9 +564,32 @@ export type SearchPostsParams = {
   /** 검색은 언제나 이 동네 안에서만 돈다. */
   regionCode: string;
   filters: PostSearchFilters;
+  sort: PostSortOption;
   /** 첫 페이지는 null. */
   cursor: PostSearchCursor | null;
 };
+
+/**
+ * 내 동네 글 목록 한 페이지.
+ *
+ * 조건을 하나도 걸지 않은 검색과 같은 결과라 search_posts를 그대로 쓴다(0007 참고).
+ * 목록을 두 갈래로 두면 6단계의 차단 사용자 제외처럼 "목록이라면 모두 적용돼야 하는 규칙"을
+ * 넣을 때마다 두 곳을 고쳐야 한다.
+ *
+ * 반경(profiles.search_radius_m)과 nearby_posts RPC를 쓰는 거리 기반 목록은 아직이다 —
+ * 기준은 여전히 법정동 코드가 같은지다.
+ */
+export async function fetchNeighborhoodPosts(
+  regionCode: string,
+  cursor: PostSearchCursor | null,
+): Promise<PostSummary[]> {
+  return searchPosts({
+    regionCode,
+    filters: EMPTY_POST_SEARCH_FILTERS,
+    sort: DEFAULT_POST_SORT,
+    cursor,
+  });
+}
 
 /**
  * 내 동네 게시물 검색 + 필터.
@@ -603,7 +607,8 @@ export async function searchPosts(params: SearchPostsParams): Promise<PostSummar
     p_min_price: params.filters.minPrice,
     p_max_price: params.filters.maxPrice,
     p_available_only: params.filters.availableOnly,
-    p_cursor_bumped_at: params.cursor?.bumpedAt ?? null,
+    p_sort: params.sort,
+    p_cursor_value: params.cursor?.value ?? null,
     p_cursor_id: params.cursor?.id ?? null,
     p_limit: POST_SEARCH_PAGE_SIZE,
   });

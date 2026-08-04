@@ -1,13 +1,16 @@
+import PostSortSelect from './postSortSelect';
 import { useCategoriesQuery } from '../../category/hooks/useCategoriesQuery';
 import { findCategoryName } from '../../category/utils/toCategoryTree';
 import { hasActiveFilter } from '../utils/postSearchFilters';
-import type { PostSearchFilters } from '../types';
+import type { PostSearchFilters, PostSortOption } from '../types';
 
 type PostFilterBarProps = {
   filters: PostSearchFilters;
+  sort: PostSortOption;
   isPanelOpen: boolean;
   onTogglePanel(): void;
   onReset(): void;
+  onSortChange(sort: PostSortOption): void;
 };
 
 const CHIP_CLASS =
@@ -73,6 +76,11 @@ function PostFilterBar(props: PostFilterBarProps) {
         >
           필터 초기화
         </button>
+
+        {/* 정렬은 "초기화" 대상이 아니다. 조건을 다 풀어도 보던 순서는 그대로 두는 편이 덜 놀랍다. */}
+        <div className="ml-auto">
+          <PostSortSelect value={props.sort} onChange={props.onSortChange} />
+        </div>
       </div>
 
       {isResetEnabled ? (

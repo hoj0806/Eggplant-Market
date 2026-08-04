@@ -15,3 +15,11 @@ export type PostSearchFilters = {
   /** 켜면 판매완료를 숨긴다. 예약중은 남는다. */
   availableOnly: boolean;
 };
+
+/**
+ * 목록 정렬 기준. 필터와 달리 결과의 **범위가 아니라 순서**만 바꾼다.
+ *
+ * 값은 서버(`search_posts`의 `p_sort`)가 아는 이름 그대로다. 화면용 이름을 따로 두고
+ * 요청 직전에 옮기면, 정렬을 하나 더 붙일 때 고칠 곳이 두 군데가 된다.
+ */
+export type PostSortOption = 'latest' | 'popular' | 'likes' | 'price_asc' | 'price_desc';

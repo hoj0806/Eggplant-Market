@@ -2,16 +2,22 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import PostFilterBar from './postFilterBar';
 import PostFilterPanel from './postFilterPanel';
+import PostList from './postList';
 import PostSearchField from './postSearchField';
-import PostSearchResultList from './postSearchResultList';
 import SearchRegionPrompt from './searchRegionPrompt';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { useSearchPostsQuery } from '../../post/hooks/usePostQueries';
 import { useActiveRegion } from '../hooks/useActiveRegion';
-import { clearFilters, fromSearchParams, toSearchParams } from '../utils/postSearchFilters';
+import {
+  clearFilters,
+  fromSearchParams,
+  hasActiveFilter,
+  sortFromSearchParams,
+  toSearchParams,
+} from '../utils/postSearchFilters';
 import type { PostSummary } from '../../post/types';
 import type { Region } from '../../region/types';
-import type { PostSearchFilters } from '../types';
+import type { PostSearchFilters, PostSortOption } from '../types';
 
 /**
  * 검색·필터 화면.
@@ -27,27 +33,33 @@ function SearchPage() {
   const activeRegion = useActiveRegion();
 
   const filters = fromSearchParams(searchParams);
+  const sort = sortFromSearchParams(searchParams);
   const regionCode = activeRegion.region?.code ?? null;
-  const postsQuery = useSearchPostsQuery(regionCode, filters);
+  const postsQuery = useSearchPostsQuery(regionCode, filters, sort);
 
-  function applyFilters(next: PostSearchFilters, replace = false): void {
-    setSearchParams(toSearchParams(next), { replace });
+  function applyQuery(next: PostSearchFilters, nextSort: PostSortOption, replace = false): void {
+    setSearchParams(toSearchParams(next, nextSort), { replace });
   }
 
   function handleKeywordChange(keyword: string): void {
     // 검색어는 history를 갈아 끼운다. 타이핑이 멈출 때마다 쌓으면
     // "노트북"을 치다 잠깐 쉰 횟수만큼 뒤로가기를 눌러야 화면을 벗어난다.
-    applyFilters({ ...filters, keyword }, true);
+    applyQuery({ ...filters, keyword }, sort, true);
   }
 
   function handleApplyFilters(next: PostSearchFilters): void {
     // 필터는 사용자가 명시적으로 누른 것이라 history에 쌓는다. 뒤로가기로 이전 조건에 돌아간다.
-    applyFilters(next);
+    applyQuery(next, sort);
     setIsPanelOpen(false);
   }
 
   function handleResetFilters(): void {
-    applyFilters(clearFilters(filters));
+    // 정렬은 남긴다. "필터 초기화"는 조건을 푸는 버튼이지 순서를 되돌리는 버튼이 아니다.
+    applyQuery(clearFilters(filters), sort);
+  }
+
+  function handleSortChange(nextSort: PostSortOption): void {
+    applyQuery(filters, nextSort);
   }
 
   function handleTogglePanel(): void {
@@ -66,7 +78,8 @@ function SearchPage() {
 
   // 페이지 단위로 쌓인 결과를 카드 목록 하나로 편다.
   const posts: PostSummary[] = (postsQuery.data?.pages ?? []).flat();
-  const isNarrowed = searchParams.toString() !== '';
+  // 정렬은 결과의 범위를 좁히지 않는다. 정렬만 바꾼 0건은 "동네에 글이 없다"는 뜻이다.
+  const isNarrowed = filters.keyword !== '' || hasActiveFilter(filters);
 
   return (
     <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
@@ -91,22 +104,25 @@ function SearchPage() {
         <>
           <PostFilterBar
             filters={filters}
+            sort={sort}
             isPanelOpen={isPanelOpen}
             onTogglePanel={handleTogglePanel}
             onReset={handleResetFilters}
+            onSortChange={handleSortChange}
           />
 
           {isPanelOpen ? (
             <PostFilterPanel
               // 적용된 필터가 바뀌면 draft도 그 값에서 다시 시작해야 한다.
-              key={searchParams.toString()}
+              // 정렬은 뺀다 — 필터를 고르는 중에 순서를 바꿨다고 입력하던 값이 날아가면 안 된다.
+              key={toSearchParams(filters).toString()}
               filters={filters}
               onApply={handleApplyFilters}
               onClose={handleTogglePanel}
             />
           ) : null}
 
-          <PostSearchResultList
+          <PostList
             posts={posts}
             isLoading={postsQuery.isLoading}
             isError={postsQuery.isError}
