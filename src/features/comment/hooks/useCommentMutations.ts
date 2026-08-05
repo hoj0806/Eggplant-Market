@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { postCommentsQueryKey } from './useCommentQueries';
-import { createComment, deleteComment } from '../api/commentApi';
+import { createComment, deleteComment, updateComment } from '../api/commentApi';
 import type { PostComment } from '../types';
 
 /**
@@ -45,6 +45,46 @@ export function useCreateCommentMutation(
             return previous;
           }
           return [...previous, created];
+        },
+      );
+    },
+  });
+}
+
+export type EditCommentInput = {
+  id: number;
+  content: string;
+};
+
+/**
+ * 댓글 고치기.
+ *
+ * 서버가 돌려준 행으로 그 자리만 갈아 끼운다. 목록의 순서·부모 관계는 그대로다 —
+ * 0020의 `guard_comment_update`가 `created_at`·`parent_id`를 잠가 두어서
+ * **고친 댓글이 목록에서 움직일 수 없다.** 그래서 트리를 다시 접을 필요도 없다.
+ *
+ * 응답을 받고 나서 고친다. 쓰기·지우기와 달리 "고치는 중"은 화면에 머무는 상태이고,
+ * 실패했을 때 되돌릴 원래 내용이 입력칸에 아직 남아 있어야 한다.
+ */
+export function useEditCommentMutation(
+  postId: number,
+): UseMutationResult<PostComment, Error, EditCommentInput> {
+  const queryClient = useQueryClient();
+
+  return useMutation<PostComment, Error, EditCommentInput>({
+    mutationFn: function submit(input: EditCommentInput): Promise<PostComment> {
+      return updateComment({ commentId: input.id, content: input.content });
+    },
+    onSuccess: function replaceInList(updated: PostComment): void {
+      queryClient.setQueryData<PostComment[]>(
+        postCommentsQueryKey(postId),
+        function replace(previous: PostComment[] | undefined): PostComment[] | undefined {
+          if (previous === undefined) {
+            return previous;
+          }
+          return previous.map(function swapOne(comment: PostComment): PostComment {
+            return comment.id === updated.id ? updated : comment;
+          });
         },
       );
     },

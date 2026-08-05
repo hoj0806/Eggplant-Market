@@ -20,6 +20,7 @@ function toPost(overrides: Partial<PostDetail> = {}): PostDetail {
     likeCount: 0,
     isLiked: false,
     createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
     bumpedAt: '2026-08-01T00:00:00.000Z',
     soldAt: '2026-08-04T00:00:00.000Z',
     seller: SELLER,

@@ -7,6 +7,7 @@ import PostStatusControl from './postStatusControl';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
+import { isEdited } from '../../../shared/utils/isEdited';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import SafetyMenu from '../../block/components/safetyMenu';
 import StartChatButton from '../../chat/components/startChatButton';
@@ -19,12 +20,24 @@ import { useViewCount } from '../hooks/useViewCount';
 import { toPostId } from '../utils/postId';
 import type { PostDetail } from '../types';
 
+/**
+ * 카테고리 · 올린 때 · 수정됨 · 조회 · 찜.
+ *
+ * "수정됨"은 **올린 때 바로 뒤**에 붙인다. 그 자리가 시각에 대한 단서를 읽는 자리라
+ * 조회수·찜 사이에 끼우면 숫자를 세는 눈에 걸리지 않는다.
+ *
+ * 언제 고쳤는지는 적지 않는다. 읽는 사람에게 필요한 것은 "지금 보는 내용이 처음 올린 그대로냐"이지
+ * 고친 시각이 아니고, 시각이 둘 붙으면 어느 쪽이 글의 나이인지 헷갈린다.
+ */
 function PostMeta(props: { post: PostDetail }) {
+  const post = props.post;
+
   return (
     <p className="text-xs text-gray-500 dark:text-gray-400">
-      {props.post.categoryName !== null ? `${props.post.categoryName} · ` : ''}
-      {formatTimeAgo(props.post.createdAt)} · 조회 {props.post.viewCount} · 찜{' '}
-      {props.post.likeCount}
+      {post.categoryName !== null ? `${post.categoryName} · ` : ''}
+      {formatTimeAgo(post.createdAt)}
+      {isEdited(post.createdAt, post.updatedAt) ? ' · 수정됨' : ''} · 조회 {post.viewCount} · 찜{' '}
+      {post.likeCount}
     </p>
   );
 }

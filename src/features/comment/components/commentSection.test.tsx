@@ -9,6 +9,7 @@ import type { PostComment } from '../types';
 // import.meta를 그대로 뱉으므로 실제 모듈을 로드하면 죽는다(troble.md 참고).
 const mockFetchPostComments = jest.fn();
 const mockCreateComment = jest.fn();
+const mockUpdateComment = jest.fn();
 const mockDeleteComment = jest.fn();
 
 jest.mock('../api/commentApi', function mockCommentApi() {
@@ -19,6 +20,9 @@ jest.mock('../api/commentApi', function mockCommentApi() {
     createComment: function createComment(input: unknown) {
       return mockCreateComment(input);
     },
+    updateComment: function updateComment(input: unknown) {
+      return mockUpdateComment(input);
+    },
     deleteComment: function deleteComment(commentId: unknown) {
       return mockDeleteComment(commentId);
     },
@@ -28,6 +32,7 @@ jest.mock('../api/commentApi', function mockCommentApi() {
 const POST_ID = 7;
 const SELLER_ID = 'seller-1';
 const VIEWER_ID = 'viewer-1';
+const FIXED_CREATED_AT = '2026-08-05T00:00:00.000Z';
 
 function buildComment(overrides: Partial<PostComment> = {}): PostComment {
   return {
@@ -35,7 +40,9 @@ function buildComment(overrides: Partial<PostComment> = {}): PostComment {
     postId: POST_ID,
     parentId: null,
     content: '이거 아직 있나요?',
-    createdAt: new Date().toISOString(),
+    createdAt: FIXED_CREATED_AT,
+    // 고치지 않은 댓글은 두 값이 같다(0020).
+    updatedAt: FIXED_CREATED_AT,
     author: { id: 'other-1', nickname: '가지이웃', avatarUrl: null },
     ...overrides,
   };
@@ -60,6 +67,7 @@ describe('CommentSection', function commentSectionSuite() {
     jest.clearAllMocks();
     mockFetchPostComments.mockResolvedValue([]);
     mockDeleteComment.mockResolvedValue(undefined);
+    mockUpdateComment.mockResolvedValue(buildComment());
   });
 
   it('댓글이 없으면 첫 댓글을 권한다', async function emptyCase() {
@@ -212,6 +220,77 @@ describe('CommentSection', function commentSectionSuite() {
       expect(screen.queryByText('네 있습니다')).not.toBeInTheDocument();
       expect(screen.queryByText('얼마에 파세요?')).not.toBeInTheDocument();
     });
+
+  // --- 수정 -------------------------------------------------------------
+
+  it('내 댓글은 원래 내용이 담긴 칸에서 고치고, 고친 결과가 그 자리에 들어간다',
+    async function editCase() {
+      mockFetchPostComments.mockResolvedValue([
+        buildComment({ author: { id: VIEWER_ID, nickname: '나', avatarUrl: null } }),
+      ]);
+      mockUpdateComment.mockResolvedValue(
+        buildComment({
+          content: '아직 있나요? (수정)',
+          updatedAt: '2026-08-05T00:05:00.000Z',
+          author: { id: VIEWER_ID, nickname: '나', avatarUrl: null },
+        }),
+      );
+      renderSection(VIEWER_ID);
+
+      await userEvent.click(await screen.findByRole('button', { name: '수정' }));
+
+      const field = screen.getByLabelText('댓글 수정');
+      expect(field).toHaveValue('이거 아직 있나요?');
+
+      await userEvent.clear(field);
+      await userEvent.type(field, '아직 있나요? (수정)');
+      await userEvent.click(screen.getByRole('button', { name: '수정 완료' }));
+
+      await waitFor(function assertUpdated() {
+        expect(mockUpdateComment).toHaveBeenCalledWith({
+          commentId: 1,
+          content: '아직 있나요? (수정)',
+        });
+      });
+
+      expect(await screen.findByText('아직 있나요? (수정)')).toBeInTheDocument();
+      // 서버가 찍은 updated_at으로 판단한다 — 화면이 스스로 "고쳤다"고 정하지 않는다.
+      expect(screen.getByText(/수정됨/)).toBeInTheDocument();
+      expect(screen.queryByLabelText('댓글 수정')).not.toBeInTheDocument();
+      expect(mockFetchPostComments).toHaveBeenCalledTimes(1);
+    });
+
+  // 판매자는 남의 댓글을 치울 수는 있어도 바꿔 쓸 수는 없다(0001의 comments_update).
+  it('남의 댓글은 지울 수 있어도 수정할 수 없다', async function sellerCannotEditCase() {
+    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    renderSection(SELLER_ID);
+
+    expect(await screen.findByRole('button', { name: '삭제' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '수정' })).not.toBeInTheDocument();
+  });
+
+  it('고치는 동안에는 답글·삭제 버튼을 감춘다', async function hideActionsWhileEditingCase() {
+    mockFetchPostComments.mockResolvedValue([
+      buildComment({ author: { id: VIEWER_ID, nickname: '나', avatarUrl: null } }),
+    ]);
+    renderSection(VIEWER_ID);
+
+    await userEvent.click(await screen.findByRole('button', { name: '수정' }));
+
+    expect(screen.queryByRole('button', { name: '답글' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '삭제' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '취소' }));
+    expect(screen.getByRole('button', { name: '답글' })).toBeInTheDocument();
+  });
+
+  it('고치지 않은 댓글에는 수정됨이 붙지 않는다', async function notEditedCase() {
+    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    renderSection(VIEWER_ID);
+
+    expect(await screen.findByText('이거 아직 있나요?')).toBeInTheDocument();
+    expect(screen.queryByText(/수정됨/)).not.toBeInTheDocument();
+  });
 
   it('실패하면 이유를 보여준다', async function errorCase() {
     mockCreateComment.mockRejectedValue({ code: '42501', message: 'violates row-level security' });

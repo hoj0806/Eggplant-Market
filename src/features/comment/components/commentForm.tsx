@@ -16,6 +16,8 @@ type CommentFormProps = {
   label: string;
   placeholder: string;
   submitLabel: string;
+  /** 고치기 폼에만 온다. 원래 내용을 채운 채로 연다. */
+  initialContent?: string;
   isPending: boolean;
   /** 답글 폼에만 온다. 있으면 취소 버튼이 붙는다. */
   onCancel?(): void;
@@ -29,11 +31,14 @@ type CommentFormProps = {
  * 보내고 나서 칸을 비우는 일도 부모가 성공을 확인한 뒤 `key`를 바꿔 시킨다. 여기서 미리
  * 비우면 실패했을 때 쓴 글이 사라진다.
  *
- * 답글용을 따로 만들지 않았다. 다른 것은 문구와 취소 버튼뿐이고 검사·비우기·오류 표시는
- * 같은데, 나누면 그 셋이 두 벌이 된다.
+ * 답글용·고치기용을 따로 만들지 않았다. 다른 것은 문구와 취소 버튼, 그리고 처음에 담긴
+ * 값뿐이고 검사·비우기·오류 표시는 같은데, 나누면 그 셋이 세 벌이 된다.
+ *
+ * `initialContent`는 **처음 한 번만** 쓰인다(useState의 초깃값). 고치는 중에 서버에서 새 값이
+ * 와도 입력칸을 덮지 않는다 — 쓰고 있던 글이 사라지는 것보다 낫다.
  */
 function CommentForm(props: CommentFormProps) {
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState(props.initialContent ?? '');
   const [errors, setErrors] = useState<CommentFieldErrors>({});
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
