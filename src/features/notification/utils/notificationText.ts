@@ -35,6 +35,10 @@ function toPostPath(notification: AppNotification): string | null {
  * `comment`·`like`도 이제 실제로 온다(0018). 트리거가 생기기 전에 미리 다뤄 둔 갈래라
  * 문장은 그대로 두고 아무것도 고치지 않았다 — 서버가 `preview`·`postTitle`을 채워 주는 순간
  * 그대로 굴러갔다.
+ *
+ * 후기만 갈래가 둘이다(0021). **무엇이 첫 후기인지는 여기서 세지 않는다** — 받아 온 목록에는
+ * 첫 페이지 스무 줄밖에 없어서 셀 수도 없고, 서버가 후기가 들어오는 순간에 이미 판단해
+ * `isFirst`로 실어 보낸다.
  */
 export function toNotificationView(
   notification: AppNotification,
@@ -63,9 +67,19 @@ export function toNotificationView(
 
     case 'review':
       return {
-        title: `${actor}님이 거래후기를 남겼어요`,
+        // 첫 후기만 주어가 바뀐다. 다른 줄은 전부 "누가 무엇을 했다"인데 여기서는
+        // **상대가 무엇을 했는가보다 나에게 처음 생긴 일**이 알릴 값이다.
+        // 상대가 사라지는 것은 아니다 — 아바타는 그대로 그 사람이고, 눌러 간 내 프로필에
+        // 그 후기가 이름과 함께 있다.
+        title: notification.isFirst
+          ? '🎉 첫 거래후기를 받았어요'
+          : `${actor}님이 거래후기를 남겼어요`,
         // 한 줄 후기는 선택이라 없을 수 있다. 그때는 어떤 거래였는지라도 보인다.
-        body: notification.preview ?? notification.postTitle,
+        // 첫 후기에는 매너온도 이야기를 먼저 한다 — 지금까지 조용히 오르기만 하던 값이라
+        // 무엇이 달라졌는지 말해 주는 자리가 여기밖에 없다.
+        body: notification.isFirst
+          ? '매너온도가 올랐어요. 프로필에서 확인해 보세요'
+          : (notification.preview ?? notification.postTitle),
         // 받은 후기는 내 프로필에 쌓인다. 후기 한 건만 여는 화면은 없다.
         to: `/users/${viewerId}`,
       };
