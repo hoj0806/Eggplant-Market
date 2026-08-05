@@ -161,8 +161,10 @@
   (`fetch_notifications`가 join 다섯으로 닉네임·게시물 제목·미리보기까지 준다) — 풀지 않으면
   화면이 알림 한 줄마다 따로 조회하게 된다. 그것을 사람의 말과 이동 경로로 바꾸는 자리만
   순수 함수(`notificationText.ts`)로 두고 단위 테스트했다.
-- **주의**: `notification_type` enum에 `comment`·`like`가 있지만 **이 값을 넣는 트리거가 없다.**
-  `notificationText`는 두 타입을 이미 다루므로 트리거만 더하면 화면은 그대로 굴러간다.
+- **후속(2026-08-05)**: `comment`·`like` 트리거를 `0018_comment_like_notification.sql`로 붙였다.
+  "트리거만 더하면 된다"고 적어 뒀지만 절반만 맞았다 — `fetch_notifications`의 actor가
+  `coalesce(m.sender_id, rv.reviewer_id)`라 댓글·찜에서 비어, 그대로 붙였으면 전부
+  "알 수 없는 이웃님이"가 됐을 것이다(note.md "댓글 · 찜 알림" 1번).
 - **마이그레이션**: `0015_notification.sql` — "댓글·찜 알림을 넣을 때만 필요"로 적어 뒀지만
   손댈 곳이 넷이었다. Realtime publication에 `notifications`가 아예 없었고(구독이 조용히
   성공하고 이벤트만 안 온다), `notifications_update`가 payload까지 바꿀 수 있었고,

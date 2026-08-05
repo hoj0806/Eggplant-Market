@@ -32,8 +32,9 @@ function toPostPath(notification: AppNotification): string | null {
  * `viewerId`를 받는 이유는 후기 하나 때문이다 — 받은 후기는 **내 프로필**에 붙으므로
  * 알림 행만 봐서는 갈 곳을 알 수 없다.
  *
- * `comment`·`like`는 아직 이 값을 넣는 트리거가 없어 실제로는 오지 않는다. 그래도 다뤄 둔다 —
- * enum에 있는 값이 화면에 닿았을 때 빈 줄이 되는 것보다는 낫고, 나중에 트리거만 더하면 된다.
+ * `comment`·`like`도 이제 실제로 온다(0018). 트리거가 생기기 전에 미리 다뤄 둔 갈래라
+ * 문장은 그대로 두고 아무것도 고치지 않았다 — 서버가 `preview`·`postTitle`을 채워 주는 순간
+ * 그대로 굴러갔다.
  */
 export function toNotificationView(
   notification: AppNotification,
