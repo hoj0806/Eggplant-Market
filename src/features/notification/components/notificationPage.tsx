@@ -2,6 +2,7 @@ import NotificationList from './notificationList';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import {
+  useDeleteNotificationMutation,
   useMarkAllNotificationsReadMutation,
   useMarkNotificationReadMutation,
 } from '../hooks/useNotificationMutations';
@@ -28,6 +29,7 @@ function NotificationPage() {
 
   const markReadMutation = useMarkNotificationReadMutation(viewerId);
   const markAllReadMutation = useMarkAllNotificationsReadMutation(viewerId);
+  const deleteMutation = useDeleteNotificationMutation(viewerId);
 
   if (viewerId === null) {
     return <PageSpinner message="알림을 불러오는 중입니다…" />;
@@ -67,11 +69,21 @@ function NotificationPage() {
         </p>
       ) : null}
 
+      {deleteMutation.isError ? (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          알림을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.
+        </p>
+      ) : null}
+
       <NotificationList
         query={notificationsQuery}
         viewerId={viewerId}
+        deletingId={deleteMutation.isPending ? (deleteMutation.variables?.id ?? null) : null}
         onSelect={function markOneRead(notification: AppNotification): void {
           markReadMutation.mutate({ id: notification.id, wasRead: notification.isRead });
+        }}
+        onDelete={function removeOne(notification: AppNotification): void {
+          deleteMutation.mutate({ id: notification.id, wasRead: notification.isRead });
         }}
       />
     </main>

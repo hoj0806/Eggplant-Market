@@ -114,6 +114,26 @@ export async function markAllNotificationsRead(): Promise<void> {
 }
 
 /**
+ * 알림 하나를 지운다.
+ *
+ * 읽음 표시와 같은 이유로 RPC가 필요 없다 — `notifications_delete`(0019)가 본인 것만 허용한다.
+ * 범위를 `user_id`로 좁히지 않는 것도 `markAllNotificationsRead`와 같다. 정책이 규칙의 주인이다.
+ *
+ * 남의 알림 id를 보내도 오류가 나지 않는다. RLS는 지울 수 없는 행을 **조용히 건너뛴다** —
+ * 0건 삭제는 성공이다. 그래서 화면은 "지웠다"는 응답만으로 무엇이 지워졌는지 알 수 없고,
+ * 자기 목록에 있는 줄의 버튼만 누를 수 있다는 사실에 기댄다. 남의 것을 지우는 길은 없다.
+ */
+export async function deleteNotification(notificationId: number): Promise<void> {
+  const { error } = await supabase.from('notifications').delete().eq('id', notificationId);
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return undefined;
+}
+
+/**
  * 내게 오는 새 알림을 구독한다.
  *
  * insert만 본다. update(읽음)는 누른 본인의 화면에서 일어나므로 뮤테이션이 그 자리에서

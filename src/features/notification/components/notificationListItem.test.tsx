@@ -26,7 +26,12 @@ function makeNotification(
   };
 }
 
-function renderItem(notification: AppNotification, onSelect = jest.fn()) {
+function renderItem(
+  notification: AppNotification,
+  onSelect = jest.fn(),
+  onDelete = jest.fn(),
+  isDeleting = false,
+) {
   render(
     <MemoryRouter>
       <ul>
@@ -34,7 +39,9 @@ function renderItem(notification: AppNotification, onSelect = jest.fn()) {
           notification={notification}
           viewerId={VIEWER_ID}
           now={NOW}
+          isDeleting={isDeleting}
           onSelect={onSelect}
+          onDelete={onDelete}
         />
       </ul>
     </MemoryRouter>,
@@ -76,5 +83,40 @@ describe('NotificationListItem', function notificationListItemSuite() {
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.getByText('가지팔이님이 메시지를 보냈어요')).toBeInTheDocument();
+  });
+
+  // 스무 줄의 버튼 이름이 전부 "삭제"면 스크린리더로 훑을 때 어느 줄인지 알 수 없다.
+  it('삭제 버튼 이름에 어느 알림인지 담는다', function deleteLabelCase() {
+    const onDelete = jest.fn();
+    renderItem(makeNotification({ type: 'chat' }), jest.fn(), onDelete);
+
+    const button = screen.getByRole('button', { name: '가지팔이님이 메시지를 보냈어요 알림 삭제' });
+
+    return userEvent.click(button).then(function assertDeleted() {
+      expect(onDelete).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // 링크 안에 버튼을 넣으면 지우려다 화면이 넘어간다.
+  it('삭제를 눌러도 이동하지 않는다', function deleteDoesNotNavigateCase() {
+    const onSelect = jest.fn();
+    renderItem(makeNotification({ type: 'chat' }), onSelect);
+
+    return userEvent.click(screen.getByRole('button')).then(function assertNotSelected() {
+      expect(onSelect).not.toHaveBeenCalled();
+    });
+  });
+
+  it('지우는 중에는 그 줄의 버튼을 잠근다', function deletingCase() {
+    renderItem(makeNotification({ type: 'chat' }), jest.fn(), jest.fn(), true);
+
+    expect(screen.getByRole('button')).toBeDisabled();
+  });
+
+  // 갈 곳이 없는 알림이야말로 치우고 싶은 줄이다.
+  it('링크가 아닌 줄에도 삭제 버튼이 있다', function missingTargetDeleteCase() {
+    renderItem(makeNotification({ type: 'chat', roomId: null }));
+
+    expect(screen.getByRole('button')).toBeInTheDocument();
   });
 });
