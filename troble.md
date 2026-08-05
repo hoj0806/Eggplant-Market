@@ -1279,3 +1279,142 @@ const post = props.post ?? null;
 
 **교훈**: props의 필드를 조건부로 쓸 때는 **먼저 지역 상수로 꺼낸다.** `?.`를 덧붙여
 컴파일러를 달래는 순간, 타입 오류가 알려 주려던 "정말 없을 때 무슨 값이 나가는가"를 놓친다.
+
+---
+
+## 알림 (2026-08-05)
+
+### 1. 배지는 3인데 목록에는 한 줄 — 차단이 남긴 구멍
+
+**증상**: 코드를 쓰기 전에 설계 단계에서 먼저 걸린 문제다.
+
+6단계(차단)는 차단을 "안 보이게 하는 것"으로 정하고 목록 넷에서 걸러 냈다. 알림도 같은 대상이다 —
+차단한 사람이 보낸 채팅 알림이 목록에 그대로 남아 있으면, 눌러서 들어간 방은 이미 사라진 뒤다.
+
+그래서 목록 RPC에 `private.blocked_user_ids()` 필터를 다는 것까지는 자연스러웠다. 그런데
+**안 읽은 수를 세는 쪽이 따라오지 못한다.**
+
+```sql
+-- 배지: 싸게 세려면 이래야 한다
+select count(*) from notifications where user_id = auth.uid() and is_read = false;
+
+-- 목록: 걸러야 하니 actor를 알아야 하고, actor를 알려면 join 다섯이 필요하다
+```
+
+배지는 3을 가리키는데 열어 보면 한 줄뿐인 화면이 된다. 숫자와 목록이 어긋나면 사용자는 둘 중
+어느 쪽도 믿지 않게 된다.
+
+**원인**: 걸러내기(필터)와 세기(count)의 비용이 다르다. 같은 조건을 양쪽에 걸면 배지 하나를 위해
+목록과 같은 join을 매번 돌려야 하고, 한쪽만 걸면 두 숫자가 어긋난다.
+
+**해결**: 거르는 대신 **차단하는 순간 지운다.** `blocks` after insert 트리거다.
+
+```sql
+create or replace function purge_blocked_notifications()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  delete from notifications n
+   where n.user_id in (new.blocker_id, new.blocked_id)
+     and (
+       exists (select 1 from messages m
+                where m.id = (n.payload ->> 'message_id')::bigint
+                  and m.sender_id in (new.blocker_id, new.blocked_id)
+                  and m.sender_id <> n.user_id)
+       or exists (select 1 from reviews r
+                   where r.id = (n.payload ->> 'review_id')::bigint
+                     and r.reviewer_id in (new.blocker_id, new.blocked_id)
+                     and r.reviewer_id <> n.user_id)
+     );
+  return new;
+end;
+$$;
+```
+
+지우고 나면 목록에 필터가 필요 없고, 배지도 `count(*)` 한 줄이면 된다. 두 숫자가 **같은 행을
+세게 되므로** 어긋날 자리 자체가 없어진다.
+
+`security definer`인 이유는 `notifications`에 delete 정책이 아예 없어서다(0001). 본인 알림을
+지우는 길을 클라이언트에 열어 줄 생각이 없어 정책을 더하지 않고 이 트리거 안에서만 지운다.
+
+양쪽(`blocker_id`·`blocked_id`) 모두에서 지운다. 0014의 `fetch_chat_rooms`가 양방향으로 방을
+감추므로, 한쪽에만 알림이 남으면 눌러도 갈 곳이 없는 알림이 된다.
+
+**교훈**: **"목록에서 걸러낸다"는 결정은 그 목록을 세는 곳까지 따라간다.** 6단계에서 걸러낼 자리를
+넷 찾아 놓고도 알림을 빠뜨렸는데, 그때 빠뜨린 대가가 7단계에서 "필터냐 삭제냐"라는 더 큰 선택으로
+돌아왔다. 거르는 비용과 세는 비용이 다른 자리에서는 **아예 없애는 쪽**이 단순할 때가 있다.
+
+---
+
+### 2. 구독은 성공하는데 이벤트가 오지 않는다
+
+**증상**: `subscribeToMyNotifications`를 `useChatRealtime` 패턴 그대로 짜 놓고 보니,
+`todo.md`가 시킨 대로 했는데도 새 알림이 화면에 반영될 근거가 없었다.
+
+**원인**: `notifications`가 **publication에 들어 있지 않았다.**
+
+```sql
+select tablename from pg_publication_tables where pubname = 'supabase_realtime';
+-- chat_rooms, messages   ← notifications 없음
+```
+
+0008이 `messages`·`chat_rooms`만 넣었다. 그 파일의 주석은 "대시보드에서 켜면 db reset으로
+재현되지 않으므로 여기에 남긴다"고 적어 뒀는데, 정작 그때 없던 테이블은 함께 넣히지 않았다.
+
+무서운 것은 **이것이 오류로 보이지 않는다**는 점이다. `.subscribe()`는 `SUBSCRIBED`를 돌려주고
+채널도 살아 있다. 이벤트만 영원히 오지 않는다. "왜 안 오지"를 클라이언트 쪽에서 찾기 시작하면
+필터 문법·RLS·채널 이름을 차례로 의심하며 한참 헤맨다.
+
+**해결**: 0008과 같은 모양으로 넣는다(`add table`은 이미 있으면 오류라 존재 확인 후 실행).
+
+```sql
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notifications'
+  ) then
+    alter publication supabase_realtime add table notifications;
+  end if;
+end;
+$$;
+```
+
+`replica identity full`은 걸지 않았다. 0008이 `messages`에 그것을 건 이유는 update의 **이전 행**이
+필요해서였는데(읽음 표시), 알림은 insert만 구독한다.
+
+**교훈**: Realtime이 안 될 때 **먼저 볼 곳은 클라이언트가 아니라 `pg_publication_tables`다.**
+조용히 실패하는 설정은 코드를 아무리 들여다봐도 보이지 않는다.
+
+---
+
+### 3. 커서 유틸 테스트가 또 로드 단계에서 죽었다 — 세 번째다
+
+**증상**: `notificationCursor.test.ts`만 스위트째 실패했다.
+
+```
+SyntaxError: Cannot use 'import.meta' outside a module
+  at src/shared/lib/supabaseClient.ts:5
+  at Object.<anonymous> (src/features/notification/api/notificationApi.ts:1:1)
+  at Object.<anonymous> (src/features/notification/utils/notificationCursor.ts:1:1)
+```
+
+**원인**: 「동네 설정」 5번, 「탐색」 1번과 **글자 하나 다르지 않은 문제**다. 커서 유틸이 페이지 크기
+상수 하나(`NOTIFICATIONS_PAGE_SIZE`)를 쓰려고 API 모듈을 import했고, 그것이 `supabaseClient`를
+끌고 들어왔다.
+
+**해결**: 같은 처방. 팩토리와 함께 모듈을 mock한다.
+
+```ts
+jest.mock('../api/notificationApi', function mockNotificationApi() {
+  return { NOTIFICATIONS_PAGE_SIZE: 20 };
+});
+```
+
+**교훈**: 「탐색」 1번에 "이미 한 번 밟은 함정은 같은 구조를 다시 만들 때 다시 밟는다"고 적어 뒀는데
+그대로 다시 밟았다. **세 번 밟았으면 구조를 고칠 때다** — 페이지 크기 상수를 `types.ts`나 별도
+상수 파일로 옮기면 커서 유틸이 API를 import할 이유가 사라진다. 이번에는 기존 셋(`chatCursor`,
+`postSearchCursor`, `myPostCursor`)과 모양을 맞추는 쪽을 골랐지만, 다음에 네 번째가 생기면
+그때는 옮기는 편이 낫다.
