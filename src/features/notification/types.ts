@@ -40,6 +40,18 @@ export type AppNotification = {
   isFirst: boolean;
 };
 
+/**
+ * 끌 수 있는 알림 종류(0022).
+ *
+ * `NotificationType`에서 `chat`·`price_offer`가 빠져 있다. 빠뜨린 것이 아니라
+ * **끌 수 없어서** 없다 — 끄면 상대는 답을 기다리는데 나는 모르는 상태가 되고,
+ * 그 피해는 내가 아니라 거래 상대에게 간다. 서버에도 그 둘의 칸이 아예 없다.
+ */
+export type NotificationPrefKey = 'comment' | 'like' | 'review';
+
+/** 내 알림 설정. 켜진 것이 기본이다. */
+export type NotificationPrefs = Record<NotificationPrefKey, boolean>;
+
 /** 알림 목록의 다음 페이지 시작점. 같은 시각 알림을 가르려고 id까지 들고 간다. */
 export type NotificationCursor = {
   createdAt: string;
