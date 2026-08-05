@@ -102,6 +102,7 @@ describe('CommentSection', function commentSectionSuite() {
         postId: POST_ID,
         authorId: VIEWER_ID,
         content: '네 있습니다',
+        parentId: null,
       });
     });
 
@@ -136,6 +137,81 @@ describe('CommentSection', function commentSectionSuite() {
       expect(screen.queryByText('이거 아직 있나요?')).not.toBeInTheDocument();
     });
   });
+
+  // --- 대댓글 -------------------------------------------------------------
+
+  it('답글을 쓰면 부모 id와 함께 보내고 부모 밑에 붙는다', async function replyCase() {
+    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockCreateComment.mockResolvedValue(
+      buildComment({ id: 2, parentId: 1, content: '네 있습니다' }),
+    );
+    renderSection(VIEWER_ID);
+
+    await userEvent.click(await screen.findByRole('button', { name: '답글' }));
+    await userEvent.type(screen.getByLabelText('가지이웃님에게 답글'), '네 있습니다');
+    await userEvent.click(screen.getByRole('button', { name: '답글 등록' }));
+
+    await waitFor(function assertCreated() {
+      expect(mockCreateComment).toHaveBeenCalledWith({
+        postId: POST_ID,
+        authorId: VIEWER_ID,
+        content: '네 있습니다',
+        parentId: 1,
+      });
+    });
+
+    expect(await screen.findByText('네 있습니다')).toBeInTheDocument();
+    // 성공하면 입력칸이 닫힌다 — 열어 둔 채로 두면 방금 쓴 답글 밑에 빈 칸이 남는다.
+    await waitFor(function assertClosed() {
+      expect(screen.queryByLabelText('가지이웃님에게 답글')).not.toBeInTheDocument();
+    });
+    expect(mockFetchPostComments).toHaveBeenCalledTimes(1);
+  });
+
+  // 2단 고정이다. 답글에 또 답글을 열면 0018의 알림이 가리키는 사람과 화면이 어긋난다.
+  it('답글에는 답글 버튼이 없다', async function depthCase() {
+    mockFetchPostComments.mockResolvedValue([
+      buildComment(),
+      buildComment({ id: 2, parentId: 1, content: '네 있습니다' }),
+    ]);
+    renderSection(VIEWER_ID);
+
+    expect(await screen.findByText('네 있습니다')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '답글' })).toHaveLength(1);
+  });
+
+  it('비로그인에게는 답글 버튼이 없다', async function guestReplyCase() {
+    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    renderSection(null);
+
+    expect(await screen.findByText('이거 아직 있나요?')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '답글' })).not.toBeInTheDocument();
+  });
+
+  // FK가 cascade라(0001) 되돌릴 수 없다. 부모 줄만 보고 누르면 그 사실을 알 길이 없다.
+  it('답글이 딸린 댓글을 지울 때 함께 사라지는 수를 알리고, 답글까지 걷어낸다',
+    async function cascadeCase() {
+      mockFetchPostComments.mockResolvedValue([
+        buildComment(),
+        buildComment({ id: 2, parentId: 1, content: '네 있습니다' }),
+        buildComment({ id: 3, parentId: 1, content: '얼마에 파세요?' }),
+      ]);
+      renderSection(SELLER_ID);
+
+      await userEvent.click((await screen.findAllByRole('button', { name: '삭제' }))[0]);
+      expect(screen.getByText('답글 2개도 함께 지워집니다. 지울까요?')).toBeInTheDocument();
+
+      await userEvent.click(screen.getAllByRole('button', { name: '삭제' })[0]);
+
+      await waitFor(function assertDeleted() {
+        expect(mockDeleteComment).toHaveBeenCalledWith(1);
+      });
+      await waitFor(function assertRepliesGone() {
+        expect(screen.queryByText('이거 아직 있나요?')).not.toBeInTheDocument();
+      });
+      expect(screen.queryByText('네 있습니다')).not.toBeInTheDocument();
+      expect(screen.queryByText('얼마에 파세요?')).not.toBeInTheDocument();
+    });
 
   it('실패하면 이유를 보여준다', async function errorCase() {
     mockCreateComment.mockRejectedValue({ code: '42501', message: 'violates row-level security' });

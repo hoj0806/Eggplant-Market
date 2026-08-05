@@ -73,6 +73,8 @@ export type CreateCommentInput = {
   postId: number;
   authorId: string;
   content: string;
+  /** 답글이면 부모 댓글 id, 1단 댓글이면 null. */
+  parentId: number | null;
 };
 
 /**
@@ -84,6 +86,10 @@ export type CreateCommentInput = {
  *
  * `authorId`를 인자로 받지만 서버가 믿는 것은 이 값이 아니다. comments_insert가
  * `auth.uid() = author_id`를 보므로 남의 id를 적어 보내면 정책이 막는다.
+ *
+ * `parentId`도 마찬가지로 여기서 검사하지 않는다. 없는 댓글을 가리키면 FK가 막고,
+ * 다른 글의 댓글을 가리키는 것은 막히지 않지만 그럴 화면이 없다 — 답글 버튼은 언제나
+ * 지금 보고 있는 글의 댓글에서만 눌린다. 정책이 보는 것은 글쓴이와 차단뿐이다(0017).
  */
 export async function createComment(input: CreateCommentInput): Promise<PostComment> {
   const { data, error } = await supabase
@@ -92,6 +98,7 @@ export async function createComment(input: CreateCommentInput): Promise<PostComm
       post_id: input.postId,
       author_id: input.authorId,
       content: input.content,
+      parent_id: input.parentId,
     })
     .select(COMMENT_COLUMNS)
     .single();
@@ -108,6 +115,10 @@ export async function createComment(input: CreateCommentInput): Promise<PostComm
  *
  * 누가 지울 수 있는지는 서버가 정한다 — 댓글 작성자와 **게시물 판매자** 둘이다(0017).
  * 그래서 여기서 보낼 것은 id 하나뿐이고, 화면은 버튼을 그릴지 말지만 판단한다.
+ *
+ * 답글이 딸린 댓글을 지우면 답글도 함께 사라진다 — `parent_id`의 FK가 cascade다(0001).
+ * 한 번 더 부를 것이 없으므로 여기는 그대로고, 몇 개가 함께 지워지는지 미리 알리는 일과
+ * 캐시에서 걷어내는 일만 화면 쪽에 붙는다.
  */
 export async function deleteComment(commentId: number): Promise<void> {
   const { error } = await supabase.from('comments').delete().eq('id', commentId);
