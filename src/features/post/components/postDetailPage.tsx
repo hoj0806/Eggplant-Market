@@ -10,6 +10,7 @@ import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import SafetyMenu from '../../block/components/safetyMenu';
 import StartChatButton from '../../chat/components/startChatButton';
+import CommentSection from '../../comment/components/commentSection';
 import LikeButton from '../../like/components/likeButton';
 import ReviewPrompt from '../../review/components/reviewPrompt';
 import { usePostDetailQuery } from '../hooks/usePostQueries';
@@ -178,6 +179,13 @@ function PostDetailPage() {
         판매자·구매자 모두 여기서 같은 안내를 만난다 — 조건 판단은 전부 안에 있다.
       */}
       <ReviewPrompt postId={post.id} viewerId={viewerId} />
+
+      {/*
+        댓글은 맨 아래다. 글을 읽고 나서 묻는 자리이고, 위로 올리면 물건 정보와 버튼 사이를
+        가른다. 후기 안내(ReviewPrompt)보다도 아래인 것은 그쪽이 거래 당사자에게만
+        잠깐 떴다 사라지는 안내여서다.
+      */}
+      <CommentSection postId={post.id} viewerId={viewerId} sellerId={post.seller.id} />
     </main>
   );
 }
