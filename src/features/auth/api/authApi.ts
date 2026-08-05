@@ -67,6 +67,21 @@ export async function signOut(): Promise<void> {
   }
 }
 
+/**
+ * 이 기기의 토큰만 지운다(서버에 로그아웃을 알리지 않는다).
+ *
+ * 회원탈퇴 직후에 쓴다. 그때는 계정이 이미 없어서 보통 로그아웃(`scope: 'global'`)이
+ * 401로 실패하고, 실패하면 supabase-js가 저장소의 토큰을 남겨 둔다 —
+ * 새로고침하면 죽은 세션으로 다시 서는 자리다.
+ */
+export async function signOutLocally(): Promise<void> {
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
+
+  if (error !== null) {
+    throw error;
+  }
+}
+
 export async function getCurrentSession(): Promise<AuthSession | null> {
   const { data, error } = await supabase.auth.getSession();
 

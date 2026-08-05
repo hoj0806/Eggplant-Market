@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom';
 import AppLayout from './appLayout';
+import AccountSettingsPage from '../features/account/components/accountSettingsPage';
 import AuthCallbackPage from '../features/auth/components/authCallbackPage';
 import SignInPage from '../features/auth/components/signInPage';
 import SignUpPage from '../features/auth/components/signUpPage';
@@ -198,6 +199,17 @@ export const router = createBrowserRouter([
       <RequireOnboarding>
         <RequireMember>
           <ProfileSettingsPage />
+        </RequireMember>
+      </RequireOnboarding>
+    ),
+  },
+  {
+    // 계정 설정도 "한 가지 일을 끝내고 돌아가는" 설정 화면이라 탭바 밖이다.
+    path: '/settings/account',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <AccountSettingsPage />
         </RequireMember>
       </RequireOnboarding>
     ),

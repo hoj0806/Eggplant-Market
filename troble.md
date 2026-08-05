@@ -1418,3 +1418,123 @@ jest.mock('../api/notificationApi', function mockNotificationApi() {
 상수 파일로 옮기면 커서 유틸이 API를 import할 이유가 사라진다. 이번에는 기존 셋(`chatCursor`,
 `postSearchCursor`, `myPostCursor`)과 모양을 맞추는 쪽을 골랐지만, 다음에 네 번째가 생기면
 그때는 옮기는 편이 낫다.
+
+## 계정 — 비밀번호 변경 · 회원탈퇴 (2026-08-05)
+
+이 절의 다섯 가지는 모두 **밟기 전에 확인한 함정이다.** 화면이 죽는 종류가 아니라
+"동작은 하는데 뜻이 다른" 종류라, 만들고 나서는 눈에 띄지 않았을 것들이다.
+
+### 1. `updateUser({ password })`는 현재 비밀번호를 묻지 않는다
+
+**증상**: 비밀번호 변경 폼에 "현재 비밀번호" 칸을 두고 그 값을 아무 데도 쓰지 않아도
+비밀번호가 바뀐다. 칸이 있으니 확인하는 것처럼 보이지만 **검사하는 사람이 없다.**
+
+**원인**: `supabase.auth.updateUser`는 지금 세션이 유효한지만 본다. 카페에 열어 둔 브라우저,
+공용 PC의 로그인 상태 하나면 계정을 통째로 가져갈 수 있다는 뜻이다.
+
+Supabase에 "Secure password change"(변경 시 재인증 요구) 설정이 있지만 대시보드 스위치라
+코드에는 흔적이 남지 않는다. 개발 편의로 꺼 둔 Confirm email과 같은 종류의 위험이다 —
+대시보드 상태에 기대면 배포 때 잊는다.
+
+**해결**: 바꾸기 전에 그 비밀번호로 실제 로그인해 본다.
+
+```ts
+const { error: signInError } = await supabase.auth.signInWithPassword({
+  email: input.email, password: input.currentPassword,
+});
+if (signInError !== null) throw signInError;   // → "현재 비밀번호가 올바르지 않습니다."
+```
+
+덕분에 오류 매핑에서 `invalid_credentials`의 뜻이 이 화면에서만 달라진다. 로그인 화면에서는
+"이메일 또는 비밀번호가 올바르지 않습니다"지만 여기서는 이메일이 세션에서 온 값이라 틀릴 수가
+없다 — 그래서 `accountErrorMessage`는 같은 코드를 "현재 비밀번호가 올바르지 않습니다"로 읽는다.
+
+### 2. `app_metadata.provider`로 판단하면 이메일 가입자의 비밀번호 변경이 사라진다
+
+**증상**: 이메일로 가입한 사람이 구글로 한 번 로그인하면, 그 뒤로 계정 설정에서
+비밀번호 변경 칸이 통째로 없어진다. 비밀번호는 그대로 살아 있는데 바꿀 길만 없다.
+
+**원인**: `app_metadata.provider`는 계정의 로그인 방법이 아니라 **마지막으로 로그인한 방법**이다.
+같은 이메일로 구글을 이어 붙이면 identity가 둘이 되지만 `provider`는 하나만 가리킨다.
+
+**해결**: `user.identities` 배열을 본다. 한 계정에 붙은 로그인 방법 전부가 여기 있다.
+
+```ts
+return identities.some(function isPasswordIdentity(identity): boolean {
+  return identity.provider === 'email';
+});
+```
+
+`app_metadata`는 identities가 없는 응답일 때의 차선책으로만 남겼다. 단위 테스트에
+"구글로 마지막에 로그인했어도 이메일 identity가 남아 있으면 바꿀 수 있다"를 넣어 둔 이유다.
+
+### 3. 탈퇴 직후의 `signOut()`은 실패하고, 죽은 토큰이 남는다
+
+**증상**: 계정을 지운 뒤 평소처럼 로그아웃하면 401이 돌아온다. 계정이 없으니 당연하다.
+문제는 **supabase-js가 서버 응답이 실패하면 저장소의 토큰을 지우지 않는다**는 것이다.
+새로고침하면 이미 없는 사람의 세션으로 화면이 다시 서고, 첫 요청에서야 무너진다.
+
+**원인**: 기본 `scope: 'global'`은 서버에 "이 사용자의 세션을 모두 끊어라"라고 말한다.
+지울 사용자가 없으면 그 말이 실패하고, 실패한 로그아웃은 로컬 정리까지 건너뛴다.
+
+**해결**: 서버에 알리지 않고 이 기기의 토큰만 지운다.
+
+```ts
+// authApi.signOutLocally — 탈퇴 직후 전용
+await supabase.auth.signOut({ scope: 'local' });
+```
+
+로그아웃(`useSignOutMutation`)은 그대로 `global`을 쓴다. 그쪽은 계정이 살아 있어
+다른 기기의 세션까지 끊는 것이 맞다.
+
+### 4. Edge Function이 적어 보낸 이유가 화면까지 오지 않는다
+
+**증상**: 함수가 `{ "error": "로그인이 만료되었습니다. 다시 로그인해 주세요." }`를 401로
+돌려줘도 화면에는 `Edge Function returned a non-2xx status code`만 뜬다.
+
+**원인**: `functions.invoke`는 2xx가 아니면 `FunctionsHttpError`를 만들어 주고 **본문은 읽지
+않는다.** 응답은 `error.context`(Response)에 그대로 들어 있지만 아무도 열어 보지 않는 상태다.
+
+**해결**: 던지기 전에 본문을 열어 우리가 적어 보낸 문구를 꺼낸다.
+
+```ts
+if (error instanceof FunctionsHttpError) {
+  const body: unknown = await error.context.json();   // JSON이 아니면 catch로 흘린다
+  ...
+}
+```
+
+꺼내지 못하면 원래 오류를 그대로 던진다. 그때는 `accountErrorMessage`의 `non-2xx` 패턴이
+"탈퇴 요청이 서버에 닿지 못했습니다"로 받는다 — **함수를 아직 배포하지 않은 상태**가
+정확히 이 경로로 떨어진다.
+
+### 5. 스토리지는 `on delete cascade`를 타지 않는다 — 게다가 채팅 사진만 경로가 다르다
+
+**증상**: 탈퇴하면 DB는 깨끗해지는데(0001의 FK가 전부 cascade다) 버킷에는 사진이 그대로 남는다.
+아무 행도 가리키지 않아 다시 찾을 방법도 없는 파일이다.
+
+**원인**: `storage.objects`는 `profiles`를 참조하지 않는다. 파일과 행을 잇는 것은
+`posts.thumbnail_url` 같은 문자열뿐이라 FK가 따라갈 길이 없다.
+
+여기까지는 예상한 일이고, 실제로 걸린 것은 **버킷마다 경로 규칙이 다르다**는 쪽이었다.
+
+| 버킷 | 경로 | 사용자 접두사로 훑을 수 있나 |
+| --- | --- | --- |
+| `avatars` (0002) | `{user_id}/{stamp}.ext` | 된다 |
+| `post-images` (0005) | `{user_id}/{stamp}-{i}.ext` | 된다 |
+| `chat-images` (0008) | `{room_id}/{user_id}/…` | **안 된다** |
+
+0008이 채팅 사진의 첫 칸을 방으로 둔 것은 storage 정책이 "이 방 사람인가"를 봐야 했기 때문이다.
+그 판단은 지금도 옳지만, 덕분에 "이 사람의 파일"을 접두사 하나로 모을 수 없다.
+
+**해결**: 삭제 **전에** `chat_rooms`에서 내 방 번호를 읽어 둔다. 행이 사라진 뒤에는 알 길이 없다.
+
+```ts
+const roomIds = await fetchRoomIds(admin, userId);          // 삭제 전
+await admin.auth.admin.deleteUser(userId);
+await removeUserFiles(admin, userId, roomIds);              // {room_id}/{user_id} 만 지운다
+```
+
+방을 통째로 비우지 않는다 — 같은 폴더에 상대가 올린 사진이 함께 들어 있다.
+`storage.list`가 기본 100개까지만 주는 것도 여기서 걸린다. 사진 100장을 넘긴 사용자의
+나머지가 조용히 남지 않도록 `offset`으로 끝까지 넘긴다.
