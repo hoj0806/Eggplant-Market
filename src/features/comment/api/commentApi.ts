@@ -13,7 +13,7 @@ import type { CommentAuthor, PostComment } from '../types';
  * 조용히 모호해지는 자리라 처음부터 적어 둔다.
  */
 const COMMENT_COLUMNS =
-  'id, post_id, parent_id, content, created_at, ' +
+  'id, post_id, parent_id, content, created_at, updated_at, ' +
   'author:profiles!comments_author_id_fkey (id, nickname, avatar_url)';
 
 type CommentAuthorRow = {
@@ -28,6 +28,7 @@ type CommentRow = {
   parent_id: number | null;
   content: string;
   created_at: string;
+  updated_at: string;
   author: CommentAuthorRow;
 };
 
@@ -42,6 +43,7 @@ function toPostComment(row: CommentRow): PostComment {
     parentId: row.parent_id,
     content: row.content,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     author: toCommentAuthor(row.author),
   };
 }
@@ -100,6 +102,38 @@ export async function createComment(input: CreateCommentInput): Promise<PostComm
       content: input.content,
       parent_id: input.parentId,
     })
+    .select(COMMENT_COLUMNS)
+    .single();
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return toPostComment(data as unknown as CommentRow);
+}
+
+export type UpdateCommentInput = {
+  commentId: number;
+  content: string;
+};
+
+/**
+ * 댓글 고치기.
+ *
+ * 고칠 수 있는 사람은 **작성자 본인뿐**이다(0001의 `comments_update`). 게시물 판매자에게도
+ * 열려 있는 삭제와 다른 점이다 — 남의 말을 치울 수는 있어도 바꿔 쓸 수는 없다.
+ *
+ * 보내는 것은 content 하나다. 0020의 `guard_comment_update`가 나머지 칸을 잠그므로
+ * 다른 것을 끼워 보내도 통째로 거절된다.
+ *
+ * 돌려받은 행을 그대로 캐시에 넣는다. `updated_at`은 서버가 찍으므로(내용이 실제로 달라질
+ * 때만 오른다) 화면이 "수정됨"을 스스로 판단하지 않는다.
+ */
+export async function updateComment(input: UpdateCommentInput): Promise<PostComment> {
+  const { data, error } = await supabase
+    .from('comments')
+    .update({ content: input.content })
+    .eq('id', input.commentId)
     .select(COMMENT_COLUMNS)
     .single();
 

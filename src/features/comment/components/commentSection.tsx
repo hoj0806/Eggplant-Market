@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import CommentForm from './commentForm';
 import CommentListItem from './commentListItem';
-import { useCreateCommentMutation, useDeleteCommentMutation } from '../hooks/useCommentMutations';
+import {
+  useCreateCommentMutation,
+  useDeleteCommentMutation,
+  useEditCommentMutation,
+} from '../hooks/useCommentMutations';
 import { usePostCommentsQuery } from '../hooks/useCommentQueries';
 import { buildCommentTree, countReplies } from '../utils/buildCommentTree';
 import { toCommentErrorMessage } from '../utils/commentErrorMessage';
@@ -41,9 +45,11 @@ function CommentSection(props: CommentSectionProps) {
   // 답글 폼은 성공하면 닫히면서 사라지므로 이 방법이 필요 없다.
   const [formKey, setFormKey] = useState(0);
   const [replyTargetId, setReplyTargetId] = useState<number | null>(null);
+  const [editTargetId, setEditTargetId] = useState<number | null>(null);
 
   const commentsQuery = usePostCommentsQuery(props.postId);
   const createMutation = useCreateCommentMutation(props.postId, props.viewerId ?? '');
+  const editMutation = useEditCommentMutation(props.postId);
   const deleteMutation = useDeleteCommentMutation(props.postId);
 
   function handleSubmit(content: string): void {
@@ -78,12 +84,31 @@ function CommentSection(props: CommentSectionProps) {
     );
   }
 
+  function handleEditSubmit(commentId: number, content: string): void {
+    editMutation.mutate(
+      { id: commentId, content },
+      {
+        onSuccess: function closeEditForm(): void {
+          setEditTargetId(null);
+        },
+      },
+    );
+  }
+
   function handleDelete(commentId: number): void {
     // 답글을 쓰던 중에 그 댓글이 사라지면 입력칸이 부모 없이 남는다.
     if (replyTargetId === commentId) {
       setReplyTargetId(null);
     }
     deleteMutation.mutate(commentId);
+  }
+
+  function openEdit(commentId: number): void {
+    setEditTargetId(commentId);
+  }
+
+  function closeEdit(): void {
+    setEditTargetId(null);
   }
 
   function openReply(commentId: number): void {
@@ -101,6 +126,36 @@ function CommentSection(props: CommentSectionProps) {
     return props.viewerId === comment.author.id || props.viewerId === props.sellerId;
   }
 
+  /**
+   * 고치기는 **작성자 본인뿐**이다(0001의 `comments_update`). 삭제와 다른 점인데,
+   * 판매자가 자기 글의 댓글을 치울 수는 있어도 남의 말을 바꿔 쓸 수는 없다.
+   */
+  function canEdit(comment: PostComment): boolean {
+    return props.viewerId !== null && props.viewerId === comment.author.id;
+  }
+
+  /** 고치는 중인 댓글이면 내용 대신 들어갈 폼. 아니면 undefined. */
+  function editFormFor(comment: PostComment): ReactNode {
+    if (editTargetId !== comment.id) {
+      return undefined;
+    }
+
+    return (
+      <CommentForm
+        fieldId={`comment-edit-${comment.id}`}
+        label="댓글 수정"
+        placeholder="댓글을 입력해 주세요."
+        submitLabel="수정 완료"
+        initialContent={comment.content}
+        isPending={editMutation.isPending && editMutation.variables?.id === comment.id}
+        onCancel={closeEdit}
+        onSubmit={function submitEdit(content: string): void {
+          handleEditSubmit(comment.id, content);
+        }}
+      />
+    );
+  }
+
   function isDeleting(commentId: number): boolean {
     return deleteMutation.isPending && deleteMutation.variables === commentId;
   }
@@ -115,7 +170,7 @@ function CommentSection(props: CommentSectionProps) {
   // 목록 전체가 같은 순간을 기준으로 "n분 전"을 잰다. 줄마다 new Date()를 부르면
   // 같은 시각에 쓴 댓글들이 1초씩 어긋나 보인다.
   const now = new Date();
-  const error = createMutation.error ?? deleteMutation.error;
+  const error = createMutation.error ?? editMutation.error ?? deleteMutation.error;
 
   function renderReply(reply: PostComment) {
     return (
@@ -126,7 +181,9 @@ function CommentSection(props: CommentSectionProps) {
         canDelete={canDelete(reply)}
         isDeleting={isDeleting(reply.id)}
         replyCount={0}
+        onEdit={canEdit(reply) ? openEdit : undefined}
         onDelete={handleDelete}
+        editForm={editFormFor(reply)}
       />
     );
   }
@@ -144,7 +201,9 @@ function CommentSection(props: CommentSectionProps) {
         isDeleting={isDeleting(commentId)}
         replyCount={countReplies(comments, commentId)}
         onReply={props.viewerId === null ? undefined : openReply}
+        onEdit={canEdit(node.comment) ? openEdit : undefined}
         onDelete={handleDelete}
+        editForm={editFormFor(node.comment)}
       >
         {node.replies.length > 0 || isReplying ? (
           <div className={REPLY_INDENT_CLASS}>

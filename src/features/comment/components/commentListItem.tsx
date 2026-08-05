@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
+import { isEdited } from '../../../shared/utils/isEdited';
 import ProfileAvatar from '../../profile/components/profileAvatar';
 import type { PostComment } from '../types';
 
@@ -18,7 +19,14 @@ type CommentListItemProps = {
   replyCount: number;
   /** 있으면 답글 버튼이 붙는다. 답글 줄에는 오지 않는다(2단 고정). */
   onReply?(commentId: number): void;
+  /** 있으면 수정 버튼이 붙는다. 작성자 본인에게만 온다 — 0001의 comments_update. */
+  onEdit?(commentId: number): void;
   onDelete(commentId: number): void;
+  /**
+   * 고치는 중이면 내용 대신 이것을 그린다. 부모가 폼을 들고 있는 이유는
+   * 뮤테이션과 "지금 어느 댓글을 고치는가"가 거기 있어서다.
+   */
+  editForm?: ReactNode;
   /** 이 댓글에 딸린 답글 목록과 답글 입력칸. 부모가 트리를 알고 넣는다. */
   children?: ReactNode;
 };
@@ -36,7 +44,13 @@ type CommentListItemProps = {
  * 없는데(0001), 부모 줄만 보고 누르면 그 사실을 알 길이 없다.
  *
  * 답글은 자기가 그리지 않는다. `children`으로 받는다 — 누가 누구의 답글인지는 트리를 접은
- * 부모가 알고, 여기는 한 줄을 그리는 일만 한다.
+ * 부모가 알고, 여기는 한 줄을 그리는 일만 한다. 고치기 폼도 같은 이유로 `editForm`으로 받는다.
+ *
+ * "수정됨"은 시각 옆에 붙는다. 판단은 `isEdited` 하나가 하고 게시물 상세와 같은 규칙을 쓴다 —
+ * 서버가 "무엇이 수정인가"를 이미 정해 두었으므로(0020) 여기서 다시 따지지 않는다.
+ *
+ * 고치는 동안에는 답글·수정·삭제 버튼을 감춘다. 고치던 것을 두고 다른 일을 시작할 수 있으면
+ * 쓰던 글이 어디로 갔는지 알 수 없게 된다.
  */
 function CommentListItem(props: CommentListItemProps) {
   const [isConfirming, setIsConfirming] = useState(false);
@@ -57,6 +71,12 @@ function CommentListItem(props: CommentListItemProps) {
   function handleReply(): void {
     if (props.onReply !== undefined) {
       props.onReply(comment.id);
+    }
+  }
+
+  function handleEdit(): void {
+    if (props.onEdit !== undefined) {
+      props.onEdit(comment.id);
     }
   }
 
@@ -87,15 +107,20 @@ function CommentListItem(props: CommentListItemProps) {
             </Link>
             <span className="text-xs text-gray-500 dark:text-gray-400">
               {formatTimeAgo(comment.createdAt, props.now)}
+              {isEdited(comment.createdAt, comment.updatedAt) ? ' · 수정됨' : ''}
             </span>
           </div>
 
-          {/* 줄바꿈을 살린다. 게시물 설명과 같은 이유로, 쓴 대로 보여야 한다. */}
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
-            {comment.content}
-          </p>
+          {props.editForm !== undefined ? (
+            props.editForm
+          ) : (
+            /* 줄바꿈을 살린다. 게시물 설명과 같은 이유로, 쓴 대로 보여야 한다. */
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+              {comment.content}
+            </p>
+          )}
 
-          {props.onReply !== undefined || props.canDelete ? (
+          {props.editForm === undefined && (props.onReply !== undefined || props.onEdit !== undefined || props.canDelete) ? (
             <div className="flex items-center gap-2 pt-0.5">
               {isConfirming ? (
                 <>
@@ -128,6 +153,16 @@ function CommentListItem(props: CommentListItemProps) {
                                  dark:text-gray-300 dark:hover:text-gray-100"
                     >
                       답글
+                    </button>
+                  ) : null}
+                  {props.onEdit !== undefined ? (
+                    <button
+                      type="button"
+                      onClick={handleEdit}
+                      className="text-xs text-gray-500 transition hover:text-gray-700
+                                 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      수정
                     </button>
                   ) : null}
                   {props.canDelete ? (

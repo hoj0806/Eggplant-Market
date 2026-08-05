@@ -10,6 +10,11 @@ export type PostComment = {
   parentId: number | null;
   content: string;
   createdAt: string;
+  /**
+   * 고친 시각. 내용이 실제로 달라질 때만 오른다(0020).
+   * 안 고쳤으면 `createdAt`과 같다 — `isEdited`가 그 비교를 한다.
+   */
+  updatedAt: string;
   author: CommentAuthor;
 };
 

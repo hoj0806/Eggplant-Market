@@ -53,6 +53,7 @@ function makePost(overrides: { status?: PostStatus; bumpedAt?: string } = {}): P
     likeCount: 2,
     isLiked: false,
     createdAt: new Date(NOW - 72 * HOUR_MS).toISOString(),
+    updatedAt: new Date(NOW - 72 * HOUR_MS).toISOString(),
     bumpedAt: overrides.bumpedAt ?? new Date(NOW - 30 * HOUR_MS).toISOString(),
     soldAt: null,
     seller: {

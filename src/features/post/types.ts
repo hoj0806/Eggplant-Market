@@ -63,6 +63,11 @@ export type PostDetail = {
   /** 로그인하지 않았으면 언제나 false. */
   isLiked: boolean;
   createdAt: string;
+  /**
+   * 판매자가 **내용을 고친** 시각. 상태 변경·끌올·조회수·찜은 올리지 않는다(0020).
+   * 한 번도 안 고쳤으면 `createdAt`과 같다 — `isEdited`가 그 비교를 한다.
+   */
+  updatedAt: string;
   /** 마지막 끌올 시각. 한 번도 안 했으면 등록 시각이다. 다음 끌올 가능 시각의 기준. */
   bumpedAt: string;
   /** 거래완료로 바뀐 시각. 그 전에는 null. */

@@ -8,6 +8,7 @@ function buildComment(id: number, parentId: number | null, createdAt: string): P
     parentId,
     content: `댓글 ${id}`,
     createdAt,
+    updatedAt: createdAt,
     author: { id: `user-${id}`, nickname: `이웃${id}`, avatarUrl: null },
   };
 }
