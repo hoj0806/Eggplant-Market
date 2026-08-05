@@ -186,6 +186,9 @@
 - **마이그레이션**: 없음 (Edge Function 신설 — `supabase functions deploy delete-account`)
 - **주의**: 스토리지 뒷정리에서 `chat-images`만 경로가 `{room_id}/{user_id}/…`라
   사용자 접두사로 훑을 수 없다. 삭제 전에 방 번호를 읽어 둔다(troble.md 같은 절 5번).
+- **후속**: 탈퇴가 cascade로 후기를 지우는데 `recalc_manner_temp`가 insert 전용이라 상대
+  매너온도가 어긋난 채 남았다. `0016_review_delete.sql`로 닫았다 — 같은 구멍을 **게시물
+  삭제(2단계)가 하루 먼저 열어 두고 있었다**(note.md·troble.md의 "후기가 사라질 때의 매너온도").
 
 ### 8-2. 카카오 로그인
 
