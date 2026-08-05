@@ -1737,3 +1737,61 @@ select count(*) from comments where post_id = v_post;   -- 이제 B로서 읽는
 여덟 가지를 한 번에 밟았다 — 차단 전/후 양방향, 판매자 차단 후 쓰기(42501), 판매자의
 남의 댓글 삭제(1행), 제3자의 삭제(0행), 공백 댓글(23514). **⑦의 "0행"이 특히 이 방법이라야
 잡힌다** — RLS로 막힌 delete는 오류가 아니라 조용히 0행이라, 예외만 보고 있으면 통과한 줄 안다.
+
+## 채널 이름이 겹쳐 화면이 죽는다 (2026-08-05)
+
+### 1. `supabase.channel(이름)`은 새 채널을 만들어 주지 않는다
+
+**증상**: 채팅 목록으로 가면 화면이 통째로 죽었다.
+
+```
+cannot add `postgres_changes` callbacks for realtime:chat-rooms after `subscribe()`.
+  at subscribeToMyChatRooms (chatApi.ts)
+  at subscribeToRooms (useChatRealtime.ts)
+```
+
+**원인**: 이름을 보고 "새 채널"이라고 읽었는데 아니었다. `RealtimeClient.channel(topic)`은
+같은 이름이 이미 있으면 **그것을 그대로 돌려준다.**
+
+```js
+const exists = this.getChannels().find((c) => c.topic === realtimeTopic);
+if (!exists) { … return chan; } else { return exists; }
+```
+
+그래서 둘째로 부른 쪽은 남이 이미 `subscribe()`까지 마친 채널을 받아 들고, 거기에 `.on()`을
+건다. `RealtimeChannel.on`은 채널이 joined/joining이면 예외를 던진다 — 이미 서버와 맞춰 둔
+구독 조건에 뒤늦게 하나 더 얹을 수 없기 때문이다.
+
+**해결**: 이름 뒤에 일련번호를 붙여 매번 새 채널을 받는다(`uniqueChannelTopic`).
+topic은 클라이언트가 채널을 구분하려고 쓰는 이름일 뿐이고, 서버가 무엇을 보낼지는
+`.on()`에 넘긴 조건이 정한다 — 이름이 달라도 받는 것은 같다.
+
+### 2. 겹친 것은 사고가 아니라 설계였다
+
+**증상**: "어디서 두 번 부르지" 하고 중복 호출을 찾았는데 없었다. 부르는 곳은 각자 한 번씩이다.
+
+**원인**: `useChatRoomsRealtime`을 거는 곳이 **둘 다 맞다.**
+
+- `useUnreadChatCount` — 탭바 배지. 늘 떠 있다.
+- `chatRoomListPage` — 채팅 목록 화면.
+
+같은 방 목록을 보므로 같은 구독을 거는 것이 당연하고, 한쪽이 늘 떠 있으므로 다른 쪽으로
+이동하는 순간 **반드시** 부딪힌다. 우연히 겹치는 게 아니라 그 화면에 들어가면 100% 죽는다.
+
+**해결**: 같은 짝이 알림에도 있었다 — `notificationBellLink`(헤더)와 `notificationPage`다.
+증상은 채팅에서만 봤지만 알림 화면도 같은 이유로 죽는 상태였다. 세 곳을 한꺼번에 고쳤다.
+
+`notifications-${viewerId}`처럼 이름에 id를 넣어 둔 것이 방어가 되어 주지 않는다 —
+갈라지는 것은 **사용자**인데 겹치는 것은 **같은 사용자의 두 화면**이다.
+
+### 3. 테스트가 넉넉히 통과하는데도 죽어 있었다
+
+**증상**: 84 스위트 581건이 다 통과하는 상태에서 화면은 열리지 않았다.
+
+**원인**: 화면 테스트는 `chatApi`·`notificationApi`를 통째로 mock한다(troble.md #5의 `import.meta`
+때문이다). mock한 함수는 채널을 열지 않으므로 이 충돌이 일어날 자리가 없다.
+Realtime 구독은 **api를 mock하는 순간 시험 범위 밖으로 나간다.**
+
+**해결**: 이번 것은 `uniqueChannelTopic`을 순수 함수로 떼어 내 그 부분만 단위 시험으로 묶었다.
+다만 "두 화면이 같은 구독을 건다"는 조합 자체는 여전히 시험이 잡지 못한다 —
+같은 훅을 두 곳에서 거는 것을 새로 만들 때는 화면을 직접 열어 봐야 한다.

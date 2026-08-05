@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
+import { uniqueChannelTopic } from '../../../shared/utils/uniqueChannelTopic';
 import type { AppNotification, NotificationCursor, NotificationType } from '../types';
 
 /** 알림 한 페이지 크기. 서버(0015)가 50으로 한 번 더 막는다. */
@@ -125,10 +126,13 @@ export async function markAllNotificationsRead(): Promise<void> {
  *
  * supabase를 아는 자리를 api/ 한 곳에 가둬 두는 규칙은 여기도 같다 — 훅이 직접 채널을 열면
  * 화면 테스트가 import.meta에 닿아 로드 단계에서 죽는다(troble.md #5).
+ *
+ * 이름에 번호를 붙이는 이유는 채팅방 목록과 같다 — 헤더의 알림 종과 알림 화면이 함께 뜨는
+ * 순간 둘이 같은 채널을 집게 된다(uniqueChannelTopic). viewerId만으로는 갈리지 않는다.
  */
 export function subscribeToMyNotifications(viewerId: string, onInsert: () => void): () => void {
   const channel = supabase
-    .channel(`notifications-${viewerId}`)
+    .channel(uniqueChannelTopic(`notifications-${viewerId}`))
     .on(
       'postgres_changes',
       {

@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
+import { uniqueChannelTopic } from '../../../shared/utils/uniqueChannelTopic';
 import type { PostStatus } from '../../post/types';
 import type {
   ChatMessage,
@@ -367,7 +368,7 @@ export function subscribeToRoomMessages(
   onReady: () => void,
 ): () => void {
   const channel = supabase
-    .channel(`chat-room-${roomId}`)
+    .channel(uniqueChannelTopic(`chat-room-${roomId}`))
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
@@ -398,10 +399,13 @@ export function subscribeToRoomMessages(
  *
  * 필터를 걸 수 없다 — "내가 참여한 방"은 컬럼 하나로 표현되지 않는다.
  * 대신 chat_rooms_select 정책이 남의 방을 흘려보내지 않는다. Realtime도 RLS를 그대로 탄다.
+ *
+ * 이 구독은 두 곳이 동시에 건다 — 늘 떠 있는 탭바 배지(useUnreadChatCount)와 채팅 목록 화면이다.
+ * 이름이 고정이면 둘째가 첫째의 채널을 그대로 받아 죽으므로 번호를 붙인다(uniqueChannelTopic).
  */
 export function subscribeToMyChatRooms(onChange: () => void): () => void {
   const channel = supabase
-    .channel('chat-rooms')
+    .channel(uniqueChannelTopic('chat-rooms'))
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'chat_rooms' },
