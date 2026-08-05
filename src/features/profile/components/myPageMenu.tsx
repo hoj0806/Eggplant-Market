@@ -9,8 +9,13 @@ type MyPageMenuItem = {
 /**
  * 마이페이지에서 갈 수 있는 곳. 순서는 자주 여는 것부터다.
  * 차단 목록은 맨 아래다 — 거래하다 한 번 들를까 말까 한 관리 화면이다.
+ *
+ * 알림에는 안 읽은 배지를 달지 않는다. 배지는 홈 헤더의 종 하나뿐이다 —
+ * 같은 숫자를 두 곳에 그리면 한쪽만 늦게 갱신될 때 어느 쪽이 맞는지 알 수 없다.
+ * 여기 링크는 홈까지 돌아가지 않아도 되는 두 번째 길일 뿐이다.
  */
 const MENU_ITEMS: ReadonlyArray<MyPageMenuItem> = [
+  { to: '/notifications', icon: '🔔', label: '알림' },
   { to: '/my/likes', icon: '♡', label: '관심목록' },
   { to: '/my/recent', icon: '🕘', label: '최근 본 글' },
   { to: '/my/purchases', icon: '🧾', label: '구매내역' },

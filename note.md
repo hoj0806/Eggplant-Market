@@ -1802,3 +1802,191 @@ chat/utils/chatErrorMessage    차단 거절 문구 둘 추가
   이 앱 밖의 일이다
 - **차단 사유 남기기** — `blocks`에 사유 칸이 없다. 차단은 신고와 달리 남에게 설명할 일이 아니다
 - **자동 차단 · 신고 누적 제재** — 신고가 쌓이면 자동으로 가리는 규칙. 기준을 사람이 정해야 한다
+
+---
+
+## 알림 (2026-08-05)
+
+`todo.md` 7단계. 여기는 **만들 것이 없는 단계에 가까웠다** — `notifications` 테이블도 정책도
+0001부터 있었고, 트리거 둘이 **이미 행을 쌓고 있었다.**
+
+```sql
+-- 0008 on_message_insert : 채팅·가격제안이 들어올 때마다
+insert into notifications (user_id, type, payload)
+values (v_recipient, ...,  jsonb_build_object('room_id', new.room_id, 'message_id', new.id));
+
+-- 0001 recalc_manner_temp : 후기가 들어올 때마다
+insert into notifications (user_id, type, payload)
+values (new.reviewee_id, 'review', jsonb_build_object('post_id', ..., 'review_id', new.id));
+```
+
+없던 것은 **읽는 쪽**이다. 알림이 쌓이기만 하고 아무도 보지 않는 상태였다.
+
+### 무엇을 만들었나
+
+1. **`/notifications`** — 알림 목록. 무한 스크롤, 안 읽은 줄 표시, "모두 읽음".
+2. **홈 헤더의 종 + 안 읽은 배지** — 마이페이지 메뉴에도 링크를 뒀다(배지는 없이).
+3. **`fetch_notifications`** — `payload jsonb`의 id를 서버가 풀어 상대·게시물·미리보기까지 준다.
+4. **Realtime 구독** — `notifications`가 publication에 아예 없었다.
+5. **`notificationText.ts`** — payload를 사람의 말과 이동 경로로 바꾸는 순수 함수.
+6. **차단하면 그 사람에게서 온 알림도 지운다** — 6단계가 남긴 구멍이다.
+
+마이그레이션은 `0015_notification.sql`. `todo.md`는 "댓글·찜 알림을 넣을 때만 필요"라고
+적어 뒀지만, 실제로는 그것 말고도 손댈 곳이 넷이었다(아래 1·2·4번).
+
+### 설계 결정
+
+#### 1. Realtime publication에 `notifications`가 없었다
+
+`todo.md`는 "Realtime 구독은 `useChatRealtime.ts` 패턴을 그대로 따른다"고만 적어 뒀다.
+그런데 0008이 publication에 넣은 것은 `messages`와 `chat_rooms` 둘뿐이다.
+
+```sql
+alter publication supabase_realtime add table notifications;
+```
+
+이 한 줄이 없으면 **구독은 조용히 성공하고 이벤트만 영원히 오지 않는다.** 실패로 보이지 않아
+더 찾기 어려운 종류의 누락이다. `replica identity full`은 걸지 않았다 — 그것이 필요한 것은
+update의 이전 행을 볼 때인데(메시지 읽음 표시가 그랬다) 알림은 insert만 구독한다.
+
+#### 2. `payload jsonb`는 누가 푸는가 — 서버
+
+payload에 들어 있는 것은 id뿐이다(`{"room_id": 9, "message_id": 23}`). 화면이 쓸 문구
+("가지팔이님이 메시지를 보냈어요")를 만들려면 보낸 사람의 닉네임과 메시지 내용이 필요하다.
+
+이대로 내려보내면 알림 한 줄마다 메시지·방·프로필을 따로 조회하게 된다. 스무 줄이면 수십 번이다.
+그래서 `fetch_notifications`가 한 번에 푼다 — 0009의 마이페이지 목록, 0013의 `fetch_user_reviews`가
+제목·닉네임을 함께 내려준 것과 같은 판단이다.
+
+푸는 방법은 `left join` 넷이다. 타입별 `case`로 갈래를 나누지 않았다 — payload에 그 키가 없으면
+`->>`가 null을 주고 join이 그냥 비어 남는다.
+
+```sql
+left join messages   m     on m.id  = (n.payload ->> 'message_id')::bigint
+left join chat_rooms cr    on cr.id = m.room_id
+left join reviews    rv    on rv.id = (n.payload ->> 'review_id')::bigint
+left join posts      p     on p.id  = coalesce(cr.post_id, rv.post_id,
+                                               (n.payload ->> 'post_id')::bigint)
+left join profiles   actor on actor.id = coalesce(m.sender_id, rv.reviewer_id)
+```
+
+`security invoker`(기본)로 뒀다. join하는 `messages`·`chat_rooms`에 각자의 select 정책이
+그대로 걸리는데, 알림을 받은 사람은 그 방의 참여자라 통과한다. 우회할 이유가 없으면 우회하지 않는다.
+
+#### 3. 문구와 경로는 화면이 아니라 순수 함수가 만든다
+
+서버가 값을 풀어 줘도 "그래서 뭐라고 쓸 것인가"는 남는다. 이 분기를 컴포넌트 안에 두면
+어떤 알림이 어디로 가는지 확인하려고 화면을 그려야 한다.
+
+```ts
+export function toNotificationView(notification: AppNotification, viewerId: string): NotificationView
+```
+
+`viewerId`를 받는 이유는 후기 하나 때문이다 — **받은 후기는 내 프로필에 붙는다.** 후기 한 건만
+여는 화면이 없어서 알림 행만 봐서는 갈 곳을 알 수 없다.
+
+갈 곳이 없으면(`to === null`) 그 줄은 링크가 아니라 그냥 줄로 그린다. 눌러도 아무 일이 없는
+링크를 남겨 두면 "눌렀는데 왜 안 가지"가 된다.
+
+`comment`·`like`도 함께 다뤘다. **이 값을 넣는 트리거는 아직 없다**(댓글·찜 기능 자체가 없다).
+그래도 enum에 있는 값이라, 나중에 트리거만 더하면 화면은 그대로 굴러간다.
+
+#### 4. `notifications_update`가 무엇이든 바꿀 수 있었다
+
+0001의 정책은 `auth.uid() = user_id` 하나뿐이다. 내 알림이면 **payload까지 바꿀 수 있다는 뜻**이라
+알림이 가리키는 대상을 사후에 바꿔치기할 수 있었다.
+
+`messages`에 `guard_message_update`(0008)를 둔 것과 같은 이유로 컬럼을 잠갔다. 화면이 보내는
+update는 `is_read` 하나뿐이라 잃는 것이 없다. 덕분에 읽음 처리에 RPC가 필요 없다 —
+채팅의 `markRoomRead`와 같이 평범한 update로 충분하다.
+
+#### 5. 배지는 왜 목록을 나눠 쓰지 않는가
+
+채팅 배지(`useUnreadChatCount`)는 채팅 목록 쿼리를 그대로 합쳐서 낸다. 알림은 그럴 수 없다 —
+목록이 무한 스크롤이라 첫 페이지만 받은 상태에서는 **20까지밖에 못 센다.** 방 목록은 페이징 없이
+통째로 오기 때문에 가능했던 일이다.
+
+그래서 `count_unread_notifications()` RPC를 따로 뒀고, 부분 인덱스(`where is_read = false`)를
+그 동선에 깔았다.
+
+배지를 **한 곳에만** 두는 것은 채팅과 같다. 홈 헤더의 종 하나뿐이고 마이페이지 메뉴에는 숫자가
+없다 — 같은 숫자를 두 곳에 그리면 한쪽만 늦게 갱신될 때 어느 쪽이 맞는지 알 수 없다.
+
+탭바에 여섯 번째 자리를 만들지 않은 이유는 따로 있다. 알림은 "하러 가는 곳"이 아니라
+"왔을 때 가는 곳"이라 다섯 칸을 여섯으로 좁힐 만큼 늘 필요하지 않다.
+
+#### 6. Realtime은 캐시에 꽂지 않고 다시 읽게 한다
+
+`useChatRoomRealtime`은 payload를 캐시에 직접 얹는다. 알림은 그럴 수 없다 — Realtime이 주는 것은
+`notifications` 행 그대로(id가 든 payload)인데 목록이 쓰는 모양은 서버가 join해서 푼 것이라
+둘이 다르다. 앞에서 풀어 준 값을 화면에서 다시 만들 방법이 없다.
+
+그래서 "무언가 왔다"만 신호로 쓰고 무효화한다 — `useChatRoomsRealtime`이 방 목록에 한 것과 같다.
+
+구독은 홈 헤더의 종에서 건다. 홈은 앱을 켜면 처음 닿는 화면이라, 알림 화면을 열지 않아도
+새 알림이 오면 숫자가 곧바로 바뀐다.
+
+#### 7. 읽음 표시는 보내기 전에 캐시부터 고친다
+
+알림을 누르면 곧바로 다른 화면으로 넘어간다. 응답을 기다렸다 고치면 **그 결과를 받을 화면이 이미
+없다.** 그래서 `onMutate`에서 캐시를 먼저 고치고, 실패해도 되돌리지 않는다 — 잃는 것이 굵은 글씨
+하나뿐이고 다음 조회가 서버 값으로 덮는다.
+
+"모두 읽음"은 반대다. 화면에 머무른 채 누르는 버튼이라 `onSuccess`에서 고친다. 실패하면 굵은
+글씨가 그대로 남아 다시 누를 수 있다.
+
+### 파일 구성
+
+```
+supabase/migrations/
+└─ 0015_notification.sql       publication에 notifications 추가
+                               guard_notification_update
+                               fetch_notifications · count_unread_notifications
+                               notifications_unread_idx
+                               purge_blocked_notifications (blocks after insert)
+
+notification/                  (여태 .gitkeep만 있던 폴더)
+├─ api/notificationApi.ts      fetchNotifications · fetchUnreadNotificationCount
+│                              markNotificationRead · markAllNotificationsRead
+│                              subscribeToMyNotifications
+├─ hooks/useNotificationQueries.ts    목록(무한) · 안 읽은 수
+├─ hooks/useNotificationRealtime.ts   insert만 구독하고 무효화
+├─ hooks/useNotificationMutations.ts  읽음 하나 · 모두 읽음
+├─ utils/notificationText.ts   payload → 문구·경로 (순수 함수)
+├─ utils/notificationCache.ts  읽음 표시를 캐시에 반영하는 순수 함수들
+├─ utils/notificationCursor.ts
+└─ components/                 notificationPage · notificationList
+                               · notificationListItem · notificationBellLink
+
+app/router.tsx                 /notifications 추가 (탭바 안)
+browse/components/homePage     MemberGreeting 오른쪽에 종
+profile/components/myPageMenu  알림 항목 추가(배지 없음)
+block/hooks/useBlockMutations  ['notifications'] 무효화 추가
+```
+
+### 검증
+
+`npx jest` 77 스위트 · 542건 통과(신규 4 스위트 23건). `tsc --noEmit`·`eslint` 무경고,
+`vite build` 성공.
+
+실제 DB에서 `set local role authenticated` + `request.jwt.claims`로 사용자를 흉내 내 확인했다.
+
+- `fetch_notifications()` → 쌓여 있던 채팅 알림 1건이 **닉네임·게시물 제목·미리보기까지 채워져** 나온다
+  (`actor_nickname`, `post_title: '아이패드'`, `preview: 'dwedwd'`)
+- `count_unread_notifications()` → `1`
+- payload를 바꾸는 update → `23514 알림은 읽음 표시만 바꿀 수 있습니다.`
+- `update ... set is_read = true where is_read = false`("모두 읽음") → 성공, 안 읽은 수 `1 → 0`
+  (`user_id`로 좁히지 않아도 RLS가 내 행만 건드린다)
+- `purge_blocked_notifications`의 delete 조건을 select로 돌려 → 두 사람 사이의 알림 1건이 잡힌다
+- `pg_publication_tables` → `chat_rooms`, `messages`, `notifications`
+
+### 이번 범위 밖
+
+- **댓글·찜 알림** — enum에는 있지만 넣는 트리거가 없다. 댓글 기능 자체가 없어서다.
+  `notificationText`는 두 타입을 이미 다루므로 트리거만 더하면 화면은 그대로 굴러간다
+- **알림 지우기 · 알림 설정** — 목록에서 개별 삭제, 종류별 on/off. 당근에는 있다.
+  `notifications`에 delete 정책을 열어야 하고 설정은 `profiles`에 칸이 필요하다
+- **푸시 알림** — 앱이 꺼져 있을 때 오는 알림. 웹 푸시는 서비스 워커·VAPID 키·구독 저장이 필요해
+  이 단계와 무게가 다르다
+- **차단 해제 시 알림 되살리기** — 지운 것이라 돌아오지 않는다. 알림은 "그때 알려 주는 것"이라
+  되돌릴 값이 아니라고 봤다(방과 대화는 0014대로 그대로 돌아온다)

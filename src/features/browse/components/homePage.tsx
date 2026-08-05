@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import NeighborhoodPostList from './neighborhoodPostList';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
+import NotificationBellLink from '../../notification/components/notificationBellLink';
 import ProfileAvatar from '../../profile/components/profileAvatar';
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
 import type { Profile } from '../../profile/types';
@@ -38,12 +39,15 @@ function GuestActions() {
  *
  * 채팅 입구는 탭바로 옮겼다. 안 읽은 배지도 그리로 따라갔다 —
  * 같은 숫자를 두 곳에 그리면 한쪽만 늦게 갱신될 때 어느 쪽이 맞는지 알 수 없다.
+ *
+ * 알림 종은 반대로 여기 남는다. 탭바는 다섯 칸으로 이미 좁고, 알림은 "하러 가는 곳"이 아니라
+ * "왔을 때 가는 곳"이라 늘 자리를 차지할 이유가 적다. 배지가 한 곳뿐인 것은 채팅과 같다.
  */
-function MemberGreeting(props: { profile: Profile | undefined }) {
+function MemberGreeting(props: { profile: Profile | undefined; viewerId: string }) {
   const profile = props.profile;
 
   return (
-    <div className="flex w-full items-center gap-3">
+    <div className="flex w-full items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
         <Link to="/my" aria-label="마이페이지" className="shrink-0">
           <ProfileAvatar
@@ -67,6 +71,8 @@ function MemberGreeting(props: { profile: Profile | undefined }) {
           </Link>
         </div>
       </div>
+
+      <NotificationBellLink viewerId={props.viewerId} />
     </div>
   );
 }
@@ -88,7 +94,9 @@ function HomePage() {
           <p className="text-gray-600 dark:text-gray-300">세션을 확인하는 중입니다…</p>
         ) : null}
 
-        {isMember && user !== null ? <MemberGreeting profile={profileQuery.data} /> : null}
+        {isMember && user !== null ? (
+          <MemberGreeting profile={profileQuery.data} viewerId={user.id} />
+        ) : null}
 
         {/* 검색은 비로그인도 쓸 수 있어 로그인 여부와 상관없이 보여준다. */}
         <Link

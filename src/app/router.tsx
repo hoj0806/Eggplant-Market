@@ -8,6 +8,7 @@ import HomePage from '../features/browse/components/homePage';
 import SearchPage from '../features/browse/components/searchPage';
 import ChatRoomListPage from '../features/chat/components/chatRoomListPage';
 import ChatRoomPage from '../features/chat/components/chatRoomPage';
+import NotificationPage from '../features/notification/components/notificationPage';
 import NewPostPage from '../features/post/components/newPostPage';
 import PostDetailPage from '../features/post/components/postDetailPage';
 import PostEditPage from '../features/post/components/postEditPage';
@@ -58,6 +59,18 @@ export const router = createBrowserRouter([
         element: (
           <RequireOnboarding>
             <ChatRoomListPage />
+          </RequireOnboarding>
+        ),
+      },
+      {
+        // 알림도 탭바 안이다. 홈의 종에서도 오고 마이페이지에서도 와서 돌아갈 곳이
+        // 하나로 정해지지 않는다 — `← 어디로` 대신 탭바가 그 자리를 맡는다.
+        path: '/notifications',
+        element: (
+          <RequireOnboarding>
+            <RequireMember>
+              <NotificationPage />
+            </RequireMember>
           </RequireOnboarding>
         ),
       },

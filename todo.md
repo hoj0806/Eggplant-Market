@@ -149,17 +149,25 @@
   (0013이 `reviews`에 그랬던 것과 같은 이유), `insert ... returning`이 select 정책 없는 테이블에서
   막히는 바람에 `create_report`가 `returns void`가 됐다(troble.md 같은 절 1번).
 
-## 7단계 — 알림
+## 7단계 — 알림 ✅ 완료 (2026-08-05)
+
+구현 노트는 `note.md`의 "알림", 막혔던 부분은 `troble.md`의 같은 절에 있다.
 
 - **현황**: `notifications` 테이블에 **트리거가 이미 행을 쌓고 있는데** 읽는 화면이 없어 채팅·후기
-  알림이 그대로 버려지는 중이다. `on_message_insert`(chat/price_offer)와
+  알림이 그대로 버려지는 중이었다. `on_message_insert`(chat/price_offer)와
   `recalc_manner_temp`(review)가 넣고 있다.
-- **설계**: `/notifications` + 탭바(또는 헤더)에 안 읽은 배지. Realtime 구독은
-  `useChatRealtime.ts` 패턴을 그대로 따른다. `payload jsonb`를 타입별로 해석해 문구와 이동 경로를
-  만드는 순수 함수(`notificationText.ts`)를 두고 단위 테스트한다.
+- **한 것**: `/notifications`(탭바 안) + 홈 헤더의 종에 안 읽은 배지. 배지는 한 곳뿐이다 —
+  마이페이지 메뉴에도 링크를 뒀지만 숫자는 없다. `payload jsonb`는 **서버가 푼다**
+  (`fetch_notifications`가 join 다섯으로 닉네임·게시물 제목·미리보기까지 준다) — 풀지 않으면
+  화면이 알림 한 줄마다 따로 조회하게 된다. 그것을 사람의 말과 이동 경로로 바꾸는 자리만
+  순수 함수(`notificationText.ts`)로 두고 단위 테스트했다.
 - **주의**: `notification_type` enum에 `comment`·`like`가 있지만 **이 값을 넣는 트리거가 없다.**
-  댓글·찜 알림까지 원하면 트리거를 새로 만들어야 한다(프론트 작업만으로는 안 된다).
-- **마이그레이션**: 댓글·찜 알림을 넣을 때만 필요
+  `notificationText`는 두 타입을 이미 다루므로 트리거만 더하면 화면은 그대로 굴러간다.
+- **마이그레이션**: `0015_notification.sql` — "댓글·찜 알림을 넣을 때만 필요"로 적어 뒀지만
+  손댈 곳이 넷이었다. Realtime publication에 `notifications`가 아예 없었고(구독이 조용히
+  성공하고 이벤트만 안 온다), `notifications_update`가 payload까지 바꿀 수 있었고,
+  목록을 화면이 쓸 모양으로 푸는 RPC가 필요했고, **6단계가 알림에 남긴 구멍**을 메워야 했다
+  (차단해도 그 사람의 알림이 그대로 남는다 — troble.md 같은 절 1번).
 
 ## 8단계 — 계정
 
