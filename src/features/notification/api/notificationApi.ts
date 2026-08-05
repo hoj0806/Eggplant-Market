@@ -18,6 +18,7 @@ type NotificationRow = {
   post_title: string | null;
   preview: string | null;
   offer_amount: number | null;
+  is_first: boolean;
 };
 
 function toAppNotification(row: NotificationRow): AppNotification {
@@ -34,6 +35,7 @@ function toAppNotification(row: NotificationRow): AppNotification {
     postTitle: row.post_title,
     preview: row.preview,
     offerAmount: row.offer_amount,
+    isFirst: row.is_first,
   };
 }
 

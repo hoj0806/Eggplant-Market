@@ -24,6 +24,7 @@ function makeNotification(id: number): AppNotification {
     postTitle: null,
     preview: null,
     offerAmount: null,
+    isFirst: false,
   };
 }
 

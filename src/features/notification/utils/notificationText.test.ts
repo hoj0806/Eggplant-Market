@@ -16,9 +16,44 @@ function makeNotification(overrides: Partial<AppNotification> & { type: Notifica
     postTitle: null,
     preview: null,
     offerAmount: null,
+    isFirst: false,
     ...overrides,
   };
 }
+
+describe('toNotificationView — 첫 후기', function firstReviewSuite() {
+  // 지금까지는 온도만 조용히 올랐다. 첫 후기만 주어를 바꿔 그 사실을 알린다(0021).
+  it('첫 후기는 상대가 아니라 나에게 생긴 일을 말한다', function firstReviewCase() {
+    const view = toNotificationView(
+      makeNotification({ type: 'review', isFirst: true, preview: '친절하세요' }),
+      VIEWER_ID,
+    );
+
+    expect(view.title).toBe('🎉 첫 거래후기를 받았어요');
+    expect(view.body).toBe('매너온도가 올랐어요. 프로필에서 확인해 보세요');
+    expect(view.to).toBe(`/users/${VIEWER_ID}`);
+  });
+
+  it('두 번째부터는 지금까지와 같다', function laterReviewCase() {
+    const view = toNotificationView(
+      makeNotification({ type: 'review', isFirst: false, preview: '친절하세요' }),
+      VIEWER_ID,
+    );
+
+    expect(view.title).toBe('가지팔이님이 거래후기를 남겼어요');
+    expect(view.body).toBe('친절하세요');
+  });
+
+  // 서버가 다른 네 타입에는 false로 세워 내려준다. 표를 잘못 읽어 축하가 새면 안 된다.
+  it('후기가 아닌 알림은 첫 후기 문구를 쓰지 않는다', function otherTypeCase() {
+    const view = toNotificationView(
+      makeNotification({ type: 'chat', roomId: 9, preview: '아직 있나요?', isFirst: true }),
+      VIEWER_ID,
+    );
+
+    expect(view.title).toBe('가지팔이님이 메시지를 보냈어요');
+  });
+});
 
 describe('toNotificationView', function notificationTextSuite() {
   it('채팅 알림은 보낸 사람과 내용을 보여주고 그 방으로 보낸다', function chatCase() {

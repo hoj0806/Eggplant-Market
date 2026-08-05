@@ -30,6 +30,14 @@ export type AppNotification = {
   /** 메시지 내용 또는 후기 한 줄. 사진 메시지는 경로 대신 문구가 온다. */
   preview: string | null;
   offerAmount: number | null;
+  /**
+   * 이 후기가 **받은 사람의 첫 후기**였는가(0021). 후기 알림에서만 참이 될 수 있고
+   * 나머지 넷은 언제나 false다 — 서버가 `coalesce(..., false)`로 세워 내려준다.
+   *
+   * 0021 이전에 쌓인 후기 알림에도 false가 온다. 표가 없던 시절의 줄이라
+   * 지금까지와 똑같이 보인다.
+   */
+  isFirst: boolean;
 };
 
 /** 알림 목록의 다음 페이지 시작점. 같은 시각 알림을 가르려고 id까지 들고 간다. */

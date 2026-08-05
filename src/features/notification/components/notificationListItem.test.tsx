@@ -22,6 +22,7 @@ function makeNotification(
     postTitle: null,
     preview: null,
     offerAmount: null,
+    isFirst: false,
     ...overrides,
   };
 }
