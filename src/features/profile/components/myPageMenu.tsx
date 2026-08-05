@@ -12,6 +12,9 @@ type MyPageMenuItem = {
  * 계정 설정(비밀번호·탈퇴)은 그중에서도 마지막이다. 프로필 수정·동네 설정은
  * 자주 여는 자리라 목록이 아니라 카드(myProfileCard)의 버튼으로 두었다.
  *
+ * 알림 설정은 계정 설정 바로 위다. 둘 다 관리 화면이지만 알림 쪽이 더 자주 열린다 —
+ * 계정 설정에는 탈퇴가 들어 있어 맨 아래를 지킨다.
+ *
  * 알림에는 안 읽은 배지를 달지 않는다. 배지는 홈 헤더의 종 하나뿐이다 —
  * 같은 숫자를 두 곳에 그리면 한쪽만 늦게 갱신될 때 어느 쪽이 맞는지 알 수 없다.
  * 여기 링크는 홈까지 돌아가지 않아도 되는 두 번째 길일 뿐이다.
@@ -23,6 +26,7 @@ const MENU_ITEMS: ReadonlyArray<MyPageMenuItem> = [
   { to: '/my/purchases', icon: '🧾', label: '구매내역' },
   { to: '/my/sales', icon: '📦', label: '판매관리' },
   { to: '/my/blocks', icon: '🚫', label: '차단 목록' },
+  { to: '/settings/notifications', icon: '🔕', label: '알림 설정' },
   { to: '/settings/account', icon: '⚙️', label: '계정 설정' },
 ];
 

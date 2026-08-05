@@ -10,6 +10,7 @@ import SearchPage from '../features/browse/components/searchPage';
 import ChatRoomListPage from '../features/chat/components/chatRoomListPage';
 import ChatRoomPage from '../features/chat/components/chatRoomPage';
 import NotificationPage from '../features/notification/components/notificationPage';
+import NotificationSettingsPage from '../features/notification/components/notificationSettingsPage';
 import NewPostPage from '../features/post/components/newPostPage';
 import PostDetailPage from '../features/post/components/postDetailPage';
 import PostEditPage from '../features/post/components/postEditPage';
@@ -210,6 +211,17 @@ export const router = createBrowserRouter([
       <RequireOnboarding>
         <RequireMember>
           <AccountSettingsPage />
+        </RequireMember>
+      </RequireOnboarding>
+    ),
+  },
+  {
+    // 알림 설정도 마이페이지에서 한 번 다녀오는 화면이라 탭바 밖이다.
+    path: '/settings/notifications',
+    element: (
+      <RequireOnboarding>
+        <RequireMember>
+          <NotificationSettingsPage />
         </RequireMember>
       </RequireOnboarding>
     ),
