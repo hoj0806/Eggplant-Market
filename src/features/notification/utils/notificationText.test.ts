@@ -79,8 +79,8 @@ describe('toNotificationView', function notificationTextSuite() {
     expect(view.body).toBe('아이패드');
   });
 
-  // 아직 이 값을 넣는 트리거가 없지만 enum에는 있다. 닿았을 때 빈 줄이 되면 안 된다.
-  it('댓글·찜 알림은 트리거가 생기기 전에도 게시물로 보낸다', function commentAndLikeCase() {
+  // 0018로 실제로 오기 시작했다. 문장은 그 전에 써 둔 것을 그대로 쓴다.
+  it('댓글·찜 알림은 게시물로 보낸다', function commentAndLikeCase() {
     const comment = toNotificationView(
       makeNotification({ type: 'comment', postId: 7, preview: '아직 있나요?' }),
       VIEWER_ID,
@@ -94,6 +94,27 @@ describe('toNotificationView', function notificationTextSuite() {
     expect(comment.to).toBe('/posts/7');
     expect(like.title).toBe('가지팔이님이 관심을 표시했어요');
     expect(like.to).toBe('/posts/7');
+  });
+
+  // 0018의 fetch_notifications는 댓글이 지워지면 preview를 null로 준다(알림 줄은 남는다).
+  // 후기와 같은 자리 — 빈 줄 대신 어떤 글이었는지라도 보인다.
+  it('댓글이 지워졌으면 글 제목을 대신 보여준다', function deletedCommentCase() {
+    const view = toNotificationView(
+      makeNotification({ type: 'comment', postId: 7, postTitle: '아이패드', preview: null }),
+      VIEWER_ID,
+    );
+
+    expect(view.body).toBe('아이패드');
+  });
+
+  // 찜은 서버가 미리보기를 주지 않는다. 글 제목이 본문 자리를 맡는다.
+  it('찜 알림의 본문은 글 제목이다', function likeBodyCase() {
+    const view = toNotificationView(
+      makeNotification({ type: 'like', postId: 7, postTitle: '아이패드', preview: null }),
+      VIEWER_ID,
+    );
+
+    expect(view.body).toBe('아이패드');
   });
 
   // 프로필은 cascade로 사라져도 알림 행은 남는다. "님이 메시지를 보냈어요"가 되면 안 된다.
