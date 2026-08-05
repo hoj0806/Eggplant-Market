@@ -3,6 +3,7 @@ import AppLayout from './appLayout';
 import AuthCallbackPage from '../features/auth/components/authCallbackPage';
 import SignInPage from '../features/auth/components/signInPage';
 import SignUpPage from '../features/auth/components/signUpPage';
+import BlockedUsersPage from '../features/block/components/blockedUsersPage';
 import HomePage from '../features/browse/components/homePage';
 import SearchPage from '../features/browse/components/searchPage';
 import ChatRoomListPage from '../features/chat/components/chatRoomListPage';
@@ -108,6 +109,17 @@ export const router = createBrowserRouter([
           <RequireOnboarding>
             <RequireMember>
               <SellingPostsPage />
+            </RequireMember>
+          </RequireOnboarding>
+        ),
+      },
+      {
+        // 차단 목록도 "내 것을 보는 자리"라 마이페이지 하위 목록 넷과 같은 조건이다.
+        path: '/my/blocks',
+        element: (
+          <RequireOnboarding>
+            <RequireMember>
+              <BlockedUsersPage />
             </RequireMember>
           </RequireOnboarding>
         ),

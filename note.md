@@ -1586,3 +1586,219 @@ profile/
 - **후기 알림 화면** — `recalc_manner_temp`가 넣는 `type='review'` 알림은 여전히 읽을 곳이
   없다. 7단계의 몫이다
 - **첫 거래 안내** — "첫 후기를 받았어요" 같은 축하 화면. 지금은 온도만 조용히 오른다
+
+## 안전 — 차단 · 신고 (2026-08-05)
+
+`todo.md` 6단계. `blocks`·`reports` 테이블과 RLS는 0001부터 있었고 화면만 0이었다.
+그런데 이번 단계의 무게는 화면이 아니라 **차단이 실제로 작동하게 만드는 일**에 있었다 —
+차단 버튼만 붙이고 목록을 그대로 두면 차단한 사람의 글이 홈에 그대로 뜬다.
+
+### 무엇을 만들었나
+
+1. **차단 · 해제** — 게시물 상세·프로필·채팅방의 ⋯ 메뉴에서. 마이페이지에 관리 화면(`/my/blocks`).
+2. **차단이 걸러내는 자리 넷** — 홈·검색 목록(`search_posts`), 채팅방 목록(`fetch_chat_rooms`),
+   새 대화 시작(`open_chat_room`), 이미 열린 방에 메시지 넣기(`messages_insert` 정책).
+3. **신고** — 게시물·사용자 신고 시트(사유 선택 + 상세). 접수 뒤 차단을 함께 권한다.
+4. **신고에 형태 주기** — 사유 화이트리스트·대상 id 형태·자기 신고·중복을 서버가 막는다.
+
+마이그레이션은 `0014_block_and_report.sql` 하나다. `todo.md`는 6-1을 `0014_block_filter.sql`,
+6-2를 "마이그레이션 없음"으로 적어 뒀지만 신고 쪽도 제약이 필요해(0013이 `reviews`에 그랬던
+것과 같은 이유) 한 파일에 합쳤다.
+
+### 설계 결정
+
+#### 1. 차단은 양방향인데, `blocks_select`는 한 방향만 보여준다
+
+차단은 내가 건 쪽도 나를 건 쪽도 서로 보이지 않아야 한다. 그런데 0001의 정책은 이것뿐이다.
+
+```sql
+create policy blocks_select on blocks for select using (auth.uid() = blocker_id);
+```
+
+**내가 건 차단만** 읽힌다. 그리고 RLS 정책 안에서든 `security invoker` 함수 안에서든 다른
+테이블을 조회하면 그 테이블의 정책이 그대로 걸리므로, "나를 차단한 사람"은 어떤 방법으로도
+보이지 않는다. 그렇다고 `auth.uid() = blocked_id` 정책을 더할 수는 없다 — 그 순간
+**누가 나를 차단했는지 목록으로 조회할 수 있게 된다.** 차단은 상대가 몰라야 의미가 있다.
+
+답은 `security definer` 함수를 두되 **클라이언트가 부를 수 없는 곳에 두는 것**이었다.
+
+```sql
+create schema if not exists private;
+
+create or replace function private.blocked_user_ids()
+returns uuid[] language sql stable security definer set search_path = public as $fn$
+  select coalesce(array_agg(counterpart), '{}')
+    from (select b.blocked_id as counterpart from blocks b where b.blocker_id = auth.uid()
+          union
+          select b.blocker_id                from blocks b where b.blocked_id = auth.uid()) s;
+$fn$;
+```
+
+PostgREST는 노출 스키마(`public`, `graphql_public`)의 함수만 라우팅하므로 `private`에 있으면
+SQL 안에서만 쓰이고 `supabase.rpc()`로는 닿지 않는다(검증에서 실제로 확인했다).
+남는 노출은 하나 — 나를 차단한 사람의 글이 목록에서 사라지므로 눈치챌 수는 있다.
+차단을 양방향으로 만드는 이상 피할 수 없는 값이고, "목록으로 확인할 수 있는 것"과는 무게가 다르다.
+
+낱개 판정(`private.is_blocked(a, b)`)은 따로 뒀다. 정책처럼 "이 상대와 되는가"만 묻는 자리가
+배열 전체를 받을 이유가 없다.
+
+#### 2. 목록에서 거르는 조건은 **행마다가 아니라 한 번**
+
+`search_posts`(0011)는 동적 SQL이다. 조건을 행마다 `exists`로 걸면 동네 글 수만큼 `blocks`를
+뒤지므로, 함수 시작에 배열로 한 번 받아 파라미터 한 칸($10)으로 넘겼다.
+
+```sql
+v_blocked := private.blocked_user_ids();
+...
+  and p.seller_id <> all ($10)
+```
+
+`<> all('{}')`는 참이라 차단이 없는 대부분의 사용자에게는 조건이 없는 것과 같다.
+게스트도 마찬가지다 — `auth.uid()`가 null이면 빈 배열이 온다.
+인자 목록이 그대로라 `create or replace`가 교체가 된다(0011이 옛 시그니처를 지워야 했던
+것과 다른 경우다 — 그때는 인자가 늘었다).
+
+#### 3. 목록에서 지우는 것만으로는 부족하다
+
+차단은 대개 **대화를 나눈 뒤에** 누른다. 즉 방은 이미 있다. 그래서 막을 곳이 넷이었다.
+
+| 자리 | 무엇을 막나 |
+| --- | --- |
+| `search_posts` | 차단한 사람의 글이 홈·검색에 뜨는 것 |
+| `fetch_chat_rooms` | 방 목록에 뜨는 것 (→ `fetch_chat_room`도 함께 빈다) |
+| `open_chat_room` | 게시물 상세에서 새 대화를 거는 것 |
+| `messages_insert` 정책 | 상대가 자기 화면에 남은 방으로 계속 쓰는 것 |
+
+넷 중 마지막이 가장 놓치기 쉽다. 앞의 셋만 막으면 차단당한 쪽은 **차단한 사람에게 보이지 않는
+말을 계속 쌓을 수 있고**, 차단을 풀면 그동안의 말이 한꺼번에 나타난다.
+
+```sql
+create policy messages_insert on messages for insert with check (
+  auth.uid() = sender_id
+  and exists (select 1 from chat_rooms r
+               where r.id = messages.room_id and auth.uid() in (r.buyer_id, r.seller_id)
+                 and not private.is_blocked(auth.uid(),
+                       case when r.buyer_id = auth.uid() then r.seller_id else r.buyer_id end))
+);
+```
+
+`messages_update`(읽음 표시)는 건드리지 않았다. 차단 전에 받은 메시지를 읽음으로 바꾸는 일까지
+막으면 안 읽은 수가 영영 줄지 않는다.
+
+방과 메시지 자체는 지우지 않는다. 차단을 풀면 대화가 그대로 돌아온다.
+
+#### 4. 거절 문구는 **어느 쪽이 걸었는지 말하지 않는다**
+
+```sql
+if private.is_blocked(auth.uid(), v_seller) then
+  raise exception '차단한 사용자와는 대화할 수 없습니다.' using errcode = 'insufficient_privilege';
+```
+
+"상대가 회원님을 차단했습니다"라고 적으면 그 한 줄이 차단을 드러낸다. 그래서 내가 걸었든
+상대가 걸었든 같은 문구다. 화면 쪽도 같다 — `BlockToggleButton`이 보여주는 "차단하기 / 차단
+해제"는 언제나 **내가 이 사람을 차단했는가**만 말한다.
+
+#### 5. 신고는 `returns void`다 — `reports`에 select 정책이 없어서
+
+이것이 함수 모양을 두 군데 정했다(자세한 사정은 `troble.md` 1번).
+
+- `insert ... returning`을 쓸 수 없다 → `returns bigint`가 아니라 `returns void`
+- 중복을 `exists (select 1 from reports ...)`로 미리 볼 수 없다 → unique 인덱스가 막고,
+  함수는 그 `23505`를 받아 한국어로 바꾼다. **막는 것은 인덱스, 말해 주는 것은 함수.**
+
+돌려줄 id도 신고자가 두 번 다시 쓸 수 없는 값이라 아쉬울 것이 없다.
+
+#### 6. 사유 목록은 대상별로 나누되, 서버는 나누지 않는다
+
+DB의 `reports_reason_allowed`는 여섯 코드(`fraud`·`prohibited`·`spam`·`abuse`·
+`inappropriate`·`other`)만 본다. 게시물용 사유를 사용자 신고에 넣어도 위험한 일은 일어나지
+않는다 — 신고는 사람이 읽는다. 여기서 막는 것은 "분류할 수 없는 값"이다.
+
+대상별 목록과 문구는 화면(`reportReason.ts`)이 쥔다. 같은 코드라도 문구가 다르다 —
+신고하는 사람이 보는 것은 코드가 아니라 문장이고, "광고 글이에요"와 "광고를 보내요"는 다른 일이다.
+
+"기타"는 언제나 맨 아래고, 유일하게 상세를 요구한다. 위에 있으면 읽지 않고 고르게 되고,
+다른 사유는 문장 자체가 이미 무슨 일인지 말하지만 기타는 그 문장이 없다.
+
+#### 7. 신고 완료 화면이 차단을 권한다 — 그런데 의존 방향은 한쪽뿐
+
+신고는 어떤 화면도 바꾸지 않는다(무효화할 캐시조차 없다). 신고를 누른 사람이 원한 것은 대개
+"이 사람을 그만 보고 싶다"인데, 그 일을 하는 것은 차단이다. 그래서 접수 안내에 차단 버튼을 둔다.
+
+두 기능이 서로를 가져다 쓰면 어느 쪽도 혼자 시험할 수 없다. `ReportSheet`는 완료 뒤 자리를
+`completionAction` 슬롯으로 열어 두기만 하고, 거기에 `BlockToggleButton`을 꽂는 것은
+`SafetyMenu`(block 쪽)다. **report는 block을 모른다.**
+
+#### 8. ⋯ 메뉴는 세 화면이 하나를 나눠 쓴다
+
+게시물 상세·프로필·채팅방 셋 다 "이 사람이 이상하다"를 느끼는 자리다. 찾는 곳이 화면마다
+다르면 못 찾는다. 게시물 상세에서는 `PostOwnerMenu`(내 글)와 같은 자리에 오는데,
+둘이 함께 뜨는 일은 없다 — 내 글이면 관리, 남의 글이면 안전이다.
+
+차단은 한 번 더 묻는다. 되돌릴 수는 있지만 그 사이 채팅방이 사라지고 상대의 말이 도착하지
+않는다 — 실수로 눌러 대화가 끊기는 편이 한 번 더 누르는 번거로움보다 나쁘다(게시물 삭제와 같은
+판단). 해제는 묻지 않는다. 되돌리는 쪽은 잃는 것이 없다.
+
+### 파일 구성
+
+```
+supabase/migrations/
+└─ 0014_block_and_report.sql   private.blocked_user_ids · private.is_blocked
+                               search_posts · fetch_chat_rooms · open_chat_room 재정의
+                               messages_insert 정책 · reports 제약 · create_report
+                               · fetch_blocked_users
+
+block/                         (여태 .gitkeep만 있던 폴더)
+├─ api/blockApi.ts             blockUser · unblockUser · fetchIsBlocked · fetchBlockedUsers
+├─ hooks/useBlockQueries.ts    useBlockedUsersQuery · useBlockStatusQuery
+├─ hooks/useBlockMutations.ts  차단 한 번이 흔드는 목록을 한곳에서 무효화
+├─ utils/blockErrorMessage.ts
+└─ components/                 safetyMenu(신고+차단 ⋯ 메뉴) · blockToggleButton
+                               · blockedUsersPage · blockedUserListItem
+
+report/                        (여태 .gitkeep만 있던 폴더)
+├─ api/reportApi.ts            createReport
+├─ hooks/useCreateReportMutation.ts
+├─ utils/reportReason.ts       대상별 사유 목록·문구
+├─ utils/validateReportInput.ts
+├─ utils/reportErrorMessage.ts
+└─ components/reportSheet.tsx
+
+app/router.tsx                 /my/blocks 추가
+profile/components/myPageMenu  차단 목록 항목 추가
+post/components/postDetailPage · profile/components/userProfilePage
+chat/components/chatRoomPage   SafetyMenu 자리 셋
+chat/utils/chatErrorMessage    차단 거절 문구 둘 추가
+```
+
+### 검증
+
+`npx jest` 73 스위트 · 519건 통과(신규 5 스위트 35건). `tsc --noEmit`·`eslint` 무경고,
+`vite build` 성공.
+
+실제 DB에서 `set local role authenticated` + `request.jwt.claims`로 사용자를 흉내 내 확인했다
+(전부 트랜잭션 안에서 돌리고 되돌렸다 — `blocks`·`reports` 모두 0행으로 복귀).
+
+- 내가 판매자를 차단 → `search_posts` **20건 → 0건**
+- **상대가 나를 차단**(postgres 권한으로 넣음) → 내게 보이는 `blocks` 행 **0**,
+  `private.blocked_user_ids()`는 그 사람 **1명**, `search_posts` **0건**
+  (정책은 그대로인데 목록만 걸러진다는 뜻이다)
+- 채팅: 방 목록 **1건 → 0건**, `fetch_chat_room(방번호)` **0건**,
+  `open_chat_room` → `차단한 사용자와는 대화할 수 없습니다.`,
+  메시지 insert → `42501 new row violates row-level security policy for table "messages"`
+- 신고: 접수 성공 / 같은 대상 재신고 → `이미 신고한 대상입니다.` /
+  자기 자신 → `자기 자신은 신고할 수 없습니다.` / 없는 사유 `nope` → `알 수 없는 신고 사유입니다` /
+  없는 게시물 → `게시물을 찾을 수 없습니다.`
+- `private` 스키마가 REST로 새지 않는지 anon 키로 직접 호출해 확인:
+  `POST /rest/v1/rpc/is_blocked` → **404**,
+  `Accept-Profile: private` → `PGRST106 Only the following schemas are exposed: public, graphql_public`
+
+### 이번 범위 밖
+
+- **차단한 사람의 프로필 가리기** — `/users/:userId`는 차단해도 그대로 열린다. 왜 차단했는지
+  확인하고 해제를 판단하는 자리라 막을 이유가 없다고 봤다
+- **찜·최근 본 글에서 걸러내기** — 내가 남긴 흔적이라 상대를 차단해도 그대로 둔다(당근도 같다)
+- **신고 처리 화면** — `reports`는 select 정책이 없어 설계상 관리자 전용이다. 관리자 도구는
+  이 앱 밖의 일이다
+- **차단 사유 남기기** — `blocks`에 사유 칸이 없다. 차단은 신고와 달리 남에게 설명할 일이 아니다
+- **자동 차단 · 신고 누적 제재** — 신고가 쌓이면 자동으로 가리는 규칙. 기준을 사람이 정해야 한다

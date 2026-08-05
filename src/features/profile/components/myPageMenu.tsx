@@ -6,12 +6,16 @@ type MyPageMenuItem = {
   label: string;
 };
 
-/** 마이페이지에서 갈 수 있는 곳. 순서는 자주 여는 것부터다. */
+/**
+ * 마이페이지에서 갈 수 있는 곳. 순서는 자주 여는 것부터다.
+ * 차단 목록은 맨 아래다 — 거래하다 한 번 들를까 말까 한 관리 화면이다.
+ */
 const MENU_ITEMS: ReadonlyArray<MyPageMenuItem> = [
   { to: '/my/likes', icon: '♡', label: '관심목록' },
   { to: '/my/recent', icon: '🕘', label: '최근 본 글' },
   { to: '/my/purchases', icon: '🧾', label: '구매내역' },
   { to: '/my/sales', icon: '📦', label: '판매관리' },
+  { to: '/my/blocks', icon: '🚫', label: '차단 목록' },
 ];
 
 function MyPageMenu() {

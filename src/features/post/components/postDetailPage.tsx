@@ -8,6 +8,7 @@ import PageSpinner from '../../../shared/ui/pageSpinner';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
+import SafetyMenu from '../../block/components/safetyMenu';
 import StartChatButton from '../../chat/components/startChatButton';
 import LikeButton from '../../like/components/likeButton';
 import ReviewPrompt from '../../review/components/reviewPrompt';
@@ -120,7 +121,10 @@ function PostDetailPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
-      {/* 판매자에게만 ⋯ 메뉴가 붙는다. 그 밖에는 지금까지와 똑같이 뒤로 가는 링크뿐이다. */}
+      {/*
+        같은 자리에 ⋯ 메뉴가 하나 붙는다. 내 글이면 관리(수정·끌올·삭제),
+        남의 글이면 안전(신고·차단)이다. 둘이 함께 뜨는 일은 없다.
+      */}
       <div className="flex items-center justify-between">
         <Link
           to="/"
@@ -131,7 +135,15 @@ function PostDetailPage() {
 
         {viewerId !== null && viewerId === post.seller.id ? (
           <PostOwnerMenu post={post} viewerId={viewerId} />
-        ) : null}
+        ) : (
+          <SafetyMenu
+            viewerId={viewerId}
+            targetUserId={post.seller.id}
+            targetNickname={post.seller.nickname}
+            // 게시물 상세에서만 글 자체를 신고할 수 있다. 프로필·채팅방에는 신고할 글이 없다.
+            post={{ id: post.id, title: post.title }}
+          />
+        )}
       </div>
 
       <PostImageCarousel images={post.images} title={post.title} />
