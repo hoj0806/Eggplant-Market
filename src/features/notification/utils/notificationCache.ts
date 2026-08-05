@@ -47,6 +47,34 @@ export function withAllNotificationsRead(
 }
 
 /**
+ * 지운 알림을 목록에서 빼낸다.
+ *
+ * 무효화하지 않는다. 무한 스크롤은 커서를 이어 붙인 것이라 다시 부르면 **첫 페이지만
+ * 남고 아래로 읽어 둔 것이 전부 날아간다**(0015의 keyset 커서). 한 줄 지우자고 그럴 이유가 없다.
+ *
+ * 페이지 하나가 통째로 비어도 그 페이지를 없애지 않는다. 페이지 배열은 커서의 흔적이라
+ * 개수가 줄면 `getNextPageParam`이 보는 마지막 페이지가 달라진다 — 빈 배열은 화면에
+ * 아무것도 그리지 않으므로 그대로 두는 편이 안전하다.
+ */
+export function withoutNotification(
+  data: InfiniteData<AppNotification[]> | undefined,
+  notificationId: number,
+): InfiniteData<AppNotification[]> | undefined {
+  if (data === undefined) {
+    return data;
+  }
+
+  return {
+    ...data,
+    pages: data.pages.map(function removeFromPage(page: AppNotification[]): AppNotification[] {
+      return page.filter(function keepOthers(current: AppNotification): boolean {
+        return current.id !== notificationId;
+      });
+    }),
+  };
+}
+
+/**
  * 배지 숫자를 하나 줄인다.
  *
  * 이미 읽은 알림을 다시 누르면 줄이지 않는다 — 화면이 그 판단을 하도록 두면 "누를 때마다
