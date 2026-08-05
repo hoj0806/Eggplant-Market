@@ -1641,3 +1641,99 @@ $$;
 
 되돌아온 뒤 프로필 3행·후기 0건·온도 전부 36.5로 그대로였다. `execute_sql`이 호출마다 다른
 연결일 수 있어 임시 테이블로는 결과를 넘길 수 없는데, 이 방법은 한 번의 호출로 끝난다.
+
+---
+
+## 게시물 댓글 (2026-08-05)
+
+### 1. 차단이 댓글만 비껴간다 — 0001의 `using (true)`
+
+**증상**: 6단계에서 차단을 만들 때 "목록에서 걸러낼 자리가 넷"이라고 정리했는데, 댓글을
+붙이자 다섯 번째가 나타났다. 0001의 정책이 이렇다.
+
+```sql
+create policy comments_select on comments for select using (true);
+```
+
+차단한 사람의 댓글이 그대로 보인다. 게시물은 목록에서 사라지고 채팅은 막히는데, 그 사람이
+남긴 댓글만 눈앞에 남는다.
+
+**원인**: 0001은 테이블을 만드는 파일이라 정책도 "누가 읽고 쓰는가"까지만 적었다.
+차단은 6단계에 생겼고, 그때 댓글은 화면이 없어 고칠 자리로 보이지 않았다.
+0013(`reviews_insert`가 아무에게나 −99점을 허용)·0014(`reports.reason`이 자유 text)와
+같은 자리다 — **0001의 정책은 그 칸을 쓰는 화면이 생길 때 다시 읽어야 한다.**
+
+**해결**: 0014가 만들어 둔 판정 함수를 정책에 건다.
+
+```sql
+create policy comments_select on comments
+  for select using (author_id <> all (private.blocked_user_ids()));
+```
+
+RPC가 아니라 정책에 둔 것이 이번의 판단이다. 0014는 목록 RPC 쪽에서 걸렀지만 그건 그
+목록들이 이미 RPC였기 때문이고, 댓글은 임베드로 읽어 걸러낼 자리가 질의문에 없다.
+정책에 두면 어느 경로로 읽든 걸리고, 나중에 목록 RPC를 만들어도 다시 적을 필요가 없다.
+
+행마다 `blocks`를 뒤지는 것 아닌가가 마지막 걱정이었는데, `private.blocked_user_ids()`는
+**인자가 없는 stable 함수라 질의당 한 번만 계산된다.** 0014가 배열로 만들어 둔 이유가
+목록 RPC만을 위한 것이 아니었다.
+
+### 2. 근거로 삼은 것 두 개가 틀렸다 — FK와 `posts_select`
+
+**증상**: `comments_insert`를 조이면서 "0001은 `auth.uid() = author_id` 하나뿐이라
+**지워진 글에도 댓글이 들어간다**"고 적고 정책에 존재 검사를 넣었다.
+
+```sql
+and exists (select 1 from posts p where p.id = comments.post_id ...)   -- ①
+```
+
+그리고 그 검사에 "`posts_select`가 걸리므로 볼 수 있는 글인지도 함께 본다"는 주석을 달았다.
+
+**원인**: 둘 다 확인하지 않고 쓴 말이었다.
+
+```
+$ grep -rn "policy posts_select" supabase/migrations/*.sql
+0001_init.sql:353:create policy posts_select on posts for select using (true);
+```
+
+- `post_id`는 `references posts (id)`다. 없는 글을 가리키면 **FK가 insert 자체를 막는다.**
+  정책이 할 일이 아니었다.
+- `posts_select`가 `using (true)`라 "볼 수 있는 글"이라는 구분 자체가 없다. 게시물은
+  누구에게나 공개다.
+
+정책은 그대로 둬도 동작에 문제가 없지만, **주석이 사실과 다르면 다음 사람이 그 말을 근거로
+다른 결정을 한다.** 여기서는 `exists`가 존재를 보장하는 줄 알고 FK를 떼는 식이 된다.
+
+**해결**: 이유를 정확히 다시 적고, `exists`는 차단 검사만 하는 것으로 남겼다.
+남길 값이 있는 조건은 하나뿐이었다.
+
+```sql
+and exists (
+  select 1 from posts p
+   where p.id = comments.post_id
+     and not private.is_blocked(auth.uid(), p.seller_id)
+)
+```
+
+### 3. RLS는 화면으로도 Jest로도 확인되지 않는다
+
+**증상**: 정책 넷을 고쳤는데 확인할 방법이 없었다. Jest는 `commentApi`를 통째로 mock하므로
+정책까지 닿지 않고, MCP `execute_sql`은 `postgres`로 도는데 그 역할은 **BYPASSRLS라
+정책이 아예 걸리지 않는다.** 그대로 두면 "정책을 썼다"까지만 하고 끝난다.
+
+**해결**: 트랜잭션 안에서 역할과 JWT를 갈아 끼운다.
+
+```sql
+execute format('set local role authenticated');
+execute format('set local request.jwt.claims = %L', json_build_object('sub', v_b)::text);
+select count(*) from comments where post_id = v_post;   -- 이제 B로서 읽는다
+```
+
+`auth.uid()`가 `request.jwt.claims ->> 'sub'`를 읽으므로 사용자를 바꿔 가며 같은 질의를
+돌릴 수 있다. 막히는 쪽은 `begin … exception when others then` 으로 감싸 `sqlstate`를
+기록하면 "막혔다"까지 확인된다. 준비가 필요한 단계(글·차단 만들기)는 `set local role postgres`로
+돌아가 처리하고, 마지막에 예외를 던져 통째로 롤백한다(0016 검증과 같은 방법).
+
+여덟 가지를 한 번에 밟았다 — 차단 전/후 양방향, 판매자 차단 후 쓰기(42501), 판매자의
+남의 댓글 삭제(1행), 제3자의 삭제(0행), 공백 댓글(23514). **⑦의 "0행"이 특히 이 방법이라야
+잡힌다** — RLS로 막힌 delete는 오류가 아니라 조용히 0행이라, 예외만 보고 있으면 통과한 줄 안다.

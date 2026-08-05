@@ -202,8 +202,10 @@
 
 ## 이번에 뺀 것
 
-- **게시물 댓글·대댓글** — `comments` 테이블·RLS·`parent_id`(대댓글)·인덱스까지 다 있어서
-  마음먹으면 바로 할 수 있다. 필요해지면 꺼내 쓴다.
+- ~~**게시물 댓글·대댓글**~~ — 1단 댓글은 했다(`0017_comment.sql`, note.md "게시물 댓글").
+  "다 있어서 바로 할 수 있다"고 적어 뒀지만 0001의 `comments_select`가 `using (true)`라
+  **차단이 댓글만 비껴가고 있었다**(troble.md 같은 절 1번). 대댓글은 아직이다 —
+  `parent_id`는 그대로 두고 이번 정책들도 그것을 보지 않는다.
 - **지도에서 주변 물품 보기** — `nearby_posts` RPC(PostGIS `st_dwithin`)와 `kakaoMapLoader`가
   준비돼 있는데 한 번도 호출되지 않는다. `profiles.search_radius_m`도 함께 잠들어 있다.
 
