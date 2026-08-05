@@ -171,14 +171,21 @@
 
 ## 8단계 — 계정
 
-### 8-1. 비밀번호 변경 · 회원탈퇴
+### 8-1. 비밀번호 변경 · 회원탈퇴 ✅ 완료 (2026-08-05)
+
+구현 노트는 `note.md`의 "계정 — 비밀번호 변경 · 회원탈퇴", 밟기 전에 확인한 함정은
+`troble.md`의 같은 절에 있다.
 
 - **현황**: `feature.md` §1 요구사항인데 미구현. `profileSettingsForm`은 닉네임·아바타만 다룬다.
-- **설계**: 비밀번호 변경은 `supabase.auth.updateUser`로 간단하다(이메일 회원만 — 구글 로그인
-  사용자에게는 감춘다). **탈퇴는 `service_role`이 필요해 이 프로젝트의 첫 Edge Function이 된다**
-  (`supabase/functions/delete-account/`). FK가 대부분 `on delete cascade`라 행은 따라 지워지지만
-  Storage 파일은 안 지워지므로 함수 안에서 직접 정리한다.
-- **마이그레이션**: 없음 (Edge Function 신설)
+- **한 것**: `/settings/account` 신설(마이페이지 메뉴 맨 아래). 비밀번호 변경은
+  `updateUser`로 간단하다고 적어 뒀지만 **그것만으로는 현재 비밀번호를 아무도 검사하지 않아서**
+  `signInWithPassword`로 본인 확인을 한 번 거친 뒤 바꾼다. 폼을 감출지 말지는
+  `app_metadata.provider`(마지막 로그인 방법)가 아니라 `identities`로 판단해야 한다
+  (troble.md 같은 절 1·2번). 탈퇴는 예정대로 첫 Edge Function이 됐고, 지울 사람은
+  몸통이 아니라 **요청에 실린 토큰이 정한다**. 확인 문구(`탈퇴합니다`)를 적어야 열린다.
+- **마이그레이션**: 없음 (Edge Function 신설 — `supabase functions deploy delete-account`)
+- **주의**: 스토리지 뒷정리에서 `chat-images`만 경로가 `{room_id}/{user_id}/…`라
+  사용자 접두사로 훑을 수 없다. 삭제 전에 방 번호를 읽어 둔다(troble.md 같은 절 5번).
 
 ### 8-2. 카카오 로그인
 

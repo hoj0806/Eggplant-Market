@@ -1990,3 +1990,172 @@ block/hooks/useBlockMutations  ['notifications'] 무효화 추가
   이 단계와 무게가 다르다
 - **차단 해제 시 알림 되살리기** — 지운 것이라 돌아오지 않는다. 알림은 "그때 알려 주는 것"이라
   되돌릴 값이 아니라고 봤다(방과 대화는 0014대로 그대로 돌아온다)
+
+## 계정 — 비밀번호 변경 · 회원탈퇴 (2026-08-05)
+
+`todo.md` 8-1. 앞 일곱 단계와 달리 **DB에 미리 깔려 있던 것이 없는 단계다.** `auth.users`는
+우리 스키마가 아니라 GoTrue의 것이라 마이그레이션으로 손댈 자리가 없고, 그래서 이 단계에는
+마이그레이션이 하나도 없다. 대신 이 프로젝트의 **첫 Edge Function**이 생겼다.
+
+### 무엇을 만들었나
+
+1. **`/settings/account`** — 계정 설정 화면. 마이페이지 메뉴 맨 아래에서 들어간다.
+2. **비밀번호 변경** — 현재 비밀번호로 본인을 확인한 뒤 바꾼다. 구글로만 가입한 사람에게는
+   폼 대신 "로그인에 쓰는 서비스에서 바꿔 주세요"가 보인다.
+3. **회원탈퇴** — `supabase/functions/delete-account`. 확인 문구(`탈퇴합니다`)를 적어야 열린다.
+4. **스토리지 뒷정리** — 행은 FK가 지우지만 버킷의 파일은 아무도 지워 주지 않는다.
+
+### 설계 결정
+
+#### 1. 비밀번호 변경에 현재 비밀번호를 왜 묻는가
+
+`supabase.auth.updateUser({ password })`는 **지금 세션만 있으면 통과한다.** 현재 비밀번호를
+묻지 않는다. 남이 열어 둔 브라우저를 잡으면 비밀번호를 바꿔 계정을 통째로 가져갈 수 있다는 뜻이다.
+
+그래서 바꾸기 전에 한 번 더 로그인한다.
+
+```ts
+// accountApi.changePassword
+const { error: signInError } = await supabase.auth.signInWithPassword({
+  email: input.email, password: input.currentPassword,
+});
+if (signInError !== null) throw signInError;
+
+const { error } = await supabase.auth.updateUser({ password: input.newPassword });
+```
+
+Supabase에도 같은 일을 하는 "Secure password change" 설정이 있지만 대시보드 스위치라
+**코드만 보고는 켜져 있는지 알 수 없다.** 여기서 확실히 한다(개발 편의로 Confirm email을 꺼 둔
+것과 같은 종류의 위험이다 — 대시보드 상태에 기대면 배포 때 잊는다).
+
+이 확인 로그인이 세션을 새로 발급하지만 사용자는 그대로다. `onAuthStateChange`가 새 세션을 받아
+`authStore`를 갱신하므로 화면은 아무 일 없다는 듯 이어진다.
+
+#### 2. "이 계정에 비밀번호가 있는가"는 `identities`로 본다
+
+구글로만 가입한 사람에게 폼을 보여 주면 무엇을 넣어도 통과하지 못하는 막다른 화면이 된다.
+판단 근거로 `app_metadata.provider`를 쓰고 싶어지지만 **그 값은 마지막으로 로그인한 방법 하나**다.
+이메일로 가입한 사람이 구글로 한 번 들어오면 `'google'`이 되고 비밀번호 변경이 사라져 버린다.
+
+진짜 목록은 `user.identities`뿐이다 — 한 계정에 로그인 방법이 여럿 붙을 수 있고(같은 이메일로
+구글을 이어 붙이면 identity가 둘이 된다) 그 전부가 여기 있다. `app_metadata`는 identities가
+없는 응답일 때의 차선책으로만 남겼다(`passwordLogin.ts`, 단위 테스트 5건).
+
+#### 3. 탈퇴는 왜 Edge Function인가 — 그리고 누구를 지우는가
+
+`auth.admin.deleteUser`는 `service_role` 키를 요구한다. 그 키는 RLS를 통째로 무시하므로
+브라우저에 둘 수 없다. 서버가 필요한 첫 자리다.
+
+지울 사람은 **요청에 실린 토큰이 정한다.** 클라이언트는 아무 인자도 넘기지 않는다.
+
+```ts
+// accountApi.deleteAccount — 몸통이 비어 있다
+await supabase.functions.invoke('delete-account', { method: 'POST' });
+```
+
+몸통으로 id를 받으면 남의 id를 적어 보내는 길이 열린다. 함수 안에서도 클라이언트를 둘 만들어,
+**앞의 것(anon 키 + 그 사람의 토큰)은 신원만 판단하고 뒤의 것(service_role)만 지운다.**
+하나로 합치면 service_role 권한으로 신원을 확인하는 셈이 된다.
+
+DB는 손대지 않는다. 0001의 FK가 모두 `on delete cascade`라 `auth.users` 한 행이 사라지면
+profiles → posts · chat_rooms · messages · reviews · notifications · blocks · reports까지
+따라 지워진다. **따라오지 않는 것은 스토리지뿐이고**, 그 뒷정리가 함수가 하는 나머지 일이다.
+
+#### 4. 순서 — 계정 먼저, 파일 나중
+
+```ts
+const roomIds = await fetchRoomIds(admin, userId);   // 행이 살아 있는 동안에만 알 수 있다
+const { error } = await admin.auth.admin.deleteUser(userId);
+if (error !== null) return jsonResponse({ error: error.message }, 500);
+await removeUserFiles(admin, userId, roomIds);       // 실패해도 던지지 않는다
+```
+
+파일을 먼저 지우면 삭제가 실패했을 때 **사진만 사라진 계정**이 남는다. 계정을 먼저 지우면
+실패해도 남는 것은 아무도 안 보는 파일뿐이다. 뒷정리 실패를 무시하는 것은
+`profileApi.removeAvatarObject`·`postApi.removeUploadedImages`와 같은 판단이다.
+
+방 번호를 먼저 읽어 두는 이유는 5번에 있다.
+
+#### 5. 채팅 사진만 경로가 다르다
+
+| 버킷 | 경로 | 훑는 법 |
+| --- | --- | --- |
+| `avatars` | `{user_id}/{stamp}.ext` | 접두사 하나 |
+| `post-images` | `{user_id}/{stamp}-{i}.ext` | 접두사 하나 |
+| `chat-images` | **`{room_id}/{user_id}/…`** | 방 번호를 먼저 알아야 한다 |
+
+0008이 채팅 사진의 첫 칸을 방으로 둔 것은 storage 정책이 "이 방 사람인가"를 봐야 했기 때문이다.
+그 덕에 사용자 접두사로는 훑을 수 없다. 버킷 전체를 훑는 것은 방 수에 비례하는 일이라,
+**삭제 전에 `chat_rooms`에서 내 방 번호를 읽어 두고** `{room_id}/{user_id}` 폴더만 지운다.
+방을 통째로 비우지 않는 이유는 같은 방에 상대가 올린 사진이 함께 들어 있어서다.
+
+#### 6. 탈퇴는 한 번 더 묻는 것으로 모자란다
+
+차단(`blockToggleButton`)·게시물 삭제(`postOwnerMenu`)도 확인 단계를 두지만 그쪽은
+되돌릴 수 있거나 잃는 것이 하나다. 탈퇴는 돌아올 곳이 없다. 그래서 **문구를 직접 적어야**
+버튼이 열리고, 무엇이 사라지는지를 그 자리에서 함께 보여 준다.
+
+확인 화면의 목적은 겁을 주는 것이 아니라 지금 무엇을 지우는지 알고 누르게 하는 것이다.
+
+성공하면 완료 화면이 없다 — 세션이 비는 순간 `RequireMember`가 로그인 화면으로 보내고
+이 컴포넌트는 사라진다. 그때 `signOut()`이 아니라 `signOut({ scope: 'local' })`을 쓴다
+(`troble.md` 같은 절 3번).
+
+### 파일 구성
+
+```
+supabase/functions/delete-account/index.ts   신원 확인(anon) → deleteUser(service_role)
+                                             → 스토리지 세 버킷 뒷정리
+
+account/                                     (새 폴더 — .gitkeep도 없던 자리)
+├─ api/accountApi.ts          changePassword(재로그인 후 변경) · deleteAccount(함수 호출)
+├─ hooks/useAccountMutations.ts
+├─ utils/passwordLogin.ts     identities로 "비밀번호가 있는 계정인가" 판단 (순수 함수)
+├─ utils/validatePasswordChange.ts
+├─ utils/accountErrorMessage.ts
+└─ components/                accountSettingsPage · passwordChangeForm · deleteAccountSection
+
+auth/api/authApi.ts           signOutLocally 추가 (탈퇴 직후용)
+app/router.tsx                /settings/account 추가 (탭바 밖)
+profile/components/myPageMenu 계정 설정 항목 추가
+```
+
+### 검증
+
+`npx jest` 81 스위트 · 563건 통과(신규 4 스위트 21건). `tsc --noEmit`·`eslint` 무경고,
+`vite build` 성공.
+
+Edge Function은 `delete-account` v1로 배포했다(`verify_jwt: true`, status ACTIVE).
+엔드포인트를 직접 두드려 확인한 것은 둘이다.
+
+```
+OPTIONS /functions/v1/delete-account   → 204, 우리 CORS 헤더 그대로
+POST    /functions/v1/delete-account   → 401 {"code":"UNAUTHORIZED_NO_AUTH_HEADER"}
+        (토큰 없이)
+```
+
+첫 줄이 중요하다. `verify_jwt`를 켜 두면 **preflight(OPTIONS)까지 401로 막혀 브라우저에서
+아예 부를 수 없게 되는 것 아닌가**가 이 함수의 유일한 배포 위험이었는데, 게이트웨이가 OPTIONS는
+검사 없이 통과시켰다. 그래서 `verify_jwt`를 끄지 않아도 된다 — 함수 안의 신원 확인 위에
+게이트웨이 검사가 한 겹 더 남는다.
+
+**실제 계정 삭제까지는 확인하지 못했다.** 확인하려면 진짜로 지워도 되는 계정과 그 사람의
+토큰이 필요하다. 앱에서 시험 계정으로 한 번 밟아 보는 것이 남은 검증이다 —
+탈퇴 후 로그인 화면으로 밀려나는지, 그 이메일로 다시 가입되는지, 버킷에 파일이 남지 않았는지.
+
+```bash
+# 재배포가 필요하면
+supabase functions deploy delete-account
+```
+
+### 이번 범위 밖
+
+- **비밀번호 재설정(잊었을 때)** — 로그인 화면의 "비밀번호를 잊으셨나요"다.
+  `resetPasswordForEmail` + 메일로 오는 recovery 링크가 필요한데, 지금은 개발 편의로
+  Confirm email이 꺼져 있어 메일 경로 자체를 시험할 수 없다. 커스텀 SMTP를 붙이는 때
+  함께 한다.
+- **소셜 계정 연결·해제** — 이메일 계정에 구글을 이어 붙이거나 떼는 것(`linkIdentity`).
+  `hasPasswordLogin`이 이미 identity가 여럿인 경우를 다루므로 화면만 얹으면 된다.
+- **탈퇴 사유 수집 · 재가입 제한** — 당근에는 있다. 사유를 남기려면 사용자가 사라진 뒤에도
+  남는 테이블이 필요하고(지금은 전부 cascade), 재가입 제한은 지운 이메일을 어딘가 들고 있어야 해서
+  "지웠다"는 말과 어긋난다.
