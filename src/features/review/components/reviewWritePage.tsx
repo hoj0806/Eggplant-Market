@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import ReviewForm from './reviewForm';
+import BackLink from '../../../shared/ui/backLink';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { usePostDetailQuery } from '../../post/hooks/usePostQueries';
@@ -10,8 +11,6 @@ import { toReviewErrorMessage } from '../utils/reviewErrorMessage';
 import { toReviewEligibility, type ReviewTarget } from '../utils/reviewTarget';
 import type { ReviewFormValues } from '../types';
 
-const BACK_LINK_CLASS =
-  'text-sm text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200';
 const PRIMARY_LINK_CLASS =
   'rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700';
 
@@ -19,9 +18,7 @@ const PRIMARY_LINK_CLASS =
 function ReviewLayout(props: { postId: number; children: ReactNode }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
-      <Link to={`/posts/${props.postId}`} className={BACK_LINK_CLASS}>
-        ← 거래한 물건
-      </Link>
+      <BackLink to={`/posts/${props.postId}`} label="거래한 물건" />
       {props.children}
     </main>
   );

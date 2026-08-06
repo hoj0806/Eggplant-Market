@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import UserProfileCard from './userProfileCard';
+import PageHeader from '../../../shared/ui/pageHeader';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import SafetyMenu from '../../block/components/safetyMenu';
@@ -71,31 +72,29 @@ function UserProfilePage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
-      <div className="flex items-center justify-between">
-        <Link
-          to="/"
-          className="text-sm text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          ← 홈으로
-        </Link>
-
-        {/* 내 프로필을 남이 보는 대로 볼 수도 있다. 고치는 자리는 마이페이지다. */}
-        {isMe ? (
-          <Link
-            to="/my"
-            className="text-sm text-emerald-600 transition hover:text-emerald-700 dark:text-emerald-400"
-          >
-            내 프로필 관리
-          </Link>
-        ) : (
-          // 게시물이 없는 자리라 신고 대상은 사람뿐이다. 게스트에게는 스스로 그리지 않는다.
-          <SafetyMenu
-            viewerId={viewer?.id ?? null}
-            targetUserId={profile.id}
-            targetNickname={profile.nickname}
-          />
-        )}
-      </div>
+      {/* 제목은 아래 UserProfileCard가 사람 이름으로 대신한다. */}
+      <PageHeader
+        backTo="/"
+        backLabel="홈"
+        action={
+          /* 내 프로필을 남이 보는 대로 볼 수도 있다. 고치는 자리는 마이페이지다. */
+          isMe ? (
+            <Link
+              to="/my"
+              className="text-sm text-emerald-600 transition hover:text-emerald-700 dark:text-emerald-400"
+            >
+              내 프로필 관리
+            </Link>
+          ) : (
+            // 게시물이 없는 자리라 신고 대상은 사람뿐이다. 게스트에게는 스스로 그리지 않는다.
+            <SafetyMenu
+              viewerId={viewer?.id ?? null}
+              targetUserId={profile.id}
+              targetNickname={profile.nickname}
+            />
+          )
+        }
+      />
 
       <UserProfileCard profile={profile} />
 

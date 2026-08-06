@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
 import NotificationPrefSwitch from './notificationPrefSwitch';
+import PageHeader from '../../../shared/ui/pageHeader';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import {
@@ -54,19 +54,12 @@ function NotificationSettingsPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-6 p-6">
-      <header className="flex flex-col gap-2">
-        <Link
-          to="/my"
-          className="text-sm text-gray-500 transition hover:text-gray-700
-                     dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          ← 마이페이지
-        </Link>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">알림 설정</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          끈 알림은 목록에도 쌓이지 않아요.
-        </p>
-      </header>
+      <PageHeader
+        backTo="/my"
+        backLabel="마이페이지"
+        title="알림 설정"
+        description="끈 알림은 목록에도 쌓이지 않아요."
+      />
 
       {toggleMutation.isError ? (
         <p

@@ -2,6 +2,7 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import ChatComposer from './chatComposer';
 import ChatMessageList from './chatMessageList';
 import ChatPostHeader from './chatPostHeader';
+import BackLink from '../../../shared/ui/backLink';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import SafetyMenu from '../../block/components/safetyMenu';
@@ -91,12 +92,12 @@ function ChatRoomPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-3 p-6">
       <header className="flex items-center gap-2">
-        <Link
-          to="/chats"
-          className="text-sm text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          ←
-        </Link>
+        {/*
+          이 헤더만 PageHeader를 쓰지 않는다 — 한 줄에 아바타·상대 이름·신고 메뉴가 함께 있어
+          "링크와 action" 두 칸으로 나뉘지 않는다. 대신 BackLink를 같이 써서 생김새를 맞춘다.
+          글자는 감추되 이름은 남긴다(지금까지는 `←` 한 글자라 이름 없는 링크였다).
+        */}
+        <BackLink to="/chats" label="채팅 목록" isLabelHidden />
         <ProfileAvatar
           nickname={room.partner.nickname}
           avatarUrl={room.partner.avatarUrl}

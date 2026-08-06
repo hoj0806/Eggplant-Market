@@ -1,5 +1,6 @@
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import PostForm from './postForm';
+import PageHeader from '../../../shared/ui/pageHeader';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
@@ -113,18 +114,12 @@ function PostEditPage() {
 
   return (
     <main className="mx-auto flex max-w-screen-sm flex-col gap-6 p-6">
-      <header className="flex flex-col gap-2">
-        <Link
-          to={`/posts/${post.id}`}
-          className="text-sm text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          ← 게시물로 돌아가기
-        </Link>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">중고거래 글 수정</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {post.dongName ?? '내 동네'} 이웃들에게 보입니다. 동네는 바뀌지 않아요.
-        </p>
-      </header>
+      <PageHeader
+        backTo={`/posts/${post.id}`}
+        backLabel="게시물"
+        title="중고거래 글 수정"
+        description={`${post.dongName ?? '내 동네'} 이웃들에게 보입니다. 동네는 바뀌지 않아요.`}
+      />
 
       <section
         className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-6
