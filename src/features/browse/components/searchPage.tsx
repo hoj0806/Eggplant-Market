@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import PostFilterBar from './postFilterBar';
 import PostFilterPanel from './postFilterPanel';
 import PostList from './postList';
@@ -129,9 +129,25 @@ function SearchPage() {
       <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">검색</h1>
-          <span className="truncate text-sm text-gray-500 dark:text-gray-400">
-            {activeRegion.region?.fullName ?? '동네 미설정'}
-          </span>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="truncate text-sm text-gray-500 dark:text-gray-400">
+              {activeRegion.region?.fullName ?? '동네 미설정'}
+            </span>
+            {/*
+              걸어 둔 조건을 그대로 들고 간다. 지도가 다른 것을 세고 있으면 개수가 어긋나 보인다.
+              동네가 없으면 지도도 그릴 중심이 없어 링크 자체를 내린다.
+            */}
+            {activeRegion.region !== null ? (
+              <Link
+                to={{ pathname: '/search/map', search: searchParams.toString() }}
+                className="shrink-0 rounded-lg border border-gray-300 px-2.5 py-1 text-sm
+                           font-semibold text-gray-700 transition hover:bg-gray-50
+                           dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                지도
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         <PostSearchField keyword={filters.keyword} onKeywordChange={handleKeywordChange} />

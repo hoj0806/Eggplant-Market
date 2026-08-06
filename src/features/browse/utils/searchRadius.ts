@@ -9,20 +9,22 @@
  * 화면이 먼저 막는 이유는 거절당하는 요청을 아예 보내지 않기 위해서다.
  */
 
+import { formatDistance } from '../../../shared/utils/formatDistance';
+
 export const DEFAULT_SEARCH_RADIUS_M = 2000;
 
 /** 화면에 그릴 순서 그대로. 기본값(2km)이 가운데 오도록 골랐다. */
 export const SEARCH_RADIUS_OPTIONS: ReadonlyArray<number> = [500, 1000, 2000, 5000, 10000];
 
-/** "500m" · "2km". 1000으로 딱 떨어지지 않으면 소수점 한 자리까지만 적는다. */
+/**
+ * "500m" · "2km".
+ *
+ * 규칙 자체는 `shared/utils/formatDistance`에 있다. 지도가 **잰 거리**를 같은 모양으로 적어야
+ * "2km 이내"와 "5km"가 한 화면에서 어긋나지 않는다. 이 함수를 남겨 둔 것은 부르는 쪽이
+ * 반경을 다룬다는 것을 이름으로 말해 주기 때문이다.
+ */
 export function toSearchRadiusLabel(radiusM: number): string {
-  if (radiusM < 1000) {
-    return `${radiusM}m`;
-  }
-
-  const km = radiusM / 1000;
-
-  return `${Number.isInteger(km) ? km : km.toFixed(1)}km`;
+  return formatDistance(radiusM);
 }
 
 /**

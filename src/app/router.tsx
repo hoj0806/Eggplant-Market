@@ -9,6 +9,7 @@ import HomePage from '../features/browse/components/homePage';
 import SearchPage from '../features/browse/components/searchPage';
 import ChatRoomListPage from '../features/chat/components/chatRoomListPage';
 import ChatRoomPage from '../features/chat/components/chatRoomPage';
+import MapPage from '../features/map/components/mapPage';
 import NotificationPage from '../features/notification/components/notificationPage';
 import NotificationSettingsPage from '../features/notification/components/notificationSettingsPage';
 import NewPostPage from '../features/post/components/newPostPage';
@@ -45,6 +46,16 @@ export const router = createBrowserRouter([
         // 검색도 비로그인이 쓸 수 있다. 동네는 화면 안에서 직접 고르게 한다.
         path: '/search',
         element: <SearchPage />,
+      },
+      {
+        // 지도는 검색의 다른 모습이라 같은 조건이다 — 비로그인도 동네만 고르면 볼 수 있다.
+        //
+        // 주소가 `/map`이 아니라 `/search/map`인 이유는 **탭바**다. `isTabActive`가 하위
+        // 주소를 그 탭으로 보므로(`/my/likes`가 마이페이지인 것과 같다) 지도를 보는 동안
+        // 검색 탭이 켜져 있다. `/map`으로 두면 다섯 칸이 전부 꺼져 어디에 있는지 알 수 없다.
+        // 주소가 관계를 그대로 말해 주기도 한다 — 지도는 검색의 한 모습이다.
+        path: '/search/map',
+        element: <MapPage />,
       },
       {
         // 글쓰기는 동네가 있어야 가능하므로 온보딩 가드 안에 둔다.
