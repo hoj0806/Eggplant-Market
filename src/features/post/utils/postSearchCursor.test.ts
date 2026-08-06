@@ -20,6 +20,7 @@ function toPost(id: number, overrides: Partial<PostSummary> = {}): PostSummary {
     dongName: '서울특별시 성북구 석관동',
     likeCount: 0,
     viewCount: 0,
+    commentCount: 0,
     bumpedAt: BUMPED_AT,
     distanceM: null,
     ...overrides,

@@ -33,6 +33,7 @@ export type MyPostRow = {
   dong_name: string | null;
   like_count: number;
   view_count: number;
+  comment_count: number;
   bumped_at: string;
   sort_at: string;
 };
@@ -55,6 +56,7 @@ export function toMyPostSummary(row: MyPostRow): MyPostSummary {
     dongName: row.dong_name,
     likeCount: row.like_count,
     viewCount: row.view_count,
+    commentCount: row.comment_count,
     bumpedAt: row.bumped_at,
     // 이 목록들은 거리를 재지 않는다. 기준이 "내가 남긴 흔적"이지 위치가 아니다(0024).
     distanceM: null,

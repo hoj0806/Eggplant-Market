@@ -87,6 +87,11 @@ export type PostSummary = {
   dongName: string | null;
   likeCount: number;
   viewCount: number;
+  /**
+   * 댓글 개수. **대댓글도 함께 센다** — 카드에 적히는 "댓글 3"은 그 글에 달린 말의 개수이지
+   * 1단만 센 값이 아니다(0028).
+   */
+  commentCount: number;
   bumpedAt: string;
   /**
    * 검색 기준 좌표에서 이 글의 **동네까지**의 거리(미터). 법정동 기준으로 볼 때는 null이다.

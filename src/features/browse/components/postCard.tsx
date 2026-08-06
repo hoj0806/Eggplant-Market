@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { formatPrice } from '../../../shared/utils/formatPrice';
 import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
+import { toPostCountsText } from '../utils/postCardCounts';
 import PostStatusBadge from '../../post/components/postStatusBadge';
 import type { ReactNode } from 'react';
 import type { PostSummary } from '../../post/types';
@@ -28,6 +29,7 @@ type PostCardProps = {
 function PostCard(props: PostCardProps) {
   const post = props.post;
   const timeText = props.timeText ?? formatTimeAgo(post.bumpedAt, props.now);
+  const countsText = toPostCountsText(post);
 
   return (
     <li>
@@ -66,11 +68,9 @@ function PostCard(props: PostCardProps) {
             {formatPrice(post.price)}
           </span>
 
-          {post.likeCount > 0 || post.viewCount > 0 ? (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              찜 {post.likeCount} · 조회 {post.viewCount}
-            </span>
-          ) : null}
+          {countsText === null ? null : (
+            <span className="text-xs text-gray-500 dark:text-gray-400">{countsText}</span>
+          )}
         </div>
       </Link>
 
