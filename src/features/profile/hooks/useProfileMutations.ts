@@ -4,9 +4,11 @@ import {
   completeProfileOnboarding,
   updateProfileBasics,
   updateProfileRegion,
+  updateSearchRadius,
   type CompleteOnboardingInput,
   type UpdateProfileBasicsInput,
   type UpdateProfileRegionInput,
+  type UpdateSearchRadiusInput,
 } from '../api/profileApi';
 import type { Profile } from '../types';
 
@@ -63,6 +65,28 @@ export function useUpdateRegionMutation(): UseMutationResult<
   return useMutation<Profile, Error, UpdateProfileRegionInput>({
     mutationFn: updateProfileRegion,
     onSuccess: function handleRegionUpdated(profile): void {
+      queryClient.setQueryData(profileQueryKey(profile.id), profile);
+    },
+  });
+}
+
+/**
+ * 검색 반경 변경.
+ *
+ * 목록 캐시는 건드리지 않는다. 반경이 검색 쿼리 키 안에 들어 있어서(`postSearchQueryKey`)
+ * 값이 바뀌면 **다른 키**가 되고, 그 키에는 캐시가 없어 다시 불린다.
+ * 무효화까지 하면 반경을 되돌렸을 때 남아 있었을 옛 목록까지 함께 버리게 된다.
+ */
+export function useUpdateSearchRadiusMutation(): UseMutationResult<
+  Profile,
+  Error,
+  UpdateSearchRadiusInput
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation<Profile, Error, UpdateSearchRadiusInput>({
+    mutationFn: updateSearchRadius,
+    onSuccess: function handleRadiusUpdated(profile): void {
       queryClient.setQueryData(profileQueryKey(profile.id), profile);
     },
   });

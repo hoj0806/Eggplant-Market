@@ -4,7 +4,7 @@ import { DEFAULT_POST_SORT } from '../../browse/utils/postSort';
 import { POST_IMAGE_BUCKET, toPostImagePaths } from '../utils/postImagePath';
 import type { PostSearchFilters, PostSortOption } from '../../browse/types';
 import type { TradePlace } from '../../place/types';
-import type { Region } from '../../region/types';
+import type { Region, RegionCoords } from '../../region/types';
 import type { PostDetail, PostImageItem, PostSeller, PostStatus, PostSummary } from '../types';
 
 // 한 줄 리터럴이어야 한다. 문자열을 +로 이으면 리터럴 타입을 잃어
@@ -30,6 +30,8 @@ type PostSummaryRow = {
   like_count: number;
   view_count: number;
   bumped_at: string;
+  /** 반경 기준으로 부를 때만 채워진다. 다른 목록(마이페이지 등)에는 이 칸 자체가 없다. */
+  distance_m?: number | null;
 };
 
 type PostDetailRow = {
@@ -177,6 +179,7 @@ function toPostSummary(row: PostSummaryRow): PostSummary {
     likeCount: row.like_count,
     viewCount: row.view_count,
     bumpedAt: row.bumped_at,
+    distanceM: row.distance_m ?? null,
   };
 }
 
@@ -562,14 +565,39 @@ export type PostSearchCursor = {
   id: number;
 };
 
+/**
+ * 목록을 무엇으로 모을 것인가. `search_posts`의 기준 인자 넷을 화면 말로 옮긴 것이다(0024).
+ *
+ * 유니온인 이유는 **두 기준이 서로 다른 값을 요구하기 때문**이다. 필드 넷을 모두 nullable로
+ * 늘어놓으면 "코드도 좌표도 없는" 조합과 "둘 다 있는" 조합이 타입상 만들어지는데,
+ * 앞은 서버가 거절하고 뒤는 화면이 뜻한 적 없는 교집합이 된다.
+ */
+export type PostSearchArea =
+  | { kind: 'region'; regionCode: string }
+  | { kind: 'radius'; coords: RegionCoords; radiusM: number };
+
 export type SearchPostsParams = {
-  /** 검색은 언제나 이 동네 안에서만 돈다. */
-  regionCode: string;
+  /** 검색은 언제나 이 범위 안에서만 돈다. 조건이 아니라 전제다. */
+  area: PostSearchArea;
   filters: PostSearchFilters;
   sort: PostSortOption;
   /** 첫 페이지는 null. */
   cursor: PostSearchCursor | null;
 };
+
+/** 기준을 RPC 인자로 편다. 안 쓰는 쪽은 null이라 서버의 `is null` 분기가 통과시킨다. */
+function toAreaParams(area: PostSearchArea) {
+  if (area.kind === 'region') {
+    return { p_region_code: area.regionCode, p_lat: null, p_lng: null, p_radius_m: null };
+  }
+
+  return {
+    p_region_code: null,
+    p_lat: area.coords.lat,
+    p_lng: area.coords.lng,
+    p_radius_m: area.radiusM,
+  };
+}
 
 /**
  * 내 동네 글 목록 한 페이지.
@@ -578,15 +606,16 @@ export type SearchPostsParams = {
  * 목록을 두 갈래로 두면 6단계의 차단 사용자 제외처럼 "목록이라면 모두 적용돼야 하는 규칙"을
  * 넣을 때마다 두 곳을 고쳐야 한다.
  *
- * 반경(profiles.search_radius_m)과 nearby_posts RPC를 쓰는 거리 기반 목록은 아직이다 —
- * 기준은 여전히 법정동 코드가 같은지다.
+ * 홈은 반경 기준을 열지 않는다. "우리 동네"는 이름으로 아는 자리라 그 범위가 조용히
+ * 바뀌면 안 되고, 범위를 고르고 싶은 순간에는 이미 찾는 것이 있으므로 검색이 맡는다 —
+ * 정렬 선택을 홈에 두지 않은 것과 같은 이유다.
  */
 export async function fetchNeighborhoodPosts(
   regionCode: string,
   cursor: PostSearchCursor | null,
 ): Promise<PostSummary[]> {
   return searchPosts({
-    regionCode,
+    area: { kind: 'region', regionCode },
     filters: EMPTY_POST_SEARCH_FILTERS,
     sort: DEFAULT_POST_SORT,
     cursor,
@@ -594,7 +623,7 @@ export async function fetchNeighborhoodPosts(
 }
 
 /**
- * 내 동네 게시물 검색 + 필터.
+ * 게시물 검색 + 필터.
  *
  * 조건을 PostgREST 쿼리 빌더로 이어 붙이지 않고 RPC 하나로 보낸다.
  * 제목·본문을 OR로 묶으려면 `.or('title.ilike.%키워드%,...')`처럼 필터를 문자열로 만들어야 하는데,
@@ -603,7 +632,7 @@ export async function fetchNeighborhoodPosts(
  */
 export async function searchPosts(params: SearchPostsParams): Promise<PostSummary[]> {
   const { data, error } = await supabase.rpc('search_posts', {
-    p_region_code: params.regionCode,
+    ...toAreaParams(params.area),
     p_keyword: params.filters.keyword === '' ? null : params.filters.keyword,
     p_category_id: params.filters.categoryId,
     p_min_price: params.filters.minPrice,

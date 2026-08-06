@@ -9,6 +9,14 @@ export type Profile = {
   mannerTemp: number;
   /** 아직 동네를 정하지 않았으면 null. */
   region: Region | null;
+  /**
+   * 반경 기준으로 볼 때 쓰는 검색 반경(미터). 기본 2000.
+   *
+   * 동네(`region`)와 짝이지만 성격이 다르다 — 동네는 "내가 어디 사람인가"라 글쓰기·목록의
+   * 전제이고, 이 값은 **검색 화면에서 반경 기준을 골랐을 때만** 쓰인다(0024).
+   * 홈은 언제나 법정동 기준이라 이 값을 보지 않는다.
+   */
+  searchRadiusM: number;
   /** null이면 아직 온보딩을 마치지 않은 사용자다. 판정은 isOnboardingComplete를 쓴다. */
   onboardedAt: string | null;
 };

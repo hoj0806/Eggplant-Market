@@ -3,6 +3,7 @@ import {
   EMPTY_POST_SEARCH_FILTERS,
   fromSearchParams,
   hasActiveFilter,
+  scopeFromSearchParams,
   sortFromSearchParams,
   toNonNegativeInteger,
   toSearchParams,
@@ -109,6 +110,42 @@ describe('sortFromSearchParams', function sortFromSearchParamsSuite() {
     const params = new URLSearchParams('q=의자&available=1&sort=price_desc');
 
     expect(sortFromSearchParams(params)).toBe('price_desc');
+    expect(fromSearchParams(params).keyword).toBe('의자');
+  });
+
+  it('거리순은 반경 기준이 함께 적혀 있을 때만 읽는다', function distanceNeedsRadiusScope() {
+    expect(sortFromSearchParams(new URLSearchParams('sort=distance&scope=radius'))).toBe(
+      'distance',
+    );
+    // 주소창을 직접 고쳐 만든 조합이다. 그대로 보내면 서버가 거절해 목록이 죽는다(0024).
+    expect(sortFromSearchParams(new URLSearchParams('sort=distance'))).toBe('latest');
+  });
+});
+
+describe('scopeFromSearchParams', function scopeFromSearchParamsSuite() {
+  it('쿼리에 없거나 모르는 값이면 법정동 기준이다', function fallsBackToRegion() {
+    expect(scopeFromSearchParams(new URLSearchParams(''))).toBe('region');
+    expect(scopeFromSearchParams(new URLSearchParams('scope=everywhere'))).toBe('region');
+    expect(scopeFromSearchParams(new URLSearchParams('scope=region'))).toBe('region');
+  });
+
+  it('반경 기준은 그대로 읽는다', function readsRadius() {
+    expect(scopeFromSearchParams(new URLSearchParams('scope=radius'))).toBe('radius');
+  });
+
+  it('기본 기준은 주소창에 남기지 않는다', function omitsDefaultScope() {
+    expect(toSearchParams(EMPTY_POST_SEARCH_FILTERS, 'latest', 'region').toString()).toBe('');
+    expect(toSearchParams(EMPTY_POST_SEARCH_FILTERS, 'latest', 'radius').get('scope')).toBe(
+      'radius',
+    );
+  });
+
+  it('기준을 적어도 필터·정렬은 그대로 오간다', function roundTripsWithOthers() {
+    const filters: PostSearchFilters = { ...EMPTY_POST_SEARCH_FILTERS, keyword: '의자' };
+    const params = toSearchParams(filters, 'distance', 'radius');
+
+    expect(scopeFromSearchParams(params)).toBe('radius');
+    expect(sortFromSearchParams(params)).toBe('distance');
     expect(fromSearchParams(params).keyword).toBe('의자');
   });
 });

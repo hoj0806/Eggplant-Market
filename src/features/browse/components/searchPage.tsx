@@ -5,6 +5,7 @@ import PostFilterPanel from './postFilterPanel';
 import PostList from './postList';
 import PostSearchField from './postSearchField';
 import SearchRegionPrompt from './searchRegionPrompt';
+import SearchScopeToggle from './searchScopeToggle';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { useSearchPostsQuery } from '../../post/hooks/usePostQueries';
 import { useActiveRegion } from '../hooks/useActiveRegion';
@@ -12,12 +13,37 @@ import {
   clearFilters,
   fromSearchParams,
   hasActiveFilter,
+  scopeFromSearchParams,
   sortFromSearchParams,
   toSearchParams,
 } from '../utils/postSearchFilters';
+import { toPostSortOption } from '../utils/postSort';
+import type { PostSearchArea } from '../../post/api/postApi';
 import type { PostSummary } from '../../post/types';
 import type { Region } from '../../region/types';
-import type { PostSearchFilters, PostSortOption } from '../types';
+import type { PostSearchFilters, PostSearchScope, PostSortOption } from '../types';
+
+/**
+ * 화면이 고른 기준을 요청이 아는 범위로 옮긴다.
+ *
+ * 동네가 없으면 null이다 — 두 기준 모두 동네에서 나온다. 반경도 마찬가지다:
+ * 재는 중심이 내 동네의 대표 좌표라(0005) 동네를 모르면 원을 그릴 자리가 없다.
+ */
+function toSearchArea(
+  region: Region | null,
+  scope: PostSearchScope,
+  radiusM: number,
+): PostSearchArea | null {
+  if (region === null) {
+    return null;
+  }
+
+  if (scope === 'radius') {
+    return { kind: 'radius', coords: region.coords, radiusM };
+  }
+
+  return { kind: 'region', regionCode: region.code };
+}
 
 /**
  * 검색·필터 화면.
@@ -33,33 +59,50 @@ function SearchPage() {
   const activeRegion = useActiveRegion();
 
   const filters = fromSearchParams(searchParams);
+  const scope = scopeFromSearchParams(searchParams);
   const sort = sortFromSearchParams(searchParams);
-  const regionCode = activeRegion.region?.code ?? null;
-  const postsQuery = useSearchPostsQuery(regionCode, filters, sort);
+  const area = toSearchArea(activeRegion.region, scope, activeRegion.searchRadiusM);
+  const postsQuery = useSearchPostsQuery(area, filters, sort);
 
-  function applyQuery(next: PostSearchFilters, nextSort: PostSortOption, replace = false): void {
-    setSearchParams(toSearchParams(next, nextSort), { replace });
+  function applyQuery(
+    next: PostSearchFilters,
+    nextSort: PostSortOption,
+    nextScope: PostSearchScope,
+    replace = false,
+  ): void {
+    setSearchParams(toSearchParams(next, nextSort, nextScope), { replace });
   }
 
   function handleKeywordChange(keyword: string): void {
     // 검색어는 history를 갈아 끼운다. 타이핑이 멈출 때마다 쌓으면
     // "노트북"을 치다 잠깐 쉰 횟수만큼 뒤로가기를 눌러야 화면을 벗어난다.
-    applyQuery({ ...filters, keyword }, sort, true);
+    applyQuery({ ...filters, keyword }, sort, scope, true);
   }
 
   function handleApplyFilters(next: PostSearchFilters): void {
     // 필터는 사용자가 명시적으로 누른 것이라 history에 쌓는다. 뒤로가기로 이전 조건에 돌아간다.
-    applyQuery(next, sort);
+    applyQuery(next, sort, scope);
     setIsPanelOpen(false);
   }
 
   function handleResetFilters(): void {
-    // 정렬은 남긴다. "필터 초기화"는 조건을 푸는 버튼이지 순서를 되돌리는 버튼이 아니다.
-    applyQuery(clearFilters(filters), sort);
+    // 정렬과 기준은 남긴다. "필터 초기화"는 조건을 푸는 버튼이지 순서나 범위를 되돌리는 버튼이 아니다.
+    applyQuery(clearFilters(filters), sort, scope);
   }
 
   function handleSortChange(nextSort: PostSortOption): void {
-    applyQuery(filters, nextSort);
+    applyQuery(filters, nextSort, scope);
+  }
+
+  /**
+   * 기준을 바꾼다. 필터·검색어는 그대로 두고 범위만 넓히거나 좁힌다.
+   *
+   * 정렬은 한 번 더 거른다 — 거리순으로 보다가 "우리 동네"로 오면 그 정렬은 이 기준에서
+   * 뜻이 없어지고, 그대로 보내면 서버가 거절해 목록이 오류가 된다(0024).
+   * 그때만 최신순으로 되돌아간다.
+   */
+  function handleScopeChange(nextScope: PostSearchScope): void {
+    applyQuery(filters, toPostSortOption(sort, nextScope), nextScope);
   }
 
   function handleTogglePanel(): void {
@@ -102,9 +145,17 @@ function SearchPage() {
 
       {!activeRegion.isLoading && activeRegion.region !== null ? (
         <>
+          <SearchScopeToggle
+            value={scope}
+            radiusM={activeRegion.searchRadiusM}
+            isGuest={activeRegion.isGuest}
+            onChange={handleScopeChange}
+          />
+
           <PostFilterBar
             filters={filters}
             sort={sort}
+            scope={scope}
             isPanelOpen={isPanelOpen}
             onTogglePanel={handleTogglePanel}
             onReset={handleResetFilters}

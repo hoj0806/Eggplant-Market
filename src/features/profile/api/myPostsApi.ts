@@ -56,6 +56,8 @@ export function toMyPostSummary(row: MyPostRow): MyPostSummary {
     likeCount: row.like_count,
     viewCount: row.view_count,
     bumpedAt: row.bumped_at,
+    // 이 목록들은 거리를 재지 않는다. 기준이 "내가 남긴 흔적"이지 위치가 아니다(0024).
+    distanceM: null,
     sortAt: row.sort_at,
   };
 }
