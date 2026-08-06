@@ -286,20 +286,26 @@ export async function sendPriceOfferMessage(input: SendPriceOfferInput): Promise
 }
 
 /**
- * 받은 제안에 답한다.
+ * 제안의 상태를 옮긴다. 받은 쪽의 수락·거절과 보낸 쪽의 취소가 같은 모양이다.
  *
- * 누가 답할 수 있는지는 서버가 정한다 — messages_update(0008)가 발신자 본인을 막고,
- * guard_message_update가 offer_status 말고는 못 바꾸게 막는다. 그래서 평범한 update로 충분하다.
+ * 누가 어디로 옮길 수 있는지는 서버가 정한다(0027) — 정책이 "누가"를, 트리거가
+ * "pending에서만, 보낸 쪽은 cancelled로, 받은 쪽은 accepted·rejected로"를 지킨다.
+ * 그래서 여기서는 평범한 update로 충분하고 RPC가 필요 없다.
  *
- * `offer_status = 'pending'` 조건이 핵심이다. 이미 답한 제안을 두 번째 답이 덮어쓰지 못하게 한다 —
- * 상대 화면이 조금 낡았거나 버튼을 두 번 눌렀을 때 마지막 클릭이 이기는 일이 없다.
+ * `offer_status = 'pending'` 조건이 핵심이다. 이미 답이 끝난 제안을 두 번째 요청이 덮어쓰지
+ * 못하게 한다 — 상대 화면이 조금 낡았거나 버튼을 두 번 눌렀을 때 마지막 클릭이 이기는 일이 없다.
  * 조건에 걸려 한 행도 안 바뀌면 update는 오류가 아니라 빈 결과이므로 여기서 뜻을 붙여 준다.
+ * (서버도 같은 것을 막지만 그쪽은 예외를 던진다. 여기서 먼저 걸러야 문구를 고를 수 있다.)
  */
-export async function respondToOffer(input: RespondToOfferInput): Promise<ChatMessage> {
+async function moveOfferStatus(
+  messageId: number,
+  status: OfferStatus,
+  conflictMessage: string,
+): Promise<ChatMessage> {
   const { data, error } = await supabase
     .from('messages')
-    .update({ offer_status: input.status })
-    .eq('id', input.messageId)
+    .update({ offer_status: status })
+    .eq('id', messageId)
     .eq('type', 'price_offer')
     .eq('offer_status', 'pending')
     .select(MESSAGE_COLUMNS)
@@ -309,10 +315,26 @@ export async function respondToOffer(input: RespondToOfferInput): Promise<ChatMe
     throw error;
   }
   if (data === null) {
-    throw new Error('이미 답한 제안입니다.');
+    throw new Error(conflictMessage);
   }
 
   return toChatMessage(data as unknown as MessageRow);
+}
+
+/** 받은 제안에 답한다. */
+export async function respondToOffer(input: RespondToOfferInput): Promise<ChatMessage> {
+  return moveOfferStatus(input.messageId, input.status, '이미 답한 제안입니다.');
+}
+
+/**
+ * 보낸 제안을 무른다.
+ *
+ * 문구가 다른 이유는 **부딪히는 상황이 다르기 때문**이다. 취소가 실패하는 흔한 경우는
+ * 내가 무르려는 사이에 상대가 답해 버린 것이라, "이미 답한 제안입니다"가 아니라
+ * 상대가 먼저 움직였다는 것을 말해 줘야 다음에 무엇을 할지 알 수 있다.
+ */
+export async function cancelOffer(messageId: number): Promise<ChatMessage> {
+  return moveOfferStatus(messageId, 'cancelled', '상대가 먼저 답해 취소할 수 없습니다.');
 }
 
 /**
