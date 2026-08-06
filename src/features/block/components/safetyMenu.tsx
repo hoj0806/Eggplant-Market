@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import BlockToggleButton from './blockToggleButton';
 import ReportSheet from '../../report/components/reportSheet';
 import type { ReportTarget } from '../../report/types';
@@ -9,11 +9,22 @@ type SafetyMenuProps = {
   targetNickname: string;
   /** 게시물 화면에서만 온다. 이 자리에서 글 자체를 신고할 수 있다. */
   post?: { id: number; title: string };
+  /**
+   * 화면마다 다른 항목. 메뉴 맨 아래에 붙는다.
+   *
+   * 지금 오는 것은 채팅방 나가기 하나다. 신고·차단과 결이 다르지만 **한 화면에 ⋯가 둘일
+   * 수는 없어서** 여기 모은다 — 채팅방 헤더는 한 줄에 아바타·이름·메뉴가 이미 차 있다.
+   * 항목의 생김새는 `SAFETY_MENU_ITEM_CLASS`를 가져다 쓰면 나머지와 맞는다.
+   */
+  extraItems?: ReactNode;
 };
 
+/** 메뉴 한 줄의 생김새. 밖에서 항목을 넣는 쪽(extraItems)이 함께 쓴다. */
+export const SAFETY_MENU_ITEM_CLASS =
+  'w-full px-4 py-2.5 text-left text-sm transition hover:bg-gray-50 dark:hover:bg-gray-800';
+
 const MENU_ITEM_CLASS =
-  'w-full px-4 py-2.5 text-left text-sm text-gray-700 transition hover:bg-gray-50 ' +
-  'dark:text-gray-200 dark:hover:bg-gray-800';
+  SAFETY_MENU_ITEM_CLASS + ' text-gray-700 dark:text-gray-200';
 
 /**
  * 남을 보는 화면 오른쪽 위의 ⋯ 메뉴 — 신고와 차단이 여기 모인다.
@@ -101,6 +112,8 @@ function SafetyMenu(props: SafetyMenuProps) {
             targetNickname={props.targetNickname}
             variant="menu"
           />
+
+          {props.extraItems}
         </div>
       ) : null}
 

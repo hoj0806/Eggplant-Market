@@ -32,6 +32,7 @@ function toMessage(overrides: Partial<ChatMessage> & { id: number }): ChatMessag
     offerAmount: null,
     offerStatus: null,
     readAt: null,
+    deletedAt: null,
     createdAt: '2026-08-03T01:00:00.000Z',
     ...overrides,
   };
@@ -42,8 +43,10 @@ type ListOverrides = {
   isError?: boolean;
   isRespondingToOffer?: boolean;
   isCancellingOffer?: boolean;
+  isDeletingMessage?: boolean;
   onRespondToOffer?: jest.Mock;
   onCancelOffer?: jest.Mock;
+  onDeleteMessage?: jest.Mock;
 };
 
 function renderList(messages: ChatMessage[], overrides: ListOverrides = {}) {
@@ -60,9 +63,11 @@ function renderList(messages: ChatMessage[], overrides: ListOverrides = {}) {
         isFetchingNextPage={false}
         isRespondingToOffer={overrides.isRespondingToOffer ?? false}
         isCancellingOffer={overrides.isCancellingOffer ?? false}
+        isDeletingMessage={overrides.isDeletingMessage ?? false}
         onLoadMore={jest.fn()}
         onRespondToOffer={overrides.onRespondToOffer ?? jest.fn()}
         onCancelOffer={overrides.onCancelOffer ?? jest.fn()}
+        onDeleteMessage={overrides.onDeleteMessage ?? jest.fn()}
       />
     </QueryClientProvider>,
   );
@@ -216,5 +221,55 @@ describe('ChatMessageList', function chatMessageListSuite() {
 
     expect(screen.getByRole('button', { name: '제안 취소' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '수락' })).toBeEnabled();
+  });
+
+  it('내 말풍선에만 삭제 버튼이 붙는다', function onlyMineHasDelete() {
+    renderList([toMessage({ id: 1 }), toMessage({ id: 2, senderId: 'partner' })]);
+
+    expect(screen.getAllByRole('button', { name: '삭제' })).toHaveLength(1);
+  });
+
+  it('가격 제안에는 삭제 버튼이 없다', function offerHasNoDelete() {
+    // 그 자리는 "제안 취소"가 맡는다. 둘 다 있으면 같은 버튼 두 개가 된다.
+    renderList([toOffer({ id: 1 })]);
+
+    expect(screen.queryByRole('button', { name: '삭제' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '제안 취소' })).toBeInTheDocument();
+  });
+
+  it('삭제는 한 번 더 물은 뒤에 알린다', async function confirmsBeforeDelete() {
+    const onDeleteMessage = jest.fn();
+    renderList([toMessage({ id: 42 })], { onDeleteMessage });
+
+    await userEvent.click(screen.getByRole('button', { name: '삭제' }));
+    expect(onDeleteMessage).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: '지울까요?' }));
+    expect(onDeleteMessage).toHaveBeenCalledWith(42, undefined);
+  });
+
+  it('사진을 지울 때는 스토리지 경로를 함께 넘긴다', async function passesImagePath() {
+    // 서버가 content를 비우고 나면 경로를 알 길이 없어, 지우기 전 값을 화면이 들고 간다.
+    const onDeleteMessage = jest.fn();
+    renderList([toMessage({ id: 7, type: 'image', content: '9/me/1754-0.jpg' })], {
+      onDeleteMessage,
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: '삭제' }));
+    await userEvent.click(screen.getByRole('button', { name: '지울까요?' }));
+
+    expect(onDeleteMessage).toHaveBeenCalledWith(7, '9/me/1754-0.jpg');
+  });
+
+  it('지운 메시지는 양쪽 모두 자리에 남는다', function deletedStaysOnBothSides() {
+    renderList([
+      toMessage({ id: 1, content: null, deletedAt: '2026-08-06T02:00:00.000Z' }),
+      toMessage({ id: 2, senderId: 'partner', content: null, deletedAt: '2026-08-06T02:00:00.000Z' }),
+    ]);
+
+    expect(screen.getAllByText('지운 메시지입니다')).toHaveLength(2);
+    // 지운 뒤에는 다시 지울 수 없고, 읽을 것도 없다.
+    expect(screen.queryByRole('button', { name: '삭제' })).not.toBeInTheDocument();
+    expect(screen.queryByText('안읽음')).not.toBeInTheDocument();
   });
 });

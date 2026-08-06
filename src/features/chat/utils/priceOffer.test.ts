@@ -35,6 +35,7 @@ function toOffer(overrides: Partial<ChatMessage> & { id: number }): ChatMessage 
     offerAmount: 40000,
     offerStatus: 'pending',
     readAt: null,
+    deletedAt: null,
     createdAt: '2026-08-05T01:00:00.000Z',
     ...overrides,
   };

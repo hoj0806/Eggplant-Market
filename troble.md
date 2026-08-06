@@ -1931,3 +1931,70 @@ create function pg_temp.probe(p_uid uuid, p_from text, p_set text) returns text 
 (통과해야 하는데 거절)이었으면 곧바로 코드를 고치러 갔을 텐데, 이쪽은 "정책이 헐겁구나" 하고
 **트리거를 잘못 조이는 쪽으로 갈 뻔했다.** 테스트가 틀렸을 가능성을 코드보다 먼저 의심할
 자리가 있다 — 다른 아홉 개가 전부 맞을 때다.
+
+## `with check` 없는 update 정책이 삭제를 스스로 막는다 (2026-08-06)
+
+### 증상
+
+0029(메시지 소프트 삭제)의 정책을 이렇게 적고 첫 시나리오를 밟았다.
+
+```sql
+create policy messages_update on messages
+  for update
+  using (
+    방_참여자
+    and (auth.uid() <> sender_id or deleted_at is null)
+  );
+```
+
+"지운 메시지는 발신자에게 다시 열리지 않는다"를 정책에도 박으려던 것이었다.
+막아야 할 여덟 가지는 전부 예상대로 막혔는데 **정작 통과해야 할 것이 통과하지 못했다.**
+
+```
+보낸쪽이 자기 글을 지움  →  거절: new row violates row-level security policy for table "messages"
+```
+
+`new row violates`다. 정책은 `using`만 있고 `with check`는 적지도 않았는데 새 행을 검사한다.
+
+### 원인
+
+**update 정책에 `with check`가 없으면 Postgres는 `using` 식을 새 행에도 그대로 쓴다.**
+(문서상 정해진 동작이다. `with check`를 생략하면 `using`이 그 자리를 겸한다.)
+
+0008·0027이 같은 테이블에 `using`만 적고도 멀쩡했던 것은 **그 식이 보는 칸을 아무도 바꾸지
+않았기 때문**이다.
+
+```
+0008 · 0027의 식이 보는 칸   sender_id · type   → 트리거가 변경을 막는다. 새 행에서도 언제나 참
+0029가 더한 식이 보는 칸     deleted_at         → 이 update가 바로 그 칸을 바꾼다
+```
+
+즉 `deleted_at is null`인 행만 손댈 수 있다는 조건이 **결과 행에도 걸려서**,
+`deleted_at`을 채우는 순간 자기 정책에 걸린다. 규칙이 틀린 것이 아니라
+**규칙을 적용할 대상(옛 행/새 행)을 고르지 않은 것**이 문제였다.
+
+### 해결
+
+두 자리를 갈라 적었다.
+
+```sql
+  using (      방_참여자 and (auth.uid() <> sender_id or deleted_at is null) )  -- 옛 행: 누가
+  with check ( 방_참여자 )                                                       -- 새 행: 결과가 내 방인가
+```
+
+`with check`를 좁게 적을 필요는 없다. 어느 칸이 어떻게 바뀌었는지는 여전히
+`guard_message_update`가 본다 — 0008이 정책과 트리거로 나눈 구도 그대로다.
+다시 밟으니 아홉 시나리오가 전부 예상과 같아졌다.
+
+### 남는 교훈
+
+**update 정책의 식이 이 update가 바꾸는 칸을 보고 있다면, `with check`를 반드시 따로 적는다.**
+
+이 저장소에서 update 정책은 대체로 소유권(`auth.uid() = author_id`)만 본다. 그런 식은
+update가 바꾸지 않는 칸을 보므로 `using` 하나로 충분했고, 그래서 **`with check`를 안 적는
+것이 이 저장소의 기본값처럼 굳어 있었다.** 상태 칸(`deleted_at` 같은 것)을 조건에 넣는
+순간 그 기본값이 깨진다.
+
+실패가 **"통과해야 하는데 거절"** 쪽이라 다행이었다. 반대 방향이었다면
+(막아야 하는데 통과) 정책이 헐거워진 줄 모르고 지나갔을 것이다 — `troble.md`의
+"롤백 테스트가 '통과'라고 거짓말한다"가 바로 그 반대 방향이었다.

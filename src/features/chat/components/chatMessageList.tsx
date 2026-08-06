@@ -15,9 +15,12 @@ type ChatMessageListProps = {
   isRespondingToOffer: boolean;
   /** 제안 취소가 도는 중. 답변과 따로인 이유는 누르는 사람이 다르기 때문이다. */
   isCancellingOffer: boolean;
+  /** 메시지 삭제가 도는 중. 같은 이유로 또 따로다. */
+  isDeletingMessage: boolean;
   onLoadMore(): void;
   onRespondToOffer(messageId: number, status: OfferResponse): void;
   onCancelOffer(messageId: number): void;
+  onDeleteMessage(messageId: number, imagePath?: string): void;
 };
 
 const MESSAGE_CLASS = 'py-8 text-center text-sm text-gray-500 dark:text-gray-400';
@@ -82,8 +85,10 @@ function ChatMessageList(props: ChatMessageListProps) {
               isMine={message.senderId === props.viewerId}
               isRespondingToOffer={props.isRespondingToOffer}
               isCancellingOffer={props.isCancellingOffer}
+              isDeletingMessage={props.isDeletingMessage}
               onRespondToOffer={props.onRespondToOffer}
               onCancelOffer={props.onCancelOffer}
+              onDeleteMessage={props.onDeleteMessage}
             />
           );
         })}

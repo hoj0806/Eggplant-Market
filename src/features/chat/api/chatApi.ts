@@ -18,7 +18,7 @@ const CHAT_IMAGE_BUCKET = 'chat-images';
 // 한 줄 리터럴이어야 한다. 문자열을 +로 이으면 리터럴 타입을 잃어
 // supabase-js가 select 결과를 GenericStringError로 추론한다.
 const MESSAGE_COLUMNS =
-  'id, room_id, sender_id, type, content, offer_amount, offer_status, read_at, created_at';
+  'id, room_id, sender_id, type, content, offer_amount, offer_status, read_at, deleted_at, created_at';
 
 const DEFAULT_IMAGE_EXTENSION = 'jpg';
 const SAFE_EXTENSION_PATTERN = /^[a-zA-Z0-9]{1,5}$/;
@@ -57,6 +57,7 @@ type MessageRow = {
   offer_amount: number | null;
   offer_status: OfferStatus | null;
   read_at: string | null;
+  deleted_at: string | null;
   created_at: string;
 };
 
@@ -99,6 +100,7 @@ export function toChatMessage(row: MessageRow): ChatMessage {
     offerAmount: row.offer_amount,
     offerStatus: row.offer_status,
     readAt: row.read_at,
+    deletedAt: row.deleted_at,
     createdAt: row.created_at,
   };
 }
@@ -335,6 +337,69 @@ export async function respondToOffer(input: RespondToOfferInput): Promise<ChatMe
  */
 export async function cancelOffer(messageId: number): Promise<ChatMessage> {
   return moveOfferStatus(messageId, 'cancelled', '상대가 먼저 답해 취소할 수 없습니다.');
+}
+
+/**
+ * 보낸 메시지를 지운다.
+ *
+ * 행을 지우지 않고 `deleted_at`을 찍는 update다(0029). 말이 오갔다는 사실은 남고 내용만
+ * 사라진다 — 그래서 상대 화면에는 DELETE가 아니라 **UPDATE**로 도착하고,
+ * 실시간 처리도 읽음 표시·제안 답변과 같은 길을 그대로 탄다.
+ *
+ * `content`를 여기서 비우지 않는다. 서버가 비운다 — 클라이언트에 맡기면 "지웠는데 내용이
+ * 남은 행"이 생길 수 있고, 그 행은 밖에서 보면 지워진 것처럼 보여 아무도 눈치채지 못한다.
+ * `deleted_at`에 보내는 값도 서버가 `now()`로 덮으므로 자리를 채우는 뜻뿐이다.
+ *
+ * `.is('deleted_at', null)`이 핵심이다. 두 번 눌렀을 때 두 번째 요청이 서버 예외
+ * ("이미 지운 메시지입니다")가 아니라 빈 결과로 돌아오게 해, 여기서 문구를 고를 수 있다.
+ * (정책도 같은 것을 막는다. 이쪽은 먼저 거르는 자리다 — respondToOffer와 같은 형태다.)
+ */
+export async function deleteMessage(messageId: number): Promise<ChatMessage> {
+  const { data, error } = await supabase
+    .from('messages')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', messageId)
+    .is('deleted_at', null)
+    .select(MESSAGE_COLUMNS)
+    .maybeSingle();
+
+  if (error !== null) {
+    throw error;
+  }
+  if (data === null) {
+    throw new Error('이미 지운 메시지입니다.');
+  }
+
+  return toChatMessage(data as unknown as MessageRow);
+}
+
+/**
+ * 지운 사진 파일을 스토리지에서 걷어낸다.
+ *
+ * 메시지 행에서 경로가 사라지면(서버가 `content`를 비운다) 아무도 부를 수 없는 파일이
+ * 남는다. `chat_images_delete` 정책이 **올린 사람 본인**에게 열려 있어 여기서 지울 수 있다(0008).
+ *
+ * 실패해도 던지지 않는다. 메시지는 이미 지워졌고 사용자가 할 수 있는 일이 없다 —
+ * 여기서 오류를 올리면 "지워졌는데 실패했다고 뜨는" 화면이 된다.
+ * createPost·sendOneImageMessage의 보상 삭제와 같은 취급이다.
+ */
+export async function removeChatImage(path: string): Promise<void> {
+  await supabase.storage.from(CHAT_IMAGE_BUCKET).remove([path]);
+}
+
+/**
+ * 이 방을 내 채팅 목록에서 치운다.
+ *
+ * 대화도 방도 지우지 않고 상대 화면은 그대로다(0030). 나간 뒤에 메시지가 오면 목록에
+ * 다시 나타난다. 내가 구매자인지 판매자인지는 서버가 방을 읽어 판단하므로 넘기지 않는다 —
+ * open_chat_room이 seller_id를 받지 않는 것과 같은 이유다.
+ */
+export async function leaveChatRoom(roomId: number): Promise<void> {
+  const { error } = await supabase.rpc('leave_chat_room', { p_room_id: roomId });
+
+  if (error !== null) {
+    throw error;
+  }
 }
 
 /**
