@@ -1,6 +1,9 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
 import { EMPTY_POST_SEARCH_FILTERS } from '../../browse/utils/postSearchFilters';
 import { DEFAULT_POST_SORT } from '../../browse/utils/postSort';
+// 게시물 삭제가 채팅 사진까지 치운다(0032). 스토리지 경로 규칙은 채팅 기능이 알고 있고,
+// 그것을 여기서 다시 적으면 규칙이 두 벌이 된다.
+import { fetchPostChatPartners, listChatRoomImagePaths, removeChatImages } from '../../chat/api/chatApi';
 import { POST_IMAGE_BUCKET, toPostImagePaths } from '../utils/postImagePath';
 import type { PostSearchFilters, PostSortOption } from '../../browse/types';
 import type { TradePlace } from '../../place/types';
@@ -475,18 +478,51 @@ async function removePostImageFiles(urls: ReadonlyArray<string>): Promise<void> 
 }
 
 /**
+ * 이 글의 채팅방들에 올라온 사진 경로를 모은다.
+ *
+ * **글을 지우기 전에 불러야 한다.** 방은 cascade로 함께 사라지는데,
+ * `chat_images_select`가 방 행을 요구해서 그 뒤에는 목록조차 못 읽는다(0008).
+ *
+ * 후보는 `fetch_post_chat_partners`(0008)가 준다 — 판매자 본인만 부를 수 있고, 방 번호와
+ * 구매자 id가 함께 온다. 폴더가 `{room_id}/{user_id}/…`라 판매자 자신도 넣어야 한다.
+ *
+ * 뒷정리라 실패해도 던지지 않는다. 여기서 막히면 지울 수 있는 글이 안 지워진다.
+ */
+async function listPostChatImagePaths(postId: number, sellerId: string): Promise<string[]> {
+  try {
+    const partners = await fetchPostChatPartners(postId);
+    const paths: string[] = [];
+
+    for (const partner of partners) {
+      paths.push(...(await listChatRoomImagePaths(partner.roomId, [sellerId, partner.id])));
+    }
+
+    return paths;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 게시물 삭제.
  *
- * post_images·likes·recently_viewed·chat_rooms는 FK가 on delete cascade라 따라 지워지지만
- * **스토리지 파일은 아무도 지워 주지 않는다.** 그래서 지우기 전에 주소를 먼저 챙긴다.
+ * post_images·likes·recently_viewed·chat_rooms·comments·reviews는 FK가 on delete cascade라
+ * 따라 지워지고, 알림은 0032의 트리거가 함께 걷어낸다.
+ * **스토리지 파일만은 아무도 지워 주지 않는다.** 그래서 지우기 전에 주소를 먼저 챙긴다.
+ *
+ * 챙길 것이 둘이다 — 게시물 사진과 **그 글의 채팅방에 오간 사진**이다. 뒤엣것은 0032 전까지
+ * 아무도 치우지 않아 비공개 버킷에 영원히 남았다(방이 사라져 읽을 수도 지울 수도 없었다).
  *
  * 행을 먼저 지우고 파일을 나중에 치운다. 반대로 하면 파일 삭제 뒤 행 삭제가 거절당했을 때
  * (RLS·네트워크) 사진이 전부 깨진 게시물이 남는다. 이 순서라면 최악이 고아 파일이다.
+ * 채팅 사진은 **그 순서여야만** 지워지기까지 한다 — `chat_images_delete`가 열리는 조건이
+ * "방이 이미 사라진 폴더"라서다(0032).
  */
-export async function deletePost(postId: number): Promise<void> {
+export async function deletePost(postId: number, sellerId: string): Promise<void> {
   const urls = (await fetchPostImageRows(postId)).map(function toUrl(row: PostImageRow): string {
     return row.url;
   });
+  const chatImagePaths = await listPostChatImagePaths(postId, sellerId);
 
   const { error } = await supabase.from('posts').delete().eq('id', postId);
   if (error !== null) {
@@ -494,6 +530,7 @@ export async function deletePost(postId: number): Promise<void> {
   }
 
   await removePostImageFiles(urls);
+  await removeChatImages(chatImagePaths);
 }
 
 /**

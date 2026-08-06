@@ -15,8 +15,8 @@ jest.mock('../api/postApi', function mockPostApi() {
     bumpPost: function bumpPost(postId: number) {
       return mockBumpPost(postId);
     },
-    deletePost: function deletePost(postId: number) {
-      return mockDeletePost(postId);
+    deletePost: function deletePost(postId: number, sellerId: string) {
+      return mockDeletePost(postId, sellerId);
     },
   };
 });
@@ -144,14 +144,18 @@ describe('PostOwnerMenu', function ownerMenuSuite() {
 
     await userEvent.click(screen.getByRole('button', { name: '게시물 삭제' }));
     expect(mockDeletePost).not.toHaveBeenCalled();
+    // 거래후기는 이 글 밖(상대의 매너온도)에 자국을 남기는 유일한 항목이라 반드시 적힌다.
+    // "내려갑니다"가 아니다 — 나쁜 후기가 사라지면 오히려 올라간다(실제로 밟아 확인).
     expect(
-      screen.getByText('삭제하면 되돌릴 수 없어요. 이 글의 채팅과 찜도 함께 사라집니다.'),
+      screen.getByText(/거래후기까지 함께 사라지고 상대의 매너온도도 되돌아갑니다/),
     ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: '삭제하기' }));
 
     await waitFor(function assertDeleted() {
-      expect(mockDeletePost).toHaveBeenCalledWith(42);
+      // 판매자 id가 함께 간다. 채팅 사진 폴더가 `{room_id}/{user_id}/…`라(0008)
+      // 그 값이 있어야 판매자 자신이 올린 사진까지 치울 수 있다(0032).
+      expect(mockDeletePost).toHaveBeenCalledWith(42, VIEWER_ID);
     });
     // 지워진 글의 주소에 남아 있으면 곧바로 "게시물을 찾을 수 없습니다"를 보게 된다.
     expect(mockNavigate).toHaveBeenCalledWith('/my/sales', { replace: true });
