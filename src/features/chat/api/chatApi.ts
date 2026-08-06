@@ -427,18 +427,19 @@ export async function purgeChatRoom(roomId: number): Promise<boolean> {
 }
 
 /**
- * 방 폴더의 사진을 모두 걷어낸다.
+ * 방 폴더에 든 사진의 경로를 모은다.
  *
- * `storage.objects` 행을 지워도 실제 파일은 남으므로 **DB가 대신해 줄 수 없는 일**이다.
- * 회원탈퇴(`delete-account` Edge Function)가 같은 이유로 같은 모양의 코드를 갖고 있다.
+ * **방이 살아 있는 동안에만 부를 수 있다.** `chat_images_select`가 방 행을 요구하므로
+ * (0008), 방이 사라진 뒤에는 목록조차 비어 돌아온다. 지우는 쪽과 나눠 둔 것이 그래서다 —
+ * 게시물 삭제는 "모으기 → 글 삭제(방도 함께 사라진다) → 치우기" 순서로 밟아야 한다.
  *
  * 경로가 `{room_id}/{user_id}/…`라 사람마다 한 번씩 훑는다(0008). 방 번호만으로 한 번에
  * 훑으면 첫 겹이 폴더라 파일이 안 잡힌다 — 참여자가 둘뿐이라 아는 값을 그냥 쓴다.
- *
- * `chat_images_delete`가 상대 폴더까지 열리는 것은 **지울 수 있는 방일 때뿐**이다(0031).
- * 오가는 중인 방에서 부르면 상대 파일은 조용히 안 지워진다.
  */
-export async function removeChatRoomImages(roomId: number, userIds: string[]): Promise<void> {
+export async function listChatRoomImagePaths(
+  roomId: number,
+  userIds: ReadonlyArray<string>,
+): Promise<string[]> {
   const paths: string[] = [];
 
   for (const userId of userIds) {
@@ -468,11 +469,32 @@ export async function removeChatRoomImages(roomId: number, userIds: string[]): P
     }
   }
 
+  return paths;
+}
+
+/**
+ * 모아 둔 채팅 사진을 스토리지에서 치운다.
+ *
+ * `storage.objects` 행을 지워도 실제 파일은 남으므로 **DB가 대신해 줄 수 없는 일**이다.
+ * 회원탈퇴(`delete-account` Edge Function)가 같은 이유로 같은 모양의 코드를 갖고 있다.
+ *
+ * 어디까지 지워지는지는 `chat_images_delete`가 정한다 — 내 파일(0008) · 양쪽이 다 나간 방
+ * (0031) · **방이 이미 사라진 폴더**(0032) 셋이다. 권한이 없는 파일은 조용히 남는다.
+ */
+export async function removeChatImages(paths: ReadonlyArray<string>): Promise<void> {
   if (paths.length === 0) {
     return;
   }
 
-  await supabase.storage.from(CHAT_IMAGE_BUCKET).remove(paths);
+  await supabase.storage.from(CHAT_IMAGE_BUCKET).remove([...paths]);
+}
+
+/** 방 하나를 통째로 비운다. 방이 아직 살아 있을 때 쓴다(0031의 나가기 뒷정리). */
+export async function removeChatRoomImages(
+  roomId: number,
+  userIds: ReadonlyArray<string>,
+): Promise<void> {
+  await removeChatImages(await listChatRoomImagePaths(roomId, userIds));
 }
 
 /**

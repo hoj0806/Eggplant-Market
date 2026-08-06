@@ -109,8 +109,20 @@ function PostOwnerMenu(props: PostOwnerMenuProps) {
 
           {isConfirmingDelete ? (
             <div className="flex flex-col gap-2 border-t border-gray-100 p-3 dark:border-gray-800">
-              <p className="text-xs text-gray-600 dark:text-gray-300">
-                삭제하면 되돌릴 수 없어요. 이 글의 채팅과 찜도 함께 사라집니다.
+              {/*
+                무엇이 함께 사라지는지 적는다. FK가 cascade인 여섯(채팅방·댓글·찜·사진·
+                최근 본 글·거래후기)에 알림까지 따라간다(0032).
+
+                **거래후기를 빠뜨리면 안 된다** — 사라지는 것 중 유일하게 이 글 밖에 자국을
+                남기는 것이라, 상대의 매너온도가 함께 움직인다(0016의 sync_manner_temp).
+
+                "내려갑니다"라고 쓰지 않는다. 실제로 밟아 보니 **방향이 후기에 달렸다** —
+                좋은 후기가 사라지면 내려가지만 나쁜 후기가 사라지면 올라간다(36.0 → 36.5).
+                온도는 증감을 누적하지 않고 남은 후기 합계로 다시 계산되기 때문이다.
+              */}
+              <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                삭제하면 되돌릴 수 없어요. 이 글의 채팅·댓글·찜은 물론{' '}
+                <b>거래후기까지 함께 사라지고 상대의 매너온도도 되돌아갑니다.</b>
               </p>
               <div className="flex gap-2">
                 <button
