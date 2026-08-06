@@ -16,6 +16,7 @@ function createPost(id: number, sortAt: string): MyPostSummary {
     dongName: '서울특별시 강북구 수유동',
     likeCount: 0,
     viewCount: 0,
+    commentCount: 0,
     bumpedAt: '2026-08-01T00:00:00.000Z',
     distanceM: null,
     sortAt,

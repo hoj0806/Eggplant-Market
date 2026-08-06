@@ -29,6 +29,7 @@ type PostSummaryRow = {
   dong_name: string | null;
   like_count: number;
   view_count: number;
+  comment_count: number;
   bumped_at: string;
   /** 반경 기준으로 부를 때만 채워진다. 다른 목록(마이페이지 등)에는 이 칸 자체가 없다. */
   distance_m?: number | null;
@@ -178,6 +179,7 @@ function toPostSummary(row: PostSummaryRow): PostSummary {
     dongName: row.dong_name,
     likeCount: row.like_count,
     viewCount: row.view_count,
+    commentCount: row.comment_count,
     bumpedAt: row.bumped_at,
     distanceM: row.distance_m ?? null,
   };
