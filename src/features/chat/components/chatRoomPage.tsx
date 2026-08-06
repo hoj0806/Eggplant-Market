@@ -127,6 +127,7 @@ function ChatRoomPage() {
           extraItems={
             <LeaveChatRoomButton
               roomId={roomId}
+              participantIds={[viewerId, room.partner.id]}
               onLeft={function goToRoomList(): void {
                 // replace다. 뒤로가기로 방금 나온 방에 다시 들어가면 목록에는 없는데
                 // 화면은 열려 있는 상태가 된다.

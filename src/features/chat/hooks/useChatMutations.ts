@@ -10,7 +10,9 @@ import {
   deleteMessage,
   leaveChatRoom,
   openChatRoom,
+  purgeChatRoom,
   removeChatImage,
+  removeChatRoomImages,
   respondToOffer,
   sendImageMessages,
   sendPriceOfferMessage,
@@ -253,20 +255,42 @@ export function useDeleteMessageMutation(
 }
 
 /**
- * 채팅방 나가기.
+ * 채팅방 나가기 — 그리고 양쪽이 다 나갔으면 완전 삭제.
  *
- * 방 목록만 다시 받으면 된다. 방 하나(`chatRoomQueryKey`)는 건드리지 않는다 —
- * 나간 방도 주소로는 그대로 열리고(0030), 어차피 화면은 곧 목록으로 옮겨 간다.
- * 어디로 갈지는 화면이 정한다(useOpenChatRoomMutation과 같은 결이다).
+ * 세 걸음이 한 동작이다(0031).
+ *
+ *   ① leave_chat_room     나가고, 내가 마지막 한 사람인지 답을 받는다
+ *   ② 사진 지우기          방이 살아 있는 동안에만 목록을 읽을 수 있다
+ *   ③ purge_chat_room     알림 정리 + 방 삭제(메시지는 cascade)
+ *
+ * **②③이 실패해도 이 훅은 성공이다.** 사용자가 누른 것은 "나가기"이고 그것은 ①에서 이미
+ * 끝났다. 여기서 오류를 올리면 나가졌는데 실패했다고 뜨고 화면도 안 넘어간다.
+ * 남는 것은 양쪽 누구에게도 안 보이는 방 하나뿐이라, 사용자가 할 수 있는 일이 없다 —
+ * `removeChatImage`(사진 딸린 메시지 삭제)와 같은 취급이다.
+ *
+ * 돌려주는 값은 "완전히 지워졌는가"다. 방 하나(`chatRoomQueryKey`)는 건드리지 않는다 —
+ * 나간 방도 주소로는 열리고(0030), 지워진 방은 어차피 화면이 곧 목록으로 옮겨 간다.
  */
 export function useLeaveChatRoomMutation(
   roomId: number,
-): UseMutationResult<void, Error, void> {
+  participantIds: string[],
+): UseMutationResult<boolean, Error, void> {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, void>({
-    mutationFn: function leave(): Promise<void> {
-      return leaveChatRoom(roomId);
+  return useMutation<boolean, Error, void>({
+    mutationFn: async function leave(): Promise<boolean> {
+      const isPurgeable = await leaveChatRoom(roomId);
+
+      if (!isPurgeable) {
+        return false;
+      }
+
+      try {
+        await removeChatRoomImages(roomId, participantIds);
+        return await purgeChatRoom(roomId);
+      } catch {
+        return false;
+      }
     },
     onSuccess: function refreshRooms(): void {
       queryClient.invalidateQueries({ queryKey: chatRoomsQueryKey() });
