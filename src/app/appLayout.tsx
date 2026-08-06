@@ -13,8 +13,12 @@ import AppTabBar from './appTabBar';
 function AppLayout() {
   return (
     <div className="flex min-h-screen flex-col">
-      {/* 탭바가 떠 있어 마지막 줄을 가린다. 그 높이만큼 아래를 비운다. */}
-      <div className="flex-1 pb-16">
+      {/*
+        탭바가 떠 있어 마지막 줄을 가린다. 그 높이만큼 아래를 비운다.
+        글쓰기 자리가 탭바 위로 반쯤 올라와 있어(`-mt-6`) 탭바 높이만으로는 모자라다 —
+        그만큼 더 비우지 않으면 마지막 줄이 그 원 밑으로 들어가 눌리지 않는다.
+      */}
+      <div className="flex-1 pb-24">
         <Outlet />
       </div>
       <AppTabBar />

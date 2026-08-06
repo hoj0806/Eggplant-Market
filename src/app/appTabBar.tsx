@@ -52,6 +52,35 @@ function AppTabBar() {
         {APP_TABS.map(function renderTab(tab: AppTab) {
           const isActive = isTabActive(tab.to, location.pathname);
 
+          if (tab.isPrimary === true) {
+            return (
+              <li key={tab.to} className="flex-1">
+                <Link
+                  to={tab.to}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition
+                              ${isActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
+                >
+                  {/*
+                    탭바 위로 반쯤 올라온 원. `-mt-6`이 그 절반을 끌어올리고, 탭바가 이미
+                    `border-t`를 가진 흰 판이라 원이 그 선을 덮어 도드라진다.
+                    라벨은 그대로 남긴다 — 아이콘만으로는 무엇을 올리는 자리인지 모른다.
+                  */}
+                  <span
+                    aria-hidden="true"
+                    className="-mt-6 flex h-12 w-12 items-center justify-center rounded-full
+                               bg-emerald-600 text-xl leading-none text-white shadow-lg
+                               ring-4 ring-white transition hover:bg-emerald-700
+                               dark:ring-gray-950"
+                  >
+                    {tab.icon}
+                  </span>
+                  {tab.label}
+                </Link>
+              </li>
+            );
+          }
+
           return (
             <li key={tab.to} className="flex-1">
               <Link
