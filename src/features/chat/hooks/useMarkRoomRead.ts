@@ -14,6 +14,9 @@ import type { ChatMessage } from '../types';
  *
  * 안 읽어 온 페이지의 메시지는 세지 않지만 상관없다. 이 값은 "읽음 처리를 할 때인가"를
  * 알리는 방아쇠일 뿐이고, 실제 갱신은 서버에서 방 전체를 대상으로 한다.
+ *
+ * 지운 메시지는 세지 않는다 — 서버가 배지에서 빼는 것과 같은 기준이다(0029). 안 맞추면
+ * 상대가 지운 줄 하나 때문에 방에 들어갈 때마다 읽음 처리 요청이 한 번씩 더 나간다.
  */
 export function countUnreadFromPartner(
   messages: ReadonlyArray<ChatMessage>,
@@ -24,7 +27,7 @@ export function countUnreadFromPartner(
   }
 
   return messages.filter(function isUnreadFromPartner(message: ChatMessage): boolean {
-    return message.senderId !== viewerId && message.readAt === null;
+    return message.senderId !== viewerId && message.readAt === null && message.deletedAt === null;
   }).length;
 }
 

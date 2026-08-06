@@ -60,6 +60,11 @@ export type ChatMessage = {
   offerStatus: OfferStatus | null;
   /** 상대가 읽은 시각. 내가 보낸 메시지의 "안읽음" 표시 기준이다. */
   readAt: string | null;
+  /**
+   * 보낸 사람이 지운 시각. 값이 있으면 `content`는 비어 있다 —
+   * 행은 남고 내용만 사라진다(0029). 되돌아오는 값이 아니다.
+   */
+  deletedAt: string | null;
   createdAt: string;
 };
 

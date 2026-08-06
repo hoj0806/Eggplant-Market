@@ -35,12 +35,36 @@ describe('toChatErrorMessage', function toChatErrorMessageSuite() {
     expect(toChatErrorMessage({})).toBe('메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.');
   });
 
-  it('메시지 수정 거부는 0027의 새 문구로도 잡힌다', function guardMessage() {
-    // 0027이 이 문구를 늘리면서 옛 패턴(`읽음 표시만`)이 안 걸리게 됐다.
-    // 서버 문구를 그대로 넣어, 다음에 또 늘어나면 여기서 먼저 깨지게 한다.
+  it('메시지 수정 거부는 문구가 늘어나도 잡힌다', function guardMessage() {
+    // 0027이 한 번(`읽음 표시만` → `읽음 표시와 제안 답변만`), 0029가 또 한 번
+    // (`…, 삭제만`) 늘렸다. 서버 문구를 그대로 넣어, 다음에 또 늘어나면 여기서 먼저 깨지게 한다.
     expect(
       toChatErrorMessage({ message: '메시지는 읽음 표시와 제안 답변만 바꿀 수 있습니다.' }),
     ).toBe('이미 보낸 메시지는 고칠 수 없습니다.');
+    expect(
+      toChatErrorMessage({ message: '메시지는 읽음 표시와 제안 답변, 삭제만 할 수 있습니다.' }),
+    ).toBe('이미 보낸 메시지는 고칠 수 없습니다.');
+  });
+
+  it('삭제 규칙 위반은 0029의 서버 문구를 그대로 옮겨 준다', function deleteRules() {
+    expect(toChatErrorMessage(new Error('이미 지운 메시지입니다.'))).toBe('이미 지운 메시지입니다.');
+    expect(toChatErrorMessage({ message: '지운 메시지는 되돌릴 수 없습니다.' })).toBe(
+      '지운 메시지는 되돌릴 수 없습니다.',
+    );
+    expect(toChatErrorMessage({ message: '내가 보낸 메시지만 지울 수 있습니다.' })).toBe(
+      '내가 보낸 메시지만 지울 수 있습니다.',
+    );
+    expect(
+      toChatErrorMessage({ message: '가격 제안은 지울 수 없습니다. 답변 대기 중이면 취소할 수 있습니다.' }),
+    ).toBe('가격 제안은 지울 수 없습니다. 답변 대기 중이면 취소할 수 있습니다.');
+  });
+
+  it('남의 방을 나가려 하면 42501에 묻히지 않는다', function leaveOthersRoom() {
+    // 0030의 leave_chat_room은 insufficient_privilege(42501)로 던진다. 코드만 보면
+    // "다시 로그인해 주세요"가 되는데, 다시 로그인해도 남의 방은 나갈 수 없다.
+    expect(
+      toChatErrorMessage({ code: '42501', message: '참여 중인 채팅방이 아닙니다.' }),
+    ).toBe('참여 중인 채팅방이 아닙니다.');
   });
 
   it('답이 끝난 제안을 다시 건드리면 그렇게 알려 준다', function answeredOffer() {

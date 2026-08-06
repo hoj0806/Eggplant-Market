@@ -18,6 +18,7 @@ function toMessage(id: number): ChatMessage {
     offerAmount: null,
     offerStatus: null,
     readAt: null,
+    deletedAt: null,
     createdAt: '2026-08-03T01:00:00.000Z',
   };
 }

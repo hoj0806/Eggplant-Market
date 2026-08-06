@@ -7,7 +7,10 @@ import {
 import { chatMessagesQueryKey, chatRoomQueryKey, chatRoomsQueryKey } from './useChatQueries';
 import {
   cancelOffer,
+  deleteMessage,
+  leaveChatRoom,
   openChatRoom,
+  removeChatImage,
   respondToOffer,
   sendImageMessages,
   sendPriceOfferMessage,
@@ -39,6 +42,18 @@ export type RespondToOfferVariables = {
 /** 취소는 갈 곳이 하나뿐이라 status를 받지 않는다. 무엇을 무를지만 정하면 된다. */
 export type CancelOfferVariables = {
   messageId: number;
+};
+
+/**
+ * 삭제도 무엇을 지울지만 정하면 된다.
+ *
+ * `imagePath`가 딸려 오는 것은 **서버가 `content`를 비우기 때문**이다(0029). 응답이 온
+ * 뒤에는 경로를 알 방법이 없어, 지우기 전 캐시에 있던 값을 화면이 함께 넘긴다.
+ * 글 메시지에는 없다.
+ */
+export type DeleteMessageVariables = {
+  messageId: number;
+  imagePath?: string;
 };
 
 /**
@@ -190,6 +205,71 @@ export function useCancelOfferMutation(
           return withUpdatedMessage(current, message);
         },
       );
+    },
+  });
+}
+
+/**
+ * 보낸 메시지 지우기.
+ *
+ * 소프트 삭제라 캐시에서 **빼지 않고 갈아 끼운다** — 제안 취소와 같은 길이다. 목록에서
+ * 빼려면 `withRemovedMessage` 같은 것이 새로 필요했을 텐데, 지운 말풍선은 자리에 남는다.
+ * 상대 화면도 Realtime UPDATE가 같은 자리를 갈아 끼워 따라온다(0008의 replica identity full).
+ *
+ * 방 요약은 다시 받아 온다. 제안 답변과 다른 점이 여기다 — 마지막 메시지를 지우면
+ * 0029의 트리거가 `chat_rooms.last_message`를 고치므로, 안 부르면 채팅 목록에 지운 문장이
+ * 그대로 남는다.
+ *
+ * 사진 파일은 메시지가 지워진 **뒤에** 걷어낸다. 순서를 뒤집으면 메시지 update가 실패했을 때
+ * 사진만 사라진 말풍선이 남는다. 파일 삭제가 실패해도 이 훅은 성공이다 — 아무도 부를 수 없는
+ * 파일이 남을 뿐이고, 사용자가 할 수 있는 일이 없다.
+ */
+export function useDeleteMessageMutation(
+  roomId: number,
+): UseMutationResult<ChatMessage, Error, DeleteMessageVariables> {
+  const queryClient = useQueryClient();
+
+  return useMutation<ChatMessage, Error, DeleteMessageVariables>({
+    mutationFn: async function remove(variables: DeleteMessageVariables): Promise<ChatMessage> {
+      const message = await deleteMessage(variables.messageId);
+
+      if (variables.imagePath !== undefined) {
+        await removeChatImage(variables.imagePath);
+      }
+
+      return message;
+    },
+    onSuccess: function replaceInCache(message: ChatMessage): void {
+      queryClient.setQueryData<ChatMessageCache>(
+        chatMessagesQueryKey(roomId),
+        function replace(current) {
+          return withUpdatedMessage(current, message);
+        },
+      );
+      queryClient.invalidateQueries({ queryKey: chatRoomsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: chatRoomQueryKey(roomId) });
+    },
+  });
+}
+
+/**
+ * 채팅방 나가기.
+ *
+ * 방 목록만 다시 받으면 된다. 방 하나(`chatRoomQueryKey`)는 건드리지 않는다 —
+ * 나간 방도 주소로는 그대로 열리고(0030), 어차피 화면은 곧 목록으로 옮겨 간다.
+ * 어디로 갈지는 화면이 정한다(useOpenChatRoomMutation과 같은 결이다).
+ */
+export function useLeaveChatRoomMutation(
+  roomId: number,
+): UseMutationResult<void, Error, void> {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, void>({
+    mutationFn: function leave(): Promise<void> {
+      return leaveChatRoom(roomId);
+    },
+    onSuccess: function refreshRooms(): void {
+      queryClient.invalidateQueries({ queryKey: chatRoomsQueryKey() });
     },
   });
 }

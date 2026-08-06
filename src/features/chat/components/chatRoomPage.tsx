@@ -1,7 +1,8 @@
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import ChatComposer from './chatComposer';
 import ChatMessageList from './chatMessageList';
 import ChatPostHeader from './chatPostHeader';
+import LeaveChatRoomButton from './leaveChatRoomButton';
 import BackLink from '../../../shared/ui/backLink';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
@@ -11,6 +12,7 @@ import { useChatMessagesQuery, useChatRoomQuery } from '../hooks/useChatQueries'
 import { useChatRoomRealtime } from '../hooks/useChatRealtime';
 import {
   useCancelOfferMutation,
+  useDeleteMessageMutation,
   useRespondToOfferMutation,
   useSendImageMessagesMutation,
   useSendPriceOfferMutation,
@@ -35,6 +37,7 @@ function toRoomId(raw: string | undefined): number | null {
 
 function ChatRoomPage() {
   const params = useParams();
+  const navigate = useNavigate();
   const roomId = toRoomId(params.roomId);
   const status = useAuthStore(selectAuthStatus);
   const user = useAuthStore(selectAuthUser);
@@ -54,6 +57,7 @@ function ChatRoomPage() {
   const sendOffer = useSendPriceOfferMutation(roomId ?? 0, viewerId);
   const respondToOffer = useRespondToOfferMutation(roomId ?? 0);
   const cancelOffer = useCancelOfferMutation(roomId ?? 0);
+  const deleteMessage = useDeleteMessageMutation(roomId ?? 0);
 
   if (status === 'loading') {
     return <PageSpinner message="세션을 확인하는 중입니다…" />;
@@ -87,7 +91,8 @@ function ChatRoomPage() {
     sendOffer.error ??
     respondToOffer.error ??
     // 취소 실패도 같은 줄에 적는다. 사용자에게는 "방금 누른 것이 안 됐다" 하나다.
-    cancelOffer.error;
+    cancelOffer.error ??
+    deleteMessage.error;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-3 p-6">
@@ -115,6 +120,20 @@ function ChatRoomPage() {
           viewerId={viewerId}
           targetUserId={room.partner.id}
           targetNickname={room.partner.nickname}
+          /*
+            나가기는 신고·차단과 결이 다르지만 같은 메뉴에 둔다. 헤더 한 줄에 ⋯를 둘 놓을
+            자리가 없고, 셋 다 "이 대화를 어떻게 할까"를 정하는 자리라 찾는 곳이 같다.
+          */
+          extraItems={
+            <LeaveChatRoomButton
+              roomId={roomId}
+              onLeft={function goToRoomList(): void {
+                // replace다. 뒤로가기로 방금 나온 방에 다시 들어가면 목록에는 없는데
+                // 화면은 열려 있는 상태가 된다.
+                void navigate('/chats', { replace: true });
+              }}
+            />
+          }
         />
       </header>
 
@@ -129,6 +148,7 @@ function ChatRoomPage() {
         isFetchingNextPage={messagesQuery.isFetchingNextPage}
         isRespondingToOffer={respondToOffer.isPending}
         isCancellingOffer={cancelOffer.isPending}
+        isDeletingMessage={deleteMessage.isPending}
         onLoadMore={function loadOlder(): void {
           void messagesQuery.fetchNextPage();
         }}
@@ -137,6 +157,9 @@ function ChatRoomPage() {
         }}
         onCancelOffer={function handleCancel(messageId: number): void {
           cancelOffer.mutate({ messageId });
+        }}
+        onDeleteMessage={function handleDelete(messageId: number, imagePath?: string): void {
+          deleteMessage.mutate({ messageId, imagePath });
         }}
       />
 

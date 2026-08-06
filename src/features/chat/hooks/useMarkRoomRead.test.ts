@@ -6,7 +6,11 @@ jest.mock('../api/chatApi', function mockChatApi() {
   return { markRoomRead: jest.fn() };
 });
 
-function toMessage(senderId: string, readAt: string | null): ChatMessage {
+function toMessage(
+  senderId: string,
+  readAt: string | null,
+  deletedAt: string | null = null,
+): ChatMessage {
   return {
     id: Math.random(),
     roomId: 1,
@@ -16,6 +20,7 @@ function toMessage(senderId: string, readAt: string | null): ChatMessage {
     offerAmount: null,
     offerStatus: null,
     readAt,
+    deletedAt,
     createdAt: '2026-08-03T01:00:00.000Z',
   };
 }
@@ -48,5 +53,16 @@ describe('countUnreadFromPartner', function countUnreadFromPartnerSuite() {
 
   it('메시지가 없으면 0이다', function noMessages() {
     expect(countUnreadFromPartner([], 'me')).toBe(0);
+  });
+
+  it('상대가 지운 메시지는 안 읽었어도 세지 않는다', function ignoresDeleted() {
+    // 서버가 배지에서 빼는 기준과 같다(0029). 안 맞추면 지운 줄 하나 때문에
+    // 방에 들어갈 때마다 읽음 처리 요청이 한 번씩 더 나간다.
+    const messages = [
+      toMessage('partner', null, '2026-08-06T02:00:00.000Z'),
+      toMessage('partner', null),
+    ];
+
+    expect(countUnreadFromPartner(messages, 'me')).toBe(1);
   });
 });
