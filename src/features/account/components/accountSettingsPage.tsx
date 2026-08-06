@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import DeleteAccountSection from './deleteAccountSection';
 import PasswordChangeForm from './passwordChangeForm';
+import PageHeader from '../../../shared/ui/pageHeader';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { useChangePasswordMutation } from '../hooks/useAccountMutations';
@@ -59,17 +59,12 @@ function AccountSettingsPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-6 p-6">
-      <header className="flex flex-col gap-2">
-        <Link
-          to="/my"
-          className="text-sm text-gray-500 transition hover:text-gray-700
-                     dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          ← 마이페이지
-        </Link>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">계정 설정</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{user.email ?? ''}</p>
-      </header>
+      <PageHeader
+        backTo="/my"
+        backLabel="마이페이지"
+        title="계정 설정"
+        description={user.email ?? ''}
+      />
 
       {canChangePassword ? (
         <section className={SECTION_CLASS}>

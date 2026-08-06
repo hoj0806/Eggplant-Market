@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import PageHeader from '../../../shared/ui/pageHeader';
 
 type MyListLayoutProps = {
   title: string;
@@ -10,16 +10,7 @@ type MyListLayoutProps = {
 function MyListLayout(props: MyListLayoutProps) {
   return (
     <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
-      <header className="flex flex-col gap-2">
-        <Link
-          to="/my"
-          className="text-sm text-gray-500 transition hover:text-gray-700
-                     dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          ← 마이페이지
-        </Link>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">{props.title}</h1>
-      </header>
+      <PageHeader backTo="/my" backLabel="마이페이지" title={props.title} />
 
       {props.children}
     </main>
