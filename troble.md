@@ -1998,3 +1998,67 @@ update가 바꾸지 않는 칸을 보므로 `using` 하나로 충분했고, 그�
 실패가 **"통과해야 하는데 거절"** 쪽이라 다행이었다. 반대 방향이었다면
 (막아야 하는데 통과) 정책이 헐거워진 줄 모르고 지나갔을 것이다 — `troble.md`의
 "롤백 테스트가 '통과'라고 거짓말한다"가 바로 그 반대 방향이었다.
+
+## 스타일 문자열 하나가 기능 전체를 끌고 온다 (2026-08-06)
+
+### 증상
+
+0031(양쪽 나가면 완전 삭제)의 `leaveChatRoomButton`에 컴포넌트 테스트를 붙이자마자
+로드 단계에서 죽었다. 그 컴포넌트는 supabase를 부르지 않는다.
+
+```
+SyntaxError: Cannot use 'import.meta' outside a module
+
+  at src/features/block/api/blockApi.ts:1:1
+  at src/features/block/hooks/useBlockMutations.ts:7:1
+  at src/features/block/components/blockToggleButton.tsx:2:1
+  at src/features/block/components/safetyMenu.tsx:2:1
+  at src/features/chat/components/leaveChatRoomButton.tsx:2:1
+  at src/features/chat/components/leaveChatRoomButton.test.tsx:4:1
+```
+
+`#5`(ts-jest가 `import.meta`를 변환하지 않는다)와 같은 증상인데, 그때의 해결책
+("`api/` 모듈을 mock한다")을 그대로 쓰면 **`chat` 테스트가 `block`의 api를 mock하게 된다.**
+남의 기능 내부를 아는 테스트다. 뭔가 잘못됐다는 신호였다.
+
+### 원인
+
+⋯ 메뉴 항목의 **클래스 문자열 하나**를 `safetyMenu.tsx`에서 가져오고 있었다.
+
+```ts
+import { SAFETY_MENU_ITEM_CLASS } from '../../block/components/safetyMenu';
+```
+
+문자열 하나를 쓰려고 그 파일을 불러오고, 그 파일이 `BlockToggleButton`을,
+그것이 훅을, 훅이 `blockApi`를, `blockApi`가 `supabaseClient`를 부른다.
+**타입이 아니라 값이라 `import type`으로 지워지지도 않는다.**
+
+메뉴 하나에 신고·차단·나가기가 함께 놓이니 같은 생김새를 써야 하는 것은 맞았다.
+틀린 것은 **그 생김새를 어느 기능 안에 둔 것**이다.
+
+### 해결
+
+`src/shared/ui/menuItem.ts`로 올렸다.
+
+```ts
+export const MENU_ITEM_CLASS =
+  'w-full px-4 py-2.5 text-left text-sm transition hover:bg-gray-50 dark:hover:bg-gray-800';
+```
+
+세 곳이 여기서 가져다 쓰고 색만 각자 붙인다(`safetyMenu` · `blockToggleButton` ·
+`leaveChatRoomButton`). 덤으로 `blockToggleButton`이 따로 들고 있던 **같은 문자열의 사본
+하나가 사라졌다** — 원래도 중복이었는데 눈에 안 띄었다.
+
+테스트는 `chat/api/chatApi`만 mock하면 된다. 남의 기능을 몰라도 된다.
+
+### 남는 교훈
+
+**기능 사이에 공유되는 것이 값이면, 그 값은 기능 밖에 둔다.**
+
+타입은 `import type`으로 지워져 런타임 그래프에 안 남지만 상수·함수는 남는다.
+"문자열 하나인데 뭐" 하고 feature 안에서 꺼내 쓰면 그 문자열이 **그 기능의 의존성을 통째로
+끌고 온다.** 화면에서는 안 보이고 번들이 조금 커질 뿐이라, 이 저장소에서는
+**테스트가 `import.meta`에 닿아 죽는 것이 사실상 유일한 경보**다.
+
+`#5`의 해결책(api mock)을 반사적으로 쓰기 전에 **왜 그 파일이 그래프에 들어왔는지**를
+먼저 본다. 부를 이유가 있으면 mock이 맞고, 문자열 하나 때문이면 옮기는 것이 맞다.

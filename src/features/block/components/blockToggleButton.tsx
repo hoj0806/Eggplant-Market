@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MENU_ITEM_CLASS as BASE_MENU_ITEM_CLASS } from '../../../shared/ui/menuItem';
 import { useBlockUserMutation, useUnblockUserMutation } from '../hooks/useBlockMutations';
 import { useBlockStatusQuery } from '../hooks/useBlockQueries';
 import { toBlockErrorMessage } from '../utils/blockErrorMessage';
@@ -14,9 +15,7 @@ type BlockToggleButtonProps = {
   variant: 'menu' | 'primary';
 };
 
-const MENU_ITEM_CLASS =
-  'w-full px-4 py-2.5 text-left text-sm transition hover:bg-gray-50 disabled:opacity-40 ' +
-  'dark:hover:bg-gray-800';
+const MENU_ITEM_CLASS = BASE_MENU_ITEM_CLASS + ' disabled:opacity-40';
 const PRIMARY_CLASS =
   'w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60';
 

@@ -23,6 +23,9 @@ const MESSAGE_COLUMNS =
 const DEFAULT_IMAGE_EXTENSION = 'jpg';
 const SAFE_EXTENSION_PATTERN = /^[a-zA-Z0-9]{1,5}$/;
 
+/** storage.list의 기본 상한이 100이다. 그 이상은 offset으로 넘긴다(delete-account와 같다). */
+const STORAGE_LIST_PAGE_SIZE = 100;
+
 /** 메시지 한 페이지 크기. 최신 쪽부터 이만큼 읽고 위로 거슬러 올라간다. */
 export const CHAT_MESSAGE_PAGE_SIZE = 30;
 
@@ -393,13 +396,83 @@ export async function removeChatImage(path: string): Promise<void> {
  * 대화도 방도 지우지 않고 상대 화면은 그대로다(0030). 나간 뒤에 메시지가 오면 목록에
  * 다시 나타난다. 내가 구매자인지 판매자인지는 서버가 방을 읽어 판단하므로 넘기지 않는다 —
  * open_chat_room이 seller_id를 받지 않는 것과 같은 이유다.
+ *
+ * **내가 마지막 한 사람이면 참이 온다**(0031). 그때는 사진을 지우고 `purgeChatRoom`을
+ * 부른다 — 그 순서인 이유는 방이 사라지면 사진 목록조차 못 읽기 때문이다.
  */
-export async function leaveChatRoom(roomId: number): Promise<void> {
-  const { error } = await supabase.rpc('leave_chat_room', { p_room_id: roomId });
+export async function leaveChatRoom(roomId: number): Promise<boolean> {
+  const { data, error } = await supabase.rpc('leave_chat_room', { p_room_id: roomId });
 
   if (error !== null) {
     throw error;
   }
+
+  return data === true;
+}
+
+/**
+ * 양쪽이 다 나간 방을 완전히 지운다.
+ *
+ * 메시지는 cascade로, 알림은 서버가 함께 지운다(0031). 조건이 그사이 깨졌으면
+ * 거짓만 돌아온다 — 상대가 주소로 들어와 말을 걸었을 수 있고, 그건 오류가 아니다.
+ */
+export async function purgeChatRoom(roomId: number): Promise<boolean> {
+  const { data, error } = await supabase.rpc('purge_chat_room', { p_room_id: roomId });
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return data === true;
+}
+
+/**
+ * 방 폴더의 사진을 모두 걷어낸다.
+ *
+ * `storage.objects` 행을 지워도 실제 파일은 남으므로 **DB가 대신해 줄 수 없는 일**이다.
+ * 회원탈퇴(`delete-account` Edge Function)가 같은 이유로 같은 모양의 코드를 갖고 있다.
+ *
+ * 경로가 `{room_id}/{user_id}/…`라 사람마다 한 번씩 훑는다(0008). 방 번호만으로 한 번에
+ * 훑으면 첫 겹이 폴더라 파일이 안 잡힌다 — 참여자가 둘뿐이라 아는 값을 그냥 쓴다.
+ *
+ * `chat_images_delete`가 상대 폴더까지 열리는 것은 **지울 수 있는 방일 때뿐**이다(0031).
+ * 오가는 중인 방에서 부르면 상대 파일은 조용히 안 지워진다.
+ */
+export async function removeChatRoomImages(roomId: number, userIds: string[]): Promise<void> {
+  const paths: string[] = [];
+
+  for (const userId of userIds) {
+    const prefix = `${roomId}/${userId}`;
+    let offset = 0;
+
+    for (;;) {
+      const { data, error } = await supabase.storage
+        .from(CHAT_IMAGE_BUCKET)
+        .list(prefix, { limit: STORAGE_LIST_PAGE_SIZE, offset });
+
+      if (error !== null || data === null) {
+        break;
+      }
+
+      for (const entry of data) {
+        // 폴더는 id가 null로 온다. 이 아래로는 한 겹 더 들어가지 않는다.
+        if (entry.id !== null) {
+          paths.push(`${prefix}/${entry.name}`);
+        }
+      }
+
+      if (data.length < STORAGE_LIST_PAGE_SIZE) {
+        break;
+      }
+      offset += STORAGE_LIST_PAGE_SIZE;
+    }
+  }
+
+  if (paths.length === 0) {
+    return;
+  }
+
+  await supabase.storage.from(CHAT_IMAGE_BUCKET).remove(paths);
 }
 
 /**
