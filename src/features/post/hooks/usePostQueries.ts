@@ -9,6 +9,7 @@ import {
   fetchNeighborhoodPosts,
   fetchPostDetail,
   searchPosts,
+  type PostSearchArea,
   type PostSearchCursor,
 } from '../api/postApi';
 import { toNextPostSearchCursor } from '../utils/postSearchCursor';
@@ -18,6 +19,14 @@ import type { PostDetail, PostSummary } from '../types';
 
 const POST_DETAIL_STALE_TIME_MS = 30_000;
 const POST_LIST_STALE_TIME_MS = 30_000;
+
+/**
+ * 기준이 아직 없을 때 쓰는 자리표시자. 이 키로는 요청이 나가지 않는다(enabled가 막는다).
+ *
+ * 키를 아예 비우지 않는 이유는 훅 규칙이다 — `useInfiniteQuery`는 조건부로 부를 수 없어
+ * 기준이 없어도 키 하나는 있어야 한다. 실제 법정동 코드와 겹치지 않는 값을 쓴다.
+ */
+const NOWHERE_AREA: PostSearchArea = { kind: 'region', regionCode: 'nowhere' };
 
 export type PostSearchQueryResult = UseInfiniteQueryResult<InfiniteData<PostSummary[]>, Error>;
 
@@ -37,36 +46,39 @@ export function neighborhoodPostsQueryKey(regionCode: string): ReadonlyArray<str
 }
 
 /**
- * 필터나 정렬이 하나라도 바뀌면 다른 목록이므로 키가 달라져야 한다.
+ * 기준·필터·정렬이 하나라도 바뀌면 다른 목록이므로 키가 달라져야 한다.
  * 객체를 그대로 넣는다 — TanStack Query는 키를 구조적으로 비교하므로 직렬화할 필요가 없다.
+ *
+ * 기준(`area`)도 통째로 넣는다. 반경만 바꿔도 결과가 달라지므로 좌표와 반경이 모두 키에 들어와야
+ * 한다 — 'radius' 한 글자만 넣으면 반경을 2km에서 5km로 바꿨을 때 옛 목록이 그대로 보인다.
  */
 export function postSearchQueryKey(
-  regionCode: string,
+  area: PostSearchArea,
   filters: PostSearchFilters,
   sort: PostSortOption,
-): ReadonlyArray<string | PostSearchFilters> {
-  return ['posts', 'search', regionCode, filters, sort];
+): ReadonlyArray<string | PostSearchArea | PostSearchFilters> {
+  return ['posts', 'search', area, filters, sort];
 }
 
 /**
  * 검색·필터·정렬 결과. 무한 스크롤이라 페이지 단위로 쌓인다.
  *
- * 동네를 아직 정하지 않았으면(regionCode가 null) 요청하지 않는다 —
- * 검색은 언제나 내 동네 안에서만 돌기 때문이다.
+ * 기준이 아직 정해지지 않았으면(area가 null) 요청하지 않는다 —
+ * 검색은 언제나 어떤 범위 안에서만 돌기 때문이다. 동네를 안 정한 사용자가 그렇다.
  */
 export function useSearchPostsQuery(
-  regionCode: string | null,
+  area: PostSearchArea | null,
   filters: PostSearchFilters,
   sort: PostSortOption,
 ): PostSearchQueryResult {
   return useInfiniteQuery<PostSummary[], Error, InfiniteData<PostSummary[]>>({
-    queryKey: postSearchQueryKey(regionCode ?? 'nowhere', filters, sort),
+    queryKey: postSearchQueryKey(area ?? NOWHERE_AREA, filters, sort),
     queryFn: function loadPage({ pageParam }): Promise<PostSummary[]> {
-      if (regionCode === null) {
+      if (area === null) {
         return Promise.reject(new Error('동네를 먼저 설정해 주세요.'));
       }
       return searchPosts({
-        regionCode,
+        area,
         filters,
         sort,
         cursor: (pageParam as PostSearchCursor | null) ?? null,
@@ -77,7 +89,7 @@ export function useSearchPostsQuery(
     getNextPageParam: function toNextCursor(lastPage: PostSummary[]) {
       return toNextPostSearchCursor(lastPage, sort);
     },
-    enabled: regionCode !== null,
+    enabled: area !== null,
     staleTime: POST_LIST_STALE_TIME_MS,
   });
 }

@@ -1,9 +1,11 @@
 import { type ChangeEvent } from 'react';
-import { POST_SORT_OPTIONS, toPostSortOption } from '../utils/postSort';
-import type { PostSortOption } from '../types';
+import { postSortOptions, toPostSortOption } from '../utils/postSort';
+import type { PostSearchScope, PostSortOption } from '../types';
 
 type PostSortSelectProps = {
   value: PostSortOption;
+  /** 고를 수 있는 정렬이 기준마다 다르다 — 거리순은 반경 기준에만 있다(0024). */
+  scope: PostSearchScope;
   onChange(sort: PostSortOption): void;
 };
 
@@ -18,7 +20,7 @@ type PostSortSelectProps = {
  */
 function PostSortSelect(props: PostSortSelectProps) {
   function handleChange(event: ChangeEvent<HTMLSelectElement>): void {
-    props.onChange(toPostSortOption(event.target.value));
+    props.onChange(toPostSortOption(event.target.value, props.scope));
   }
 
   return (
@@ -32,7 +34,7 @@ function PostSortSelect(props: PostSortSelectProps) {
                  text-gray-700 outline-none transition focus:ring-2 focus:ring-emerald-500/40
                  dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
     >
-      {POST_SORT_OPTIONS.map(function toOption(option) {
+      {postSortOptions(props.scope).map(function toOption(option) {
         return (
           <option key={option.value} value={option.value}>
             {option.label}

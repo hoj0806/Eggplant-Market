@@ -21,6 +21,7 @@ function toPost(id: number, overrides: Partial<PostSummary> = {}): PostSummary {
     likeCount: 0,
     viewCount: 0,
     bumpedAt: BUMPED_AT,
+    distanceM: null,
     ...overrides,
   };
 }
@@ -74,5 +75,31 @@ describe('toNextPostSearchCursor', function toNextPostSearchCursorSuite() {
 
     expect(toNextPostSearchCursor(page, 'price_asc')).toEqual({ value: '0', id: 99 });
     expect(toNextPostSearchCursor(page, 'popular')).toEqual({ value: '0', id: 99 });
+  });
+
+  it('거리순은 마지막 글까지의 거리를 커서로 삼는다', function distanceSort() {
+    const page = toFullPage(toPost(99, { distanceM: 1000.4738368055285 }));
+
+    // 소수점을 잘라내면 안 된다. 서버는 이 문자열을 double precision으로 되돌려
+    // 그대로 비교하므로, 값이 조금이라도 어긋나면 경계의 글이 겹치거나 사라진다.
+    expect(toNextPostSearchCursor(page, 'distance')).toEqual({
+      value: '1000.4738368055285',
+      id: 99,
+    });
+  });
+
+  it('거리를 모르면 다음 페이지를 부르지 않는다', function distanceMissing() {
+    // 거리순은 반경 기준에서만 고를 수 있어(0024) 실제로는 오지 않는 경우다.
+    // 0으로 갈음하면 서버가 "0m보다 먼 글부터"로 읽어 이미 본 목록을 처음부터 다시 준다.
+    const page = toFullPage(toPost(99, { distanceM: null }));
+
+    expect(toNextPostSearchCursor(page, 'distance')).toBeUndefined();
+  });
+
+  it('거리 0도 값이 있는 것으로 본다', function distanceZero() {
+    // 내 동네에 올라온 글은 대표 좌표가 같아 거리가 0이다. 흔한 값이다.
+    const page = toFullPage(toPost(99, { distanceM: 0 }));
+
+    expect(toNextPostSearchCursor(page, 'distance')).toEqual({ value: '0', id: 99 });
   });
 });

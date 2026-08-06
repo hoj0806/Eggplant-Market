@@ -1,3 +1,4 @@
+import { DEFAULT_SEARCH_RADIUS_M } from '../utils/searchRadius';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
 import {
@@ -10,6 +11,14 @@ import type { Region } from '../../region/types';
 export type ActiveRegion = {
   /** 지금 보고 있는 동네. 아직 정해지지 않았으면 null. */
   region: Region | null;
+  /**
+   * 반경 기준으로 볼 때 쓰는 반경(미터).
+   *
+   * 게스트에게는 언제나 기본값이다 — 저장할 곳이 없다. 동네처럼 브라우저에 남기지 않은 것은
+   * 반경이 **동네가 정해진 뒤에야 뜻이 서는 값**이라서다. 동네 없이 반경만 남아 있으면
+   * 다음에 왔을 때 무엇을 기준으로 잰 값인지 알 수 없다.
+   */
+  searchRadiusM: number;
   /** 세션·프로필을 확인하는 중. 이때 "동네를 정하세요"를 띄우면 깜빡인다. */
   isLoading: boolean;
   /** 비로그인 사용자인가. 동네를 고르라고 안내하는 문구가 달라진다. */
@@ -37,17 +46,30 @@ export function useActiveRegion(): ActiveRegion {
   const profileQuery = useMyProfileQuery(isMember ? (user?.id ?? null) : null);
 
   if (status === 'loading') {
-    return { region: null, isLoading: true, isGuest: false, setGuestRegion };
+    return {
+      region: null,
+      searchRadiusM: DEFAULT_SEARCH_RADIUS_M,
+      isLoading: true,
+      isGuest: false,
+      setGuestRegion,
+    };
   }
 
   if (isMember) {
     return {
       region: profileQuery.data?.region ?? null,
+      searchRadiusM: profileQuery.data?.searchRadiusM ?? DEFAULT_SEARCH_RADIUS_M,
       isLoading: profileQuery.isLoading,
       isGuest: false,
       setGuestRegion,
     };
   }
 
-  return { region: guestRegion, isLoading: false, isGuest: true, setGuestRegion };
+  return {
+    region: guestRegion,
+    searchRadiusM: DEFAULT_SEARCH_RADIUS_M,
+    isLoading: false,
+    isGuest: true,
+    setGuestRegion,
+  };
 }

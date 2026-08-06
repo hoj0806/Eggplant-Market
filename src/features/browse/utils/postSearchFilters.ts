@@ -10,15 +10,20 @@
  */
 
 import { DEFAULT_POST_SORT, SORT_PARAM, toPostSortOption } from './postSort';
-import type { PostSearchFilters, PostSortOption } from '../types';
+import type { PostSearchFilters, PostSearchScope, PostSortOption } from '../types';
 
 export const KEYWORD_PARAM = 'q';
 export const CATEGORY_PARAM = 'category';
 export const MIN_PRICE_PARAM = 'minPrice';
 export const MAX_PRICE_PARAM = 'maxPrice';
 export const AVAILABLE_PARAM = 'available';
+export const SCOPE_PARAM = 'scope';
 
 const AVAILABLE_ON = '1';
+const SCOPE_RADIUS = 'radius';
+
+/** 지금까지의 유일한 기준. URL에 아무 말이 없으면 이쪽이다. */
+export const DEFAULT_POST_SEARCH_SCOPE: PostSearchScope = 'region';
 
 export const EMPTY_POST_SEARCH_FILTERS: PostSearchFilters = {
   keyword: '',
@@ -60,15 +65,32 @@ export function fromSearchParams(params: URLSearchParams): PostSearchFilters {
   };
 }
 
-/** 정렬도 필터와 같은 자리(URL)에 둔다. 모르는 값이면 기본 정렬로 되돌린다. */
+/**
+ * 검색 기준도 필터·정렬과 같은 자리(URL)에 둔다.
+ *
+ * 프로필에 저장하지 않는 이유는 이것이 **지금 이 화면을 어떻게 보고 있는가**이지
+ * 사용자의 설정이 아니기 때문이다. 반경 자체(`search_radius_m`)는 설정이라 프로필에 있지만,
+ * "지금 반경으로 보는 중인가"는 뒤로가기로 되돌아가야 하는 값이다.
+ */
+export function scopeFromSearchParams(params: URLSearchParams): PostSearchScope {
+  return params.get(SCOPE_PARAM) === SCOPE_RADIUS ? 'radius' : DEFAULT_POST_SEARCH_SCOPE;
+}
+
+/**
+ * 정렬도 필터와 같은 자리(URL)에 둔다. 모르는 값이면 기본 정렬로 되돌린다.
+ *
+ * 기준을 함께 읽어 넘긴다 — 거리순은 반경 기준에서만 뜻이 있어서(0024),
+ * 기준을 모르면 "아는 값인지"를 판단할 수 없다.
+ */
 export function sortFromSearchParams(params: URLSearchParams): PostSortOption {
-  return toPostSortOption(params.get(SORT_PARAM));
+  return toPostSortOption(params.get(SORT_PARAM), scopeFromSearchParams(params));
 }
 
 /** 기본값인 항목은 키 자체를 넣지 않는다. 주소창이 짧아야 사용자가 무엇을 걸었는지 읽을 수 있다. */
 export function toSearchParams(
   filters: PostSearchFilters,
   sort: PostSortOption = DEFAULT_POST_SORT,
+  scope: PostSearchScope = DEFAULT_POST_SEARCH_SCOPE,
 ): URLSearchParams {
   const params = new URLSearchParams();
 
@@ -89,6 +111,9 @@ export function toSearchParams(
   }
   if (sort !== DEFAULT_POST_SORT) {
     params.set(SORT_PARAM, sort);
+  }
+  if (scope !== DEFAULT_POST_SEARCH_SCOPE) {
+    params.set(SCOPE_PARAM, SCOPE_RADIUS);
   }
 
   return params;

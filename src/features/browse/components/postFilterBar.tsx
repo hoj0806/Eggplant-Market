@@ -2,11 +2,13 @@ import PostSortSelect from './postSortSelect';
 import { useCategoriesQuery } from '../../category/hooks/useCategoriesQuery';
 import { findCategoryName } from '../../category/utils/toCategoryTree';
 import { hasActiveFilter } from '../utils/postSearchFilters';
-import type { PostSearchFilters, PostSortOption } from '../types';
+import type { PostSearchFilters, PostSearchScope, PostSortOption } from '../types';
 
 type PostFilterBarProps = {
   filters: PostSearchFilters;
   sort: PostSortOption;
+  /** 정렬 목록이 기준에 따라 다르다 — 거리순은 반경 기준에만 있다(0024). */
+  scope: PostSearchScope;
   isPanelOpen: boolean;
   onTogglePanel(): void;
   onReset(): void;
@@ -79,7 +81,7 @@ function PostFilterBar(props: PostFilterBarProps) {
 
         {/* 정렬은 "초기화" 대상이 아니다. 조건을 다 풀어도 보던 순서는 그대로 두는 편이 덜 놀랍다. */}
         <div className="ml-auto">
-          <PostSortSelect value={props.sort} onChange={props.onSortChange} />
+          <PostSortSelect value={props.sort} scope={props.scope} onChange={props.onSortChange} />
         </div>
       </div>
 

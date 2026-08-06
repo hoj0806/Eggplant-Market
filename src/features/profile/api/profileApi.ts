@@ -1,5 +1,6 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
 import { toAvatarStoragePath } from '../utils/avatarStoragePath';
+import { toSearchRadius } from '../../browse/utils/searchRadius';
 import type { Region } from '../../region/types';
 import type { Profile } from '../types';
 
@@ -7,7 +8,7 @@ const AVATAR_BUCKET = 'avatars';
 // 한 줄 리터럴이어야 한다. 문자열을 +로 이으면 리터럴 타입을 잃어
 // supabase-js가 select 결과를 GenericStringError로 추론한다.
 const PROFILE_COLUMNS =
-  'id, nickname, avatar_url, manner_temp, dong_name, region_code, region_depth1, region_depth2, region_depth3, location_lat, location_lng, onboarded_at';
+  'id, nickname, avatar_url, manner_temp, dong_name, region_code, region_depth1, region_depth2, region_depth3, location_lat, location_lng, search_radius_m, onboarded_at';
 const DEFAULT_AVATAR_EXTENSION = 'png';
 const SAFE_EXTENSION_PATTERN = /^[a-zA-Z0-9]{1,5}$/;
 
@@ -23,6 +24,7 @@ type ProfileRow = {
   region_depth3: string | null;
   location_lat: number | null;
   location_lng: number | null;
+  search_radius_m: number;
   onboarded_at: string | null;
 };
 
@@ -37,6 +39,12 @@ export type CompleteOnboardingInput = {
 export type UpdateProfileRegionInput = {
   userId: string;
   region: Region;
+};
+
+export type UpdateSearchRadiusInput = {
+  userId: string;
+  /** 미터. 서버가 100~20000으로 한 번 더 조인다(0024). */
+  radiusM: number;
 };
 
 export type UpdateProfileBasicsInput = {
@@ -77,6 +85,7 @@ function toProfile(row: ProfileRow): Profile {
     avatarUrl: row.avatar_url,
     mannerTemp: Number(row.manner_temp),
     region: toRegion(row),
+    searchRadiusM: toSearchRadius(row.search_radius_m),
     onboardedAt: row.onboarded_at,
   };
 }
@@ -270,6 +279,31 @@ export async function updateProfileRegion(input: UpdateProfileRegionInput): Prom
   const { data, error } = await supabase
     .from('profiles')
     .update(toRegionColumns(input.region))
+    .eq('id', input.userId)
+    .select(PROFILE_COLUMNS)
+    .single();
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return toProfile(data as ProfileRow);
+}
+
+/**
+ * 검색 반경만 바꾼다.
+ *
+ * 동네와 한 화면에 있지만 저장은 따로다 — 동네는 "이 동네로 변경" 버튼까지 가는 절차인데
+ * 반경은 고르는 즉시 정해지는 한 번의 선택이라, 한 payload로 묶으면 동네를 고르다 만 사용자가
+ * 반경도 못 바꾼다.
+ *
+ * 0023의 guard는 이 칸을 잠그지 않는다. 사용자가 자기 뜻으로 정하는 값이고 남에게 보여도
+ * 거짓말이 되지 않는다. 범위는 서버가 조인다(0024, 100~20000).
+ */
+export async function updateSearchRadius(input: UpdateSearchRadiusInput): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ search_radius_m: input.radiusM })
     .eq('id', input.userId)
     .select(PROFILE_COLUMNS)
     .single();

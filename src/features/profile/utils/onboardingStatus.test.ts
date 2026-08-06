@@ -18,6 +18,7 @@ function createProfile(overrides: Partial<Profile> = {}): Profile {
     avatarUrl: null,
     mannerTemp: 36.5,
     region: REGION,
+    searchRadiusM: 2000,
     onboardedAt: '2026-08-02T00:00:00.000Z',
     ...overrides,
   };

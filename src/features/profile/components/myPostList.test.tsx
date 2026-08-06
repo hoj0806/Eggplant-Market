@@ -17,6 +17,7 @@ function createPost(id: number, sortAt: string): MyPostSummary {
     likeCount: 0,
     viewCount: 0,
     bumpedAt: '2026-08-01T00:00:00.000Z',
+    distanceM: null,
     sortAt,
   };
 }

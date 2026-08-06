@@ -88,4 +88,11 @@ export type PostSummary = {
   likeCount: number;
   viewCount: number;
   bumpedAt: string;
+  /**
+   * 검색 기준 좌표에서 이 글의 **동네까지**의 거리(미터). 법정동 기준으로 볼 때는 null이다.
+   *
+   * 물건까지의 거리가 아니다 — `posts.location`이 판매자 동네의 대표 좌표라(0005)
+   * 같은 동 글은 이 값이 전부 같다. 거리순의 커서가 이 값이다.
+   */
+  distanceM: number | null;
 };

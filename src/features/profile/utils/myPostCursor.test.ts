@@ -20,6 +20,7 @@ function createPost(id: number, sortAt: string): MyPostSummary {
     likeCount: 0,
     viewCount: 0,
     bumpedAt: sortAt,
+    distanceM: null,
     sortAt,
   };
 }

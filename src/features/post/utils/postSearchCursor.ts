@@ -9,7 +9,7 @@ import type { PostSummary } from '../types';
  * 찜순으로 보면서 bumped_at을 보내면 like_count와 시각 문자열을 견주다 캐스팅에서 죽는다.
  * 그래서 정렬 기준을 받아 여기서 한 번에 정한다.
  */
-function toCursorValue(post: PostSummary, sort: PostSortOption): string {
+function toCursorValue(post: PostSummary, sort: PostSortOption): string | null {
   switch (sort) {
     case 'popular':
       return String(post.viewCount);
@@ -18,6 +18,11 @@ function toCursorValue(post: PostSummary, sort: PostSortOption): string {
     case 'price_asc':
     case 'price_desc':
       return String(post.price);
+    case 'distance':
+      // 거리순은 반경 기준에서만 고를 수 있어(0024) 여기가 null일 수 없다.
+      // 그래도 0으로 갈음하지 않는다 — 서버는 그것을 "0m보다 먼 글부터"로 읽어
+      // 이미 본 목록을 처음부터 다시 준다. 다음 페이지를 포기하는 편이 낫다.
+      return post.distanceM === null ? null : String(post.distanceM);
     case 'latest':
       return post.bumpedAt;
   }
@@ -41,6 +46,12 @@ export function toNextPostSearchCursor(
   }
 
   const lastPost = lastPage[lastPage.length - 1];
+  const value = toCursorValue(lastPost, sort);
 
-  return { value: toCursorValue(lastPost, sort), id: lastPost.id };
+  // 정렬값이 없으면 다음 페이지의 시작점을 가리킬 수 없다. 여기서 멈추는 것이 유일한 정답이다.
+  if (value === null) {
+    return undefined;
+  }
+
+  return { value, id: lastPost.id };
 }
