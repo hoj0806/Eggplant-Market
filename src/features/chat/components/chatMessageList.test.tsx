@@ -41,7 +41,9 @@ type ListOverrides = {
   isLoading?: boolean;
   isError?: boolean;
   isRespondingToOffer?: boolean;
+  isCancellingOffer?: boolean;
   onRespondToOffer?: jest.Mock;
+  onCancelOffer?: jest.Mock;
 };
 
 function renderList(messages: ChatMessage[], overrides: ListOverrides = {}) {
@@ -57,8 +59,10 @@ function renderList(messages: ChatMessage[], overrides: ListOverrides = {}) {
         hasNextPage={false}
         isFetchingNextPage={false}
         isRespondingToOffer={overrides.isRespondingToOffer ?? false}
+        isCancellingOffer={overrides.isCancellingOffer ?? false}
         onLoadMore={jest.fn()}
         onRespondToOffer={overrides.onRespondToOffer ?? jest.fn()}
+        onCancelOffer={overrides.onCancelOffer ?? jest.fn()}
       />
     </QueryClientProvider>,
   );
@@ -166,5 +170,51 @@ describe('ChatMessageList', function chatMessageListSuite() {
 
     expect(screen.getByRole('button', { name: '수락' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '거절' })).toBeDisabled();
+  });
+
+  it('내가 보낸 대기 중인 제안에는 취소 버튼이 붙는다', function myPendingOfferHasCancel() {
+    renderList([toOffer({ id: 1 })]);
+
+    expect(screen.getByText('답변 대기 중')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '제안 취소' })).toBeInTheDocument();
+  });
+
+  it('받은 제안에는 취소 버튼이 없다', function receivedOfferHasNoCancel() {
+    renderList([toOffer({ id: 1, senderId: 'partner' })]);
+
+    expect(screen.queryByRole('button', { name: '제안 취소' })).not.toBeInTheDocument();
+  });
+
+  it('답이 끝난 내 제안에는 취소 버튼이 없다', function answeredOfferHasNoCancel() {
+    renderList([toOffer({ id: 1, offerStatus: 'accepted' })]);
+
+    expect(screen.queryByRole('button', { name: '제안 취소' })).not.toBeInTheDocument();
+  });
+
+  it('취소한 제안은 말풍선이 남고 상태만 바뀐다', function cancelledOfferStays() {
+    // 지우지 않는다 — 0008이 "대화 기록이 사후에 바뀌면 채팅을 신뢰할 수 없다"고 정한 자리다.
+    renderList([toOffer({ id: 1, offerStatus: 'cancelled' })]);
+
+    expect(screen.getByText('40,000원')).toBeInTheDocument();
+    expect(screen.getByText('취소됨')).toBeInTheDocument();
+  });
+
+  it('취소를 누르면 메시지 번호를 알려 준다', async function cancelsOffer() {
+    const onCancelOffer = jest.fn();
+    renderList([toOffer({ id: 42 })], { onCancelOffer });
+
+    await userEvent.click(screen.getByRole('button', { name: '제안 취소' }));
+
+    expect(onCancelOffer).toHaveBeenCalledWith(42);
+  });
+
+  it('취소가 도는 중에는 취소 버튼만 잠근다', function locksOnlyCancel() {
+    // 수락·거절과 누르는 사람이 달라, 한쪽이 도는 동안 다른 쪽까지 잠그면 안 된다.
+    renderList([toOffer({ id: 1 }), toOffer({ id: 2, senderId: 'partner' })], {
+      isCancellingOffer: true,
+    });
+
+    expect(screen.getByRole('button', { name: '제안 취소' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '수락' })).toBeEnabled();
   });
 });

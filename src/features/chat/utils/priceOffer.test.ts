@@ -1,4 +1,9 @@
-import { canRespondToOffer, canSendPriceOffer, hasPendingOfferFrom } from './priceOffer';
+import {
+  canCancelOffer,
+  canRespondToOffer,
+  canSendPriceOffer,
+  hasPendingOfferFrom,
+} from './priceOffer';
 import type { ChatMessage, ChatRoomSummary } from '../types';
 
 const VIEWER_ID = 'me';
@@ -74,6 +79,42 @@ describe('canRespondToOffer', function canRespondToOfferSuite() {
   });
 });
 
+describe('canCancelOffer', function canCancelOfferSuite() {
+  it('내가 보낸 대기 중인 제안만 무를 수 있다', function myPendingOffer() {
+    expect(canCancelOffer(toOffer({ id: 1 }), true)).toBe(true);
+  });
+
+  it('상대가 보낸 제안은 대신 무르지 못한다', function partnerOffer() {
+    // 서버도 같은 선을 긋는다(0027) — 받은 쪽이 갈 수 있는 곳은 accepted·rejected뿐이다.
+    expect(canCancelOffer(toOffer({ id: 1, senderId: 'partner' }), false)).toBe(false);
+  });
+
+  it('답이 끝난 제안은 무르지 못한다', function answeredOffer() {
+    // 상대가 이미 답한 것이라 한쪽이 혼자 되돌리면 합의가 깨진다.
+    expect(canCancelOffer(toOffer({ id: 1, offerStatus: 'accepted' }), true)).toBe(false);
+    expect(canCancelOffer(toOffer({ id: 1, offerStatus: 'rejected' }), true)).toBe(false);
+  });
+
+  it('이미 취소한 제안을 다시 취소하지 않는다', function alreadyCancelled() {
+    expect(canCancelOffer(toOffer({ id: 1, offerStatus: 'cancelled' }), true)).toBe(false);
+  });
+
+  it('가격 제안이 아닌 메시지는 무를 대상이 아니다', function plainText() {
+    const text = toOffer({ id: 1, type: 'text', offerStatus: null, offerAmount: null });
+
+    expect(canCancelOffer(text, true)).toBe(false);
+  });
+
+  it('수락·거절과 정확히 반대쪽이다', function mirrorsRespond() {
+    // 한 말풍선에 두 버튼이 함께 뜨는 일은 없어야 한다.
+    const mine = toOffer({ id: 1 });
+    const received = toOffer({ id: 2, senderId: 'partner' });
+
+    expect(canCancelOffer(mine, true)).toBe(!canRespondToOffer(mine, true));
+    expect(canCancelOffer(received, false)).toBe(!canRespondToOffer(received, false));
+  });
+});
+
 describe('hasPendingOfferFrom', function hasPendingOfferFromSuite() {
   it('내가 보낸 제안이 대기 중이면 참이다', function myPending() {
     expect(hasPendingOfferFrom([toOffer({ id: 1 })], VIEWER_ID)).toBe(true);
@@ -90,6 +131,13 @@ describe('hasPendingOfferFrom', function hasPendingOfferFromSuite() {
     ];
 
     expect(hasPendingOfferFrom(messages, VIEWER_ID)).toBe(false);
+  });
+
+  it('취소한 제안은 발목을 잡지 않는다', function cancelled() {
+    // 취소가 있어야 하는 이유가 이것이다 — 잘못 보낸 제안을 무르면 새 제안이 다시 열린다.
+    expect(hasPendingOfferFrom([toOffer({ id: 1, offerStatus: 'cancelled' })], VIEWER_ID)).toBe(
+      false,
+    );
   });
 
   it('대화가 비어 있으면 거짓이다', function empty() {

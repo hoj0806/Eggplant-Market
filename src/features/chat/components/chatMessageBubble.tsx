@@ -1,6 +1,6 @@
 import ChatImageMessage from './chatImageMessage';
 import { formatPrice } from '../../../shared/utils/formatPrice';
-import { canRespondToOffer, OFFER_STATUS_LABEL } from '../utils/priceOffer';
+import { canCancelOffer, canRespondToOffer, OFFER_STATUS_LABEL } from '../utils/priceOffer';
 import type { ChatMessage, OfferResponse } from '../types';
 
 type ChatMessageBubbleProps = {
@@ -9,7 +9,13 @@ type ChatMessageBubbleProps = {
   isMine: boolean;
   /** 수락·거절 요청이 도는 중. 답이 오기 전에 두 번 눌리지 않게 잠근다. */
   isRespondingToOffer: boolean;
+  /**
+   * 취소 요청이 도는 중. 수락·거절과 따로 받는 이유는 **누르는 사람이 다르기 때문**이다 —
+   * 하나로 묶으면 상대가 수락을 누르는 동안 내 취소 버튼도 함께 잠긴다.
+   */
+  isCancellingOffer: boolean;
   onRespondToOffer(messageId: number, status: OfferResponse): void;
+  onCancelOffer(messageId: number): void;
 };
 
 const TIME_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
@@ -27,8 +33,9 @@ function toTimeText(iso: string): string {
 /**
  * 가격 제안 말풍선.
  *
- * 받은 쪽에는 수락·거절 버튼이, 보낸 쪽에는 기다린다는 말이 붙는다.
+ * 받은 쪽에는 수락·거절 버튼이, 보낸 쪽에는 기다린다는 말과 **취소 버튼**이 붙는다.
  * 답이 끝나면 양쪽 모두 결과만 남는다 — 되돌리는 길은 없고, 마음이 바뀌면 새로 제안한다.
+ * 취소도 답의 하나다. 말풍선은 사라지지 않고 "취소됨"으로 남는다(0027).
  *
  * 수락해도 게시물 가격은 그대로다. 당근에서도 제안 수락은 "그 값에 하자"는 합의 표시일 뿐,
  * 판매글의 가격표를 바꾸는 일이 아니다.
@@ -72,9 +79,30 @@ function PriceOfferBody(props: ChatMessageBubbleProps) {
           </button>
         </div>
       ) : (
-        <span className="text-[11px] text-amber-800 dark:text-amber-200">
-          {status === null ? OFFER_STATUS_LABEL.pending : OFFER_STATUS_LABEL[status]}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-amber-800 dark:text-amber-200">
+            {status === null ? OFFER_STATUS_LABEL.pending : OFFER_STATUS_LABEL[status]}
+          </span>
+
+          {/*
+            "답변 대기 중" 옆에 붙는다. 답이 오면 이 버튼은 사라지고 결과만 남는다.
+            수락·거절처럼 눈에 띄게 만들지 않은 이유는 이것이 **되돌리는 버튼**이라서다 —
+            제안을 보낸 사람이 찾을 때만 보이면 된다.
+          */}
+          {canCancelOffer(message, props.isMine) ? (
+            <button
+              type="button"
+              disabled={props.isCancellingOffer}
+              onClick={function cancel(): void {
+                props.onCancelOffer(message.id);
+              }}
+              className={`${OFFER_BUTTON_CLASS} text-amber-800 underline
+                          hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100`}
+            >
+              제안 취소
+            </button>
+          ) : null}
+        </div>
       )}
     </div>
   );

@@ -13,8 +13,11 @@ type ChatMessageListProps = {
   isFetchingNextPage: boolean;
   /** 제안 답변이 도는 중. 말풍선의 수락·거절 버튼을 함께 잠근다. */
   isRespondingToOffer: boolean;
+  /** 제안 취소가 도는 중. 답변과 따로인 이유는 누르는 사람이 다르기 때문이다. */
+  isCancellingOffer: boolean;
   onLoadMore(): void;
   onRespondToOffer(messageId: number, status: OfferResponse): void;
+  onCancelOffer(messageId: number): void;
 };
 
 const MESSAGE_CLASS = 'py-8 text-center text-sm text-gray-500 dark:text-gray-400';
@@ -78,7 +81,9 @@ function ChatMessageList(props: ChatMessageListProps) {
               message={message}
               isMine={message.senderId === props.viewerId}
               isRespondingToOffer={props.isRespondingToOffer}
+              isCancellingOffer={props.isCancellingOffer}
               onRespondToOffer={props.onRespondToOffer}
+              onCancelOffer={props.onCancelOffer}
             />
           );
         })}

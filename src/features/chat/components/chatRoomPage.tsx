@@ -9,6 +9,7 @@ import ProfileAvatar from '../../profile/components/profileAvatar';
 import { useChatMessagesQuery, useChatRoomQuery } from '../hooks/useChatQueries';
 import { useChatRoomRealtime } from '../hooks/useChatRealtime';
 import {
+  useCancelOfferMutation,
   useRespondToOfferMutation,
   useSendImageMessagesMutation,
   useSendPriceOfferMutation,
@@ -51,6 +52,7 @@ function ChatRoomPage() {
   const sendImages = useSendImageMessagesMutation(roomId ?? 0, viewerId);
   const sendOffer = useSendPriceOfferMutation(roomId ?? 0, viewerId);
   const respondToOffer = useRespondToOfferMutation(roomId ?? 0);
+  const cancelOffer = useCancelOfferMutation(roomId ?? 0);
 
   if (status === 'loading') {
     return <PageSpinner message="세션을 확인하는 중입니다…" />;
@@ -78,7 +80,13 @@ function ChatRoomPage() {
   }
 
   const room = roomQuery.data;
-  const sendError = sendText.error ?? sendImages.error ?? sendOffer.error ?? respondToOffer.error;
+  const sendError =
+    sendText.error ??
+    sendImages.error ??
+    sendOffer.error ??
+    respondToOffer.error ??
+    // 취소 실패도 같은 줄에 적는다. 사용자에게는 "방금 누른 것이 안 됐다" 하나다.
+    cancelOffer.error;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-3 p-6">
@@ -119,11 +127,15 @@ function ChatRoomPage() {
         hasNextPage={messagesQuery.hasNextPage}
         isFetchingNextPage={messagesQuery.isFetchingNextPage}
         isRespondingToOffer={respondToOffer.isPending}
+        isCancellingOffer={cancelOffer.isPending}
         onLoadMore={function loadOlder(): void {
           void messagesQuery.fetchNextPage();
         }}
         onRespondToOffer={function handleRespond(messageId: number, status: OfferResponse): void {
           respondToOffer.mutate({ messageId, status });
+        }}
+        onCancelOffer={function handleCancel(messageId: number): void {
+          cancelOffer.mutate({ messageId });
         }}
       />
 

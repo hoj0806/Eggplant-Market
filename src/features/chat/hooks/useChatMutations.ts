@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { chatMessagesQueryKey, chatRoomQueryKey, chatRoomsQueryKey } from './useChatQueries';
 import {
+  cancelOffer,
   openChatRoom,
   respondToOffer,
   sendImageMessages,
@@ -33,6 +34,11 @@ export type SendPriceOfferVariables = {
 export type RespondToOfferVariables = {
   messageId: number;
   status: OfferResponse;
+};
+
+/** 취소는 갈 곳이 하나뿐이라 status를 받지 않는다. 무엇을 무를지만 정하면 된다. */
+export type CancelOfferVariables = {
+  messageId: number;
 };
 
 /**
@@ -147,6 +153,35 @@ export function useRespondToOfferMutation(
   return useMutation<ChatMessage, Error, RespondToOfferVariables>({
     mutationFn: function respond(variables: RespondToOfferVariables): Promise<ChatMessage> {
       return respondToOffer({ messageId: variables.messageId, status: variables.status });
+    },
+    onSuccess: function replaceInCache(message: ChatMessage): void {
+      queryClient.setQueryData<ChatMessageCache>(
+        chatMessagesQueryKey(roomId),
+        function replace(current) {
+          return withUpdatedMessage(current, message);
+        },
+      );
+    },
+  });
+}
+
+/**
+ * 보낸 제안 무르기.
+ *
+ * 캐시를 다루는 방식은 수락·거절과 똑같다 — 있던 행의 offer_status만 바뀌므로 갈아 끼운다.
+ * 방 요약도 마찬가지로 건드리지 않는다(last_message 트리거는 insert에만 붙어 있다).
+ *
+ * 훅을 따로 두는 이유는 **버튼을 따로 잠가야 하기 때문**이다. 하나로 묶으면 상대가 수락을
+ * 누르는 동안 내 취소 버튼도 함께 잠긴다 — 서로 다른 사람이 서로 다른 버튼을 누르는 자리다.
+ */
+export function useCancelOfferMutation(
+  roomId: number,
+): UseMutationResult<ChatMessage, Error, CancelOfferVariables> {
+  const queryClient = useQueryClient();
+
+  return useMutation<ChatMessage, Error, CancelOfferVariables>({
+    mutationFn: function cancel(variables: CancelOfferVariables): Promise<ChatMessage> {
+      return cancelOffer(variables.messageId);
     },
     onSuccess: function replaceInCache(message: ChatMessage): void {
       queryClient.setQueryData<ChatMessageCache>(

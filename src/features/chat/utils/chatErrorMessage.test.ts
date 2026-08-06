@@ -34,4 +34,37 @@ describe('toChatErrorMessage', function toChatErrorMessageSuite() {
   it('알 수 없는 실패는 기본 문구로 돌려준다', function unknown() {
     expect(toChatErrorMessage({})).toBe('메시지를 보내지 못했습니다. 잠시 후 다시 시도해 주세요.');
   });
+
+  it('메시지 수정 거부는 0027의 새 문구로도 잡힌다', function guardMessage() {
+    // 0027이 이 문구를 늘리면서 옛 패턴(`읽음 표시만`)이 안 걸리게 됐다.
+    // 서버 문구를 그대로 넣어, 다음에 또 늘어나면 여기서 먼저 깨지게 한다.
+    expect(
+      toChatErrorMessage({ message: '메시지는 읽음 표시와 제안 답변만 바꿀 수 있습니다.' }),
+    ).toBe('이미 보낸 메시지는 고칠 수 없습니다.');
+  });
+
+  it('답이 끝난 제안을 다시 건드리면 그렇게 알려 준다', function answeredOffer() {
+    expect(toChatErrorMessage({ message: '이미 답이 끝난 제안은 바꿀 수 없습니다.' })).toBe(
+      '이미 답변이 끝난 제안입니다.',
+    );
+  });
+
+  it('취소가 밀린 것과 답변이 밀린 것을 다르게 말한다', function cancelConflict() {
+    // 같은 "이미 늦었다"지만 다음에 할 일이 다르다 — 취소 실패는 상대가 답했다는 뜻이다.
+    expect(toChatErrorMessage(new Error('이미 답한 제안입니다.'))).toBe(
+      '이미 답변이 끝난 제안입니다.',
+    );
+    expect(toChatErrorMessage(new Error('상대가 먼저 답해 취소할 수 없습니다.'))).toBe(
+      '상대가 먼저 답해 취소할 수 없습니다.',
+    );
+  });
+
+  it('남의 제안을 대신 무르려 하면 서버 문구를 옮겨 준다', function wrongDirection() {
+    expect(toChatErrorMessage({ message: '받은 제안은 수락하거나 거절할 수 있습니다.' })).toBe(
+      '받은 제안은 수락하거나 거절할 수 있습니다.',
+    );
+    expect(toChatErrorMessage({ message: '보낸 제안은 취소만 할 수 있습니다.' })).toBe(
+      '보낸 제안은 취소만 할 수 있습니다.',
+    );
+  });
 });
