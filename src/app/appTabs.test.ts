@@ -9,6 +9,25 @@ describe('APP_TABS', function appTabsSuite() {
     expect(routes).toHaveLength(5);
     expect(new Set(routes).size).toBe(routes.length);
   });
+
+  it('크게 띄우는 자리는 글쓰기 하나뿐이다', function hasSinglePrimary() {
+    // 둘이 되면 어느 쪽이 "하러 오는 자리"인지 흐려지고, 탭바에 원이 두 개 뜬다.
+    const primary = APP_TABS.filter(function isPrimary(tab) {
+      return tab.isPrimary === true;
+    });
+
+    expect(primary).toHaveLength(1);
+    expect(primary[0].to).toBe('/posts/new');
+  });
+
+  it('그 자리가 가운데에 있다', function primaryIsCentered() {
+    // 값으로 적어 두었지만 실제로 가운데가 아니면 원이 한쪽으로 치우쳐 뜬다.
+    const index = APP_TABS.findIndex(function isPrimary(tab) {
+      return tab.isPrimary === true;
+    });
+
+    expect(index).toBe(Math.floor(APP_TABS.length / 2));
+  });
 });
 
 describe('isTabActive', function isTabActiveSuite() {

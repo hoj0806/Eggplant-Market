@@ -1,5 +1,6 @@
 import PostCard from './postCard';
 import { useInfiniteScroll } from '../../../shared/hooks/useInfiniteScroll';
+import { useNow } from '../../../shared/hooks/useNow';
 import type { PostSummary } from '../../post/types';
 
 type PostListProps = {
@@ -39,7 +40,8 @@ function PostList(props: PostListProps) {
   });
 
   // 카드마다 new Date()를 부르면 같은 목록에서 기준 시각이 어긋난다.
-  const now = new Date();
+  // 스스로 흐르므로 목록을 열어 둔 채로도 "3분 전"이 멈추지 않는다.
+  const now = useNow();
 
   if (props.isLoading) {
     return <p className={MESSAGE_CLASS}>게시물을 불러오는 중입니다…</p>;

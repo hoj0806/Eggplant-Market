@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useNow } from '../../../shared/hooks/useNow';
 import { useBumpPostMutation } from '../hooks/useBumpPostMutation';
 import { useDeletePostMutation } from '../hooks/useDeletePostMutation';
 import { canBumpPost, toBumpRemainingText } from '../utils/postBumpCooldown';
@@ -33,7 +34,8 @@ function PostOwnerMenu(props: PostOwnerMenuProps) {
 
   // 메뉴를 여는 순간을 기준으로 남은 시간을 잰다. 열어 둔 채로 시간이 흘러도 다시 그리지는 않는다 —
   // 어긋나 봐야 몇 분이고, 서버가 한 번 더 본다.
-  const now = new Date();
+  // 메뉴를 열어 둔 채 남은 시간이 0이 되면 그 자리에서 버튼이 풀려야 한다.
+  const now = useNow();
   const canBump = canBumpPost(props.post.status, props.post.bumpedAt, now);
   const bumpRemainingText = toBumpRemainingText(props.post.bumpedAt, now);
 

@@ -1,5 +1,6 @@
 import PostCard from '../../browse/components/postCard';
 import { useInfiniteScroll } from '../../../shared/hooks/useInfiniteScroll';
+import { useNow } from '../../../shared/hooks/useNow';
 import { toMyListTimeText } from '../utils/myListTimeText';
 import type { ReactNode } from 'react';
 import type { MyPostsQueryResult } from '../hooks/useMyPostsQuery';
@@ -40,7 +41,9 @@ function MyPostList(props: MyPostListProps) {
   });
 
   // 카드마다 new Date()를 부르면 같은 목록에서 기준 시각이 어긋난다.
-  const now = new Date();
+  // 판매관리의 끌어올리기 버튼이 이 값을 보고 잠기므로, 멈춰 있으면 24시간이 지나도
+  // 버튼이 잠긴 채로 남는다.
+  const now = useNow();
 
   if (query.isLoading) {
     return <p className={MESSAGE_CLASS}>불러오는 중입니다…</p>;

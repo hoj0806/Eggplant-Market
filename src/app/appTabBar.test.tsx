@@ -64,4 +64,21 @@ describe('AppTabBar', function appTabBarSuite() {
 
     expect(screen.getByLabelText('안 읽은 메시지 1200개')).toHaveTextContent('999+');
   });
+
+  it('크게 띄운 글쓰기도 이름으로 찾을 수 있는 링크다', function primaryStaysALink() {
+    // 모양만 버튼일 뿐 하는 일은 그대로 링크다. 아이콘을 aria-hidden으로 감췄으므로
+    // 라벨을 지우면 이름 없는 링크가 된다.
+    renderTabBar('/');
+
+    const write = screen.getByRole('link', { name: '글쓰기' });
+
+    expect(write).toHaveAttribute('href', '/posts/new');
+    expect(write).toHaveTextContent('글쓰기');
+  });
+
+  it('글쓰기 화면에서는 그 자리도 현재 위치로 알린다', function primaryMarksCurrent() {
+    renderTabBar('/posts/new');
+
+    expect(screen.getByRole('link', { name: '글쓰기' })).toHaveAttribute('aria-current', 'page');
+  });
 });
