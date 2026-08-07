@@ -47,6 +47,29 @@ describe('toPostActionErrorMessage', function postActionErrorMessageSuite() {
     ).toBe('내가 올린 글만 끌어올릴 수 있습니다.');
   });
 
+  // 0035가 거래 상대 판정을 정책에서 트리거로 옮기면서 오류 모양이 바뀌었다 —
+  // 42501(RLS)에서 23514(check_violation) + 한국어 문구로. 서버 문구를 **그대로 넣어** 둔다.
+  // 이걸 toPostErrorMessage로 받으면 아무 패턴에도 안 걸려 "잠시 후 다시 시도해 주세요"가
+  // 되는데, 되풀이해도 안 되는 일이라 거짓말이 된다(0027이 겪은 자리).
+  it('거래 상대 거절 문구를 그대로 보여준다', function tradePartnerCase() {
+    expect(
+      toPostActionErrorMessage({
+        code: '23514',
+        message: '거래 상대는 채팅을 나눈 이웃 중에서만 고를 수 있습니다.',
+      }),
+    ).toBe('거래 상대는 채팅을 나눈 이웃 중에서만 고를 수 있습니다.');
+  });
+
+  // 0008의 전이 트리거도 같은 길로 온다. 둘이 같은 화면에서 나므로 함께 지킨다.
+  it('상태 전이 거절 문구도 그대로 보여준다', function statusTransitionCase() {
+    expect(
+      toPostActionErrorMessage({
+        code: '23514',
+        message: '거래완료된 게시물의 상태는 되돌릴 수 없습니다.',
+      }),
+    ).toBe('거래완료된 게시물의 상태는 되돌릴 수 없습니다.');
+  });
+
   it('영어 오류는 지금까지처럼 패턴으로 옮긴다', function englishCase() {
     expect(toPostActionErrorMessage({ message: 'Failed to fetch' })).toBe(
       '네트워크 연결을 확인해 주세요.',

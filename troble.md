@@ -2186,3 +2186,80 @@ select grantee, string_agg(privilege_type, ',') from information_schema.role_tab
 그리고 **delete·update가 조용히 성공하는 것을 "됐다"로 읽지 않는다.** PostgREST는 0행을
 지워도 204를 준다. 언젠가 "이력 지우기" 같은 것을 만들 사람이 화면에서 눌러 보고 오류가
 없으니 됐다고 여길 수 있는 자리다 — 실제로 지워졌는지는 **행 수로** 확인해야 한다.
+
+## 정책으로 지킨 규칙이 반쪽만 닫혀 있었다 (2026-08-07)
+
+### 1. 지어낸 거래로 남의 매너온도를 깎을 수 있었다
+
+**증상**: 0031이 남긴 부채를 갚으러(거래 상대 판정을 트리거로 옮기기) 0008의
+`posts_update`를 읽다가, 같은 규칙을 **insert도 지키고 있는지**가 궁금해졌다. 안 지키고 있었다.
+
+```sql
+-- 0008: update는 chat_rooms를 근거로 본다
+create policy posts_update on posts for update
+  using (auth.uid() = seller_id)
+  with check (auth.uid() = seller_id and (buyer_id is null or exists (select 1 from chat_rooms …)));
+
+-- 0001: insert는 그대로다
+create policy posts_insert on posts for insert with check (auth.uid() = seller_id);
+```
+
+**원인 찾기**: 평범한 계정 권한(`set local role authenticated` + 그 사람의 JWT 클레임)으로
+두 줄을 넣어 봤다.
+
+```
+insert into posts (…, status, buyer_id) values (…, 'sold', '<채팅한 적 없는 이웃>')  → 통과
+insert into reviews (post_id, reviewer_id, reviewee_id, score) values (그 글, 나, 그 이웃, -0.5) → 통과
+
+피해자 매너온도 36.5 → 36.0
+```
+
+0034가 방금 붙은 덕에 이력에도 자국이 남았다 — `36.5 → 36.0, 후기 1건, 합계 −0.5`.
+
+**원인**: 두 겹이다.
+
+1. **정책은 명령마다 따로 적는다.** 0008은 "거래 상대는 채팅한 사람 중에서만"을 지키려고
+   `posts_update`만 고쳤다. 규칙은 하나인데 적는 자리가 둘(insert·update)이라 반쪽만 닫혔다.
+2. **0013이 `posts`를 믿었다.** `reviews_insert`는 "거래완료된 글의 두 당사자인가"를 보는데
+   그 글을 **공격자가 방금 지어낼 수 있다.** 조건은 전부 참이고 근거만 가짜다.
+   0013의 머리말이 "거래한 적 없는 이웃에게 −점수를 꽂을 수 있고"를 막겠다고 적어 둔 그것인데,
+   막은 것은 `score` 화이트리스트뿐이었다.
+
+**해결**: 판정을 `guard_post_buyer` 트리거로 옮겨 `before insert or update`로 **한 번에** 걸었다.
+정책에는 소유 검사만 남긴다. 새 글은 저절로 막힌다 — 방금 번호를 받은 글을 두고 오간 대화가
+있을 리 없어 `exists`가 반드시 빈다.
+
+### 2. 그러자 오류 문구가 조용히 뭉개졌다
+
+**증상**: 판정이 정책에서 트리거로 가면 오류 모양이 바뀐다. `42501 new row violates
+row-level security policy`에서 `23514` + 한국어 문구로. 거래 상대를 고르는 화면
+(`postStatusControl`)은 `toPostErrorMessage`를 쓰고 있었는데, 이 함수는 **패턴 목록**이라
+한국어 문구가 아무 데도 안 걸리고 기본값으로 떨어진다.
+
+```
+"게시물을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+```
+
+되풀이해도 안 되는 일이라 **거짓말이다.** 오류가 아니라 **덜 정확한 문구로 떨어지는** 종류라
+화면만 봐서는 눈에 안 띈다.
+
+**원인**: 같은 기능에 문구 함수가 둘 있다 — `toPostErrorMessage`(패턴)와
+`toPostActionErrorMessage`(한글이면 서버 문구를 그대로). 서버가 말을 하기 시작한 자리는
+뒤의 것을 써야 하는데, 그 화면은 서버가 말을 안 하던 시절에 만들어졌다.
+
+**해결**: 그 한 줄을 `toPostActionErrorMessage`로 바꾸고, **서버 문구를 그대로 넣은** 테스트를
+둘 붙였다(0035의 거래 상대 문구 · 0008의 전이 문구).
+
+### 남는 교훈
+
+**정책으로 규칙을 지킬 때는 "이 규칙이 걸려야 하는 명령이 몇 개인가"를 먼저 센다.**
+insert·update·delete가 각각 다른 정책이므로, 한 규칙이 두 명령에 걸려야 하면 **정책은
+잘못된 도구다.** 트리거는 명령을 묶어 걸 수 있고, 값이 실제로 바뀔 때만 묻게도 할 수 있다.
+
+이 저장소가 같은 결론에 이른 것이 이번이 네 번째다 — 0008 `guard_message_update` ·
+0015 `guard_notification_update` · 0020 `guard_comment_update` · 0023 `guard_profile_update`.
+넷 다 "정책으로는 칸 단위를 못 본다"였고, 이번은 **"정책으로는 명령을 묶지 못한다"**다.
+
+그리고 **서버가 새로 말을 하기 시작하면 그 말을 받는 자리를 함께 확인한다.**
+0027에서 한 번, 0029에서 또 한 번, 이번이 세 번째다. 서버 문구를 늘리거나 바꾼 마이그레이션은
+**그 문구를 그대로 넣은 테스트**를 같은 PR에 붙이는 것으로 갈음한다.
