@@ -15,6 +15,16 @@ export type PostComment = {
    * 안 고쳤으면 `createdAt`과 같다 — `isEdited`가 그 비교를 한다.
    */
   updatedAt: string;
+  /**
+   * 비밀 댓글인가. 참이면 게시물 판매자와 이 실타래를 연 사람만 읽는다(0033).
+   *
+   * 목록에 이 값이 참인 줄이 와 있다는 것은 **볼 자격이 있다는 뜻**이다 — 거르는 일은
+   * `comments_select`가 이미 했다. 화면은 "비밀" 표를 붙일지만 판단한다.
+   *
+   * 답글에는 부모 값이 그대로 실려 온다. 서버가 받아 적으므로(0033의 `inherit_comment_secret`)
+   * 화면이 답글의 공개 범위를 고를 일이 없다.
+   */
+  isSecret: boolean;
   author: CommentAuthor;
 };
 

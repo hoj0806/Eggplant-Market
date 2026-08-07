@@ -43,6 +43,7 @@ function buildComment(overrides: Partial<PostComment> = {}): PostComment {
     createdAt: FIXED_CREATED_AT,
     // 고치지 않은 댓글은 두 값이 같다(0020).
     updatedAt: FIXED_CREATED_AT,
+    isSecret: false,
     author: { id: 'other-1', nickname: '가지이웃', avatarUrl: null },
     ...overrides,
   };
@@ -111,6 +112,7 @@ describe('CommentSection', function commentSectionSuite() {
         authorId: VIEWER_ID,
         content: '네 있습니다',
         parentId: null,
+        isSecret: false,
       });
     });
 
@@ -165,6 +167,7 @@ describe('CommentSection', function commentSectionSuite() {
         authorId: VIEWER_ID,
         content: '네 있습니다',
         parentId: 1,
+        isSecret: false,
       });
     });
 
@@ -290,6 +293,91 @@ describe('CommentSection', function commentSectionSuite() {
 
     expect(await screen.findByText('이거 아직 있나요?')).toBeInTheDocument();
     expect(screen.queryByText(/수정됨/)).not.toBeInTheDocument();
+  });
+
+  // --- 비밀 댓글 (0033) ---------------------------------------------------
+
+  it('체크하고 쓰면 비밀 댓글로 보낸다', async function secretCreateCase() {
+    mockCreateComment.mockResolvedValue(
+      buildComment({ id: 2, content: '얼마까지 되나요?', isSecret: true }),
+    );
+    renderSection(VIEWER_ID);
+
+    await userEvent.type(await screen.findByLabelText('댓글'), '얼마까지 되나요?');
+    await userEvent.click(screen.getByRole('checkbox', { name: /비밀 댓글/ }));
+    await userEvent.click(screen.getByRole('button', { name: '댓글 등록' }));
+
+    await waitFor(function assertCreated() {
+      expect(mockCreateComment).toHaveBeenCalledWith({
+        postId: POST_ID,
+        authorId: VIEWER_ID,
+        content: '얼마까지 되나요?',
+        parentId: null,
+        isSecret: true,
+      });
+    });
+  });
+
+  // 목록에 온 비밀 댓글은 **볼 자격이 있다는 뜻**이다(0033의 comments_select).
+  // 표를 붙이는 이유는 남에게 알리려는 것이 아니라, 답하는 사람이 자기 답도 비밀임을 알게 하려는 것이다.
+  it('비밀 댓글에는 표가 붙고 공개 댓글에는 붙지 않는다', async function secretBadgeCase() {
+    mockFetchPostComments.mockResolvedValue([
+      buildComment(),
+      buildComment({ id: 2, content: '얼마까지 되나요?', isSecret: true }),
+    ]);
+    renderSection(SELLER_ID);
+
+    expect(await screen.findByText('얼마까지 되나요?')).toBeInTheDocument();
+    expect(screen.getAllByText('비밀')).toHaveLength(1);
+  });
+
+  // 답글의 공개 범위는 부모를 따라간다. 고를 수 있게 하면 비밀 댓글 밑에 공개 답글이 달려
+  // 가린 내용이 답글로 새어 나간다.
+  it('답글 폼에는 체크칸이 없고, 비밀 댓글의 답글은 부모 값을 실어 보낸다',
+    async function secretReplyCase() {
+      mockFetchPostComments.mockResolvedValue([
+        buildComment({ content: '얼마까지 되나요?', isSecret: true }),
+      ]);
+      mockCreateComment.mockResolvedValue(
+        buildComment({ id: 2, parentId: 1, content: '5만원까지요', isSecret: true }),
+      );
+      renderSection(SELLER_ID);
+
+      await userEvent.click(await screen.findByRole('button', { name: '답글' }));
+
+      // 1단 폼의 체크칸 하나만 남는다 — 답글 폼은 자기 것을 붙이지 않는다.
+      expect(screen.getAllByRole('checkbox', { name: /비밀 댓글/ })).toHaveLength(1);
+      expect(
+        screen.getByText('비밀 댓글의 답글도 판매자와 작성자만 볼 수 있어요.'),
+      ).toBeInTheDocument();
+
+      await userEvent.type(screen.getByLabelText('가지이웃님에게 답글'), '5만원까지요');
+      await userEvent.click(screen.getByRole('button', { name: '답글 등록' }));
+
+      await waitFor(function assertCreated() {
+        expect(mockCreateComment).toHaveBeenCalledWith({
+          postId: POST_ID,
+          authorId: SELLER_ID,
+          content: '5만원까지요',
+          parentId: 1,
+          isSecret: true,
+        });
+      });
+    });
+
+  // 체크칸을 켠 채로 등록하면 폼이 새로 서면서 함께 꺼진다. 안 그러면 다음 댓글이
+  // 의도치 않게 비밀로 나간다 — 켠 사실이 화면에서 사라진 뒤에도 남아 있게 된다.
+  it('비밀로 한 번 보낸 뒤 체크칸은 꺼진 채로 돌아온다', async function secretResetCase() {
+    mockCreateComment.mockResolvedValue(buildComment({ id: 2, isSecret: true }));
+    renderSection(VIEWER_ID);
+
+    await userEvent.type(await screen.findByLabelText('댓글'), '얼마까지 되나요?');
+    await userEvent.click(screen.getByRole('checkbox', { name: /비밀 댓글/ }));
+    await userEvent.click(screen.getByRole('button', { name: '댓글 등록' }));
+
+    await waitFor(function assertReset() {
+      expect(screen.getByRole('checkbox', { name: /비밀 댓글/ })).not.toBeChecked();
+    });
   });
 
   it('실패하면 이유를 보여준다', async function errorCase() {

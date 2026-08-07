@@ -9,6 +9,8 @@ function buildComment(id: number, parentId: number | null, createdAt: string): P
     content: `댓글 ${id}`,
     createdAt,
     updatedAt: createdAt,
+    // 트리를 접는 일은 공개 범위를 묻지 않는다. 비밀 댓글은 목록에 오기 전에 걸러진다(0033).
+    isSecret: false,
     author: { id: `user-${id}`, nickname: `이웃${id}`, avatarUrl: null },
   };
 }

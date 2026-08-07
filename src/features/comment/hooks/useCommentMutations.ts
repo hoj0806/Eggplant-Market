@@ -12,6 +12,11 @@ import type { PostComment } from '../types';
 export type SubmitCommentInput = {
   content: string;
   parentId: number | null;
+  /**
+   * 비밀 댓글로 남길 것인가. 1단은 체크칸이 정하고, 답글은 **부모 값을 그대로 실어 보낸다** —
+   * 고르는 자리가 아니다(0033). 어느 쪽이든 마지막 말은 서버가 한다.
+   */
+  isSecret: boolean;
 };
 
 /**
@@ -35,7 +40,13 @@ export function useCreateCommentMutation(
 
   return useMutation<PostComment, Error, SubmitCommentInput>({
     mutationFn: function submit(input: SubmitCommentInput): Promise<PostComment> {
-      return createComment({ postId, authorId, content: input.content, parentId: input.parentId });
+      return createComment({
+        postId,
+        authorId,
+        content: input.content,
+        parentId: input.parentId,
+        isSecret: input.isSecret,
+      });
     },
     onSuccess: function appendToList(created: PostComment): void {
       queryClient.setQueryData<PostComment[]>(

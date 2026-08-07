@@ -13,7 +13,7 @@ import type { CommentAuthor, PostComment } from '../types';
  * 조용히 모호해지는 자리라 처음부터 적어 둔다.
  */
 const COMMENT_COLUMNS =
-  'id, post_id, parent_id, content, created_at, updated_at, ' +
+  'id, post_id, parent_id, content, created_at, updated_at, is_secret, ' +
   'author:profiles!comments_author_id_fkey (id, nickname, avatar_url)';
 
 type CommentAuthorRow = {
@@ -29,6 +29,7 @@ type CommentRow = {
   content: string;
   created_at: string;
   updated_at: string;
+  is_secret: boolean;
   author: CommentAuthorRow;
 };
 
@@ -44,6 +45,7 @@ function toPostComment(row: CommentRow): PostComment {
     content: row.content,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    isSecret: row.is_secret,
     author: toCommentAuthor(row.author),
   };
 }
@@ -77,6 +79,14 @@ export type CreateCommentInput = {
   content: string;
   /** 답글이면 부모 댓글 id, 1단 댓글이면 null. */
   parentId: number | null;
+  /**
+   * 비밀 댓글로 남길 것인가. **1단 댓글에서만 뜻이 있다.**
+   *
+   * 답글에 무엇을 보내든 서버가 부모 값으로 덮는다(0033의 `inherit_comment_secret`).
+   * 그래도 화면이 부모 값을 실어 보내는 것은 거짓말을 안 하기 위해서다 —
+   * 돌려받는 행에는 어차피 서버가 정한 값이 실려 온다.
+   */
+  isSecret: boolean;
 };
 
 /**
@@ -92,6 +102,9 @@ export type CreateCommentInput = {
  * `parentId`도 마찬가지로 여기서 검사하지 않는다. 없는 댓글을 가리키면 FK가 막고,
  * 다른 글의 댓글을 가리키는 것은 막히지 않지만 그럴 화면이 없다 — 답글 버튼은 언제나
  * 지금 보고 있는 글의 댓글에서만 눌린다. 정책이 보는 것은 글쓴이와 차단뿐이다(0017).
+ *
+ * `isSecret`도 서버가 마지막 말을 한다. 답글이면 부모 값으로 덮이므로(0033) 여기서
+ * 보낸 값이 그대로 들어간다고 믿지 않고, `.select()`로 되받은 행을 캐시에 넣는다.
  */
 export async function createComment(input: CreateCommentInput): Promise<PostComment> {
   const { data, error } = await supabase
@@ -101,6 +114,7 @@ export async function createComment(input: CreateCommentInput): Promise<PostComm
       author_id: input.authorId,
       content: input.content,
       parent_id: input.parentId,
+      is_secret: input.isSecret,
     })
     .select(COMMENT_COLUMNS)
     .single();

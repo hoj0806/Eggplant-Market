@@ -2062,3 +2062,71 @@ export const MENU_ITEM_CLASS =
 
 `#5`의 해결책(api mock)을 반사적으로 쓰기 전에 **왜 그 파일이 그래프에 들어왔는지**를
 먼저 본다. 부를 이유가 있으면 mock이 맞고, 문자열 하나 때문이면 옮기는 것이 맞다.
+
+## 정책이 자기 테이블을 다시 읽으면 죽는다 (2026-08-07)
+
+### 1. `comments_select`에서 부모 댓글을 보려다 만난 벽
+
+**솔직히 여기서 막히지는 않았다.** 비밀 댓글(0033)을 짜다가 "이거 재귀 아닌가" 싶어
+**적기 전에 먼저 밟아 봤고**, 정말 죽었다. 순서가 반대였으면 한참 헤맸을 자리라 남긴다.
+
+**증상**: 비밀 댓글의 답글을 그 실타래를 연 사람에게 보여 주려면 정책 안에서 **부모 댓글의
+작성자**를 알아야 한다. 비밀 댓글에 판매자가 답하면 그 답글의 `author_id`는 판매자이고,
+물어본 사람은 그 행 어디에도 없다 — 부모를 봐야 나온다. 그래서 이렇게 적고 싶어진다.
+
+```sql
+create policy comments_select on comments
+  for select
+  using (
+    not is_secret
+    or auth.uid() = (select c.author_id from comments c where c.id = comments.parent_id)
+  );
+```
+
+**원인 찾기**: 트랜잭션 안에서 위 정책을 세우고 `authenticated`로 `select count(*)`를 했다.
+
+```
+[42P17] infinite recursion detected in policy for relation "comments"
+```
+
+**원인**: 정책 안의 서브쿼리도 **같은 테이블을 읽는 평범한 질의**다. 그러니 거기에도
+`comments_select`가 걸리고, 그 정책이 또 서브쿼리를 돌리고, 끝이 없다. Postgres가 그걸
+알아채고 42P17로 끊는다. "내 정책 안이니까 예외겠지"가 아니다 — **예외가 없다는 것이 요점**이다.
+
+이 저장소에서 처음 만나는 벽도 아니다. 0014가 `blocks`에서 같은 모양을 만났다
+(거기서는 "차단 목록을 정책에서 읽으려면 blocks에 select 정책이 필요한데, 그걸 열면
+누가 나를 차단했는지 조회할 수 있게 된다"는 다른 이유가 겹쳤을 뿐이다).
+
+**해결**: 판단을 `private`의 `security definer` 함수로 뺐다.
+
+```sql
+create or replace function private.comment_thread_author(p_parent_id bigint, p_author_id uuid)
+returns uuid language sql stable security definer set search_path = public
+as $$
+  select coalesce(
+    (select c.author_id from comments c where c.id = p_parent_id),
+    p_author_id
+  );
+$$;
+```
+
+definer는 함수 소유자(`postgres`, 곧 테이블 주인)의 권한으로 돌고 **주인은 RLS를 비껴가므로**
+그 안의 `select`에는 정책이 안 걸린다. 고리가 끊긴다.
+
+`private`에 둔 것은 재귀와는 다른 이유다 — PostgREST는 public 스키마만 라우팅하므로
+클라이언트가 `rpc()`로 못 부른다. 부를 수 있으면 **댓글 id를 하나씩 넣어 보며 남의 비밀 댓글
+작성자를 알아낼 수 있다.**
+
+### 남는 교훈
+
+**정책 안에서 그 정책이 걸린 테이블을 읽을 수 없다.** 다른 테이블은 된다 —
+같은 파일의 `exists (select 1 from posts ...)`는 멀쩡히 돈다(`posts_select`가 `using (true)`).
+문제는 **자기 자신**뿐이다.
+
+그래서 "행 하나만으로 판정이 안 되고 같은 테이블의 다른 행을 봐야 한다"는 조건이 나오면
+그 자리가 곧 definer 함수 자리다. 이 저장소에서 세 번째다(0014의 `blocked_user_ids`,
+0031의 `is_chat_room_purgeable`, 그리고 여기).
+
+**적기 전에 밟아 보는 것이 쌌다.** 정책은 틀려도 조용히 "안 보임"으로 나타나는 종류라
+(0023의 `manner_temp`, 0027의 `offer_status`가 그랬다) 화면부터 만들었으면
+"왜 답글이 안 보이지"를 한참 뒤졌을 것이다.
