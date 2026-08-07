@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import TradePartnerPicker from '../../chat/components/tradePartnerPicker';
 import { useUpdatePostStatusMutation } from '../hooks/useUpdatePostStatusMutation';
-import { toPostErrorMessage } from '../utils/postErrorMessage';
+import { toPostActionErrorMessage } from '../utils/postErrorMessage';
 import {
   canChangePostStatus,
   needsTradePartner,
@@ -169,7 +169,14 @@ function PostStatusControl(props: PostStatusControlProps) {
 
       {statusMutation.isError ? (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-          {toPostErrorMessage(statusMutation.error)}
+          {/*
+            여기서 나는 거절은 **서버가 이유를 한국어로 적어 보내는** 종류다 —
+            전이 규칙(0008)과 거래 상대 판정(0035)이 둘 다 트리거라 문구가 실려 온다.
+            `toPostErrorMessage`로 받으면 그 문구가 패턴에 안 걸려 "잠시 후 다시 시도해
+            주세요"로 떨어지는데, 되풀이해도 안 되는 일이라 **거짓말이 된다.**
+            0027이 `chatErrorMessage`에서 겪은 자리와 같다.
+          */}
+          {toPostActionErrorMessage(statusMutation.error)}
         </p>
       ) : null}
     </div>
