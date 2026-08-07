@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
 type PostImageCarouselProps = {
@@ -54,7 +55,7 @@ function PostImageCarousel(props: PostImageCarouselProps) {
             className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center
                        justify-center rounded-full bg-black/50 text-white transition hover:bg-black/70"
           >
-            ‹
+            <ChevronLeft size={20} />
           </button>
           <button
             type="button"
@@ -63,7 +64,7 @@ function PostImageCarousel(props: PostImageCarouselProps) {
             className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center
                        justify-center rounded-full bg-black/50 text-white transition hover:bg-black/70"
           >
-            ›
+            <ChevronRight size={20} />
           </button>
           <span
             className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-2

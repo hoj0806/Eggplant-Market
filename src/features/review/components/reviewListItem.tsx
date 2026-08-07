@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { formatTimeAgo } from '../../../shared/utils/formatTimeAgo';
 import ProfileAvatar from '../../profile/components/profileAvatar';
-import { REVIEW_RATING_EMOJI, REVIEW_RATING_LABEL } from '../utils/reviewRating';
+import { REVIEW_RATING_ICON, REVIEW_RATING_LABEL } from '../utils/reviewRating';
 import type { ReceivedReview } from '../types';
 
 type ReviewListItemProps = {
@@ -47,8 +47,11 @@ function ReviewListItem(props: ReviewListItemProps) {
           </span>
         </div>
 
-        <span className="text-sm text-gray-700 dark:text-gray-300">
-          <span aria-hidden="true">{REVIEW_RATING_EMOJI[review.rating]}</span>{' '}
+        <span className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300">
+          {(function renderRatingIcon() {
+            const RatingIcon = REVIEW_RATING_ICON[review.rating];
+            return <RatingIcon size={16} />;
+          })()}
           {REVIEW_RATING_LABEL[review.rating]}
         </span>
 

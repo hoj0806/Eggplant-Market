@@ -1,3 +1,4 @@
+import { MoreHorizontal } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import BlockToggleButton from './blockToggleButton';
 import { MENU_ITEM_CLASS as BASE_MENU_ITEM_CLASS } from '../../../shared/ui/menuItem';
@@ -63,7 +64,7 @@ function SafetyMenu(props: SafetyMenuProps) {
         className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-500
                    transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
       >
-        ⋯
+        <MoreHorizontal size={18} />
       </button>
 
       {isOpen ? (

@@ -1,3 +1,4 @@
+import BrandMark from '../shared/ui/brandMark';
 import { Link, useLocation } from 'react-router-dom';
 import { APP_TABS, isTabActive, type AppTab } from './appTabs';
 import { selectAuthUser, useAuthStore } from '../features/auth/store/authStore';
@@ -25,8 +26,8 @@ function toUnreadLabel(count: number): string {
  * 자리 배분도 달라진다.
  *
  *   왼쪽   로고 — 데스크탑에서는 "여기가 어디인가"를 늘 보여 주는 자리가 있다
- *   가운데 보러 가는 넷을 글자로. 아이콘은 뺐다 — 글자가 들어갈 폭이 충분하면
- *          아이콘은 같은 말을 두 번 하는 셈이고, 이모지는 확대하면 거칠어진다
+ *   가운데 보러 가는 넷. 아이콘 + 글자다 — 이모지를 쓰던 시절에는 확대하면 거칠어져
+ *          글자만 두었는데, SVG로 바뀌면서 작은 크기(16px)로 곁들일 수 있게 됐다
  *   오른쪽 알림 종과 글쓰기. **하는 일**이라 보러 가는 넷과 갈라 둔다
  *
  * 글쓰기는 탭바에서 떠 있는 원(`isPrimary`)인데 여기서는 **채워진 버튼**이다.
@@ -59,7 +60,10 @@ function AppHeaderNav() {
           to="/"
           className="shrink-0 text-lg font-bold text-emerald-600 dark:text-emerald-400"
         >
-          🍆 가지마켓
+          <span className="flex items-center gap-1.5">
+            <BrandMark size={22} />
+            가지마켓
+          </span>
         </Link>
 
         <nav aria-label="주요 메뉴" className="min-w-0 flex-1">
@@ -76,6 +80,7 @@ function AppHeaderNav() {
                                 transition hover:bg-gray-50 dark:hover:bg-gray-900
                                 ${isActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
                   >
+                    <tab.Icon size={16} />
                     {tab.label}
                     {/*
                       배지는 링크 이름 밖에 둘 수 없다 — 여기서는 글자 옆에 붙는 작은 알약이라

@@ -73,11 +73,11 @@ function AppTabBar() {
                   <span
                     aria-hidden="true"
                     className="-mt-6 flex h-12 w-12 items-center justify-center rounded-full
-                               bg-emerald-600 text-xl leading-none text-white shadow-lg
+                               bg-emerald-600 leading-none text-white shadow-lg
                                ring-4 ring-white transition hover:bg-emerald-700
                                dark:ring-gray-950"
                   >
-                    {tab.icon}
+                    <tab.Icon size={22} strokeWidth={2.2} />
                   </span>
                   {tab.label}
                 </Link>
@@ -96,9 +96,11 @@ function AppTabBar() {
               >
                 {/* 배지는 아이콘 밖에 둔다 — aria-hidden 안에 넣으면 그 안의 설명도 함께 묻힌다. */}
                 <span className="relative">
-                  <span aria-hidden="true" className="text-lg leading-none">
-                    {tab.icon}
-                  </span>
+                  {/*
+                    `aria-hidden`은 lucide가 스스로 붙인다(장식용 SVG가 기본이다).
+                    바로 아래 글자 라벨이 이름을 맡고 있어 여기서 더 말할 것이 없다.
+                  */}
+                  <tab.Icon size={20} />
                   {tab.to === '/chats' ? <UnreadBadge count={unreadCount} /> : null}
                 </span>
                 {tab.label}

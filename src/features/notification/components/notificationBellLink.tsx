@@ -1,3 +1,4 @@
+import { Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useUnreadNotificationCountQuery } from '../hooks/useNotificationQueries';
 import { useNotificationsRealtime } from '../hooks/useNotificationRealtime';
@@ -35,11 +36,11 @@ function NotificationBellLink(props: NotificationBellLinkProps) {
     <Link
       to="/notifications"
       aria-label={unreadCount === 0 ? '알림' : `알림, 안 읽음 ${unreadCount}개`}
-      className="relative shrink-0 rounded-full p-2 text-xl leading-none transition
+      className="relative shrink-0 rounded-full p-2 leading-none transition
                  hover:bg-gray-100 dark:hover:bg-gray-800"
     >
-      {/* 아이콘 자체는 aria-label이 대신 읽히므로 감춘다. */}
-      <span aria-hidden="true">🔔</span>
+      {/* 이름은 위의 aria-label이 맡는다. lucide는 스스로 aria-hidden을 붙인다. */}
+      <Bell size={20} />
 
       {unreadCount === 0 ? null : (
         <span

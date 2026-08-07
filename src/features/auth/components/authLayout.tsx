@@ -1,3 +1,4 @@
+import BrandMark from '../../../shared/ui/brandMark';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -18,7 +19,10 @@ function AuthLayout(props: AuthLayoutProps) {
     <main className="flex min-h-screen page-narrow flex-col justify-center gap-6 p-6">
       <header className="flex flex-col items-center gap-2 text-center">
         <Link to="/" className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-          🍆 가지마켓
+          <span className="flex items-center gap-2">
+            <BrandMark size={30} />
+            가지마켓
+          </span>
         </Link>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">{props.title}</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">{props.description}</p>

@@ -1,8 +1,21 @@
+import {
+  Ban,
+  Bell,
+  BellOff,
+  ChevronRight,
+  Clock,
+  Heart,
+  Package,
+  Receipt,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 type MyPageMenuItem = {
   to: string;
-  icon: string;
+  /** 줄 왼쪽의 아이콘. 컴포넌트다 — 이유는 `appTabs.ts`의 `Icon`에 적어 두었다. */
+  Icon: LucideIcon;
   label: string;
 };
 
@@ -20,14 +33,16 @@ type MyPageMenuItem = {
  * 여기 링크는 홈까지 돌아가지 않아도 되는 두 번째 길일 뿐이다.
  */
 const MENU_ITEMS: ReadonlyArray<MyPageMenuItem> = [
-  { to: '/notifications', icon: '🔔', label: '알림' },
-  { to: '/my/likes', icon: '♡', label: '관심목록' },
-  { to: '/my/recent', icon: '🕘', label: '최근 본 글' },
-  { to: '/my/purchases', icon: '🧾', label: '구매내역' },
-  { to: '/my/sales', icon: '📦', label: '판매관리' },
-  { to: '/my/blocks', icon: '🚫', label: '차단 목록' },
-  { to: '/settings/notifications', icon: '🔕', label: '알림 설정' },
-  { to: '/settings/account', icon: '⚙️', label: '계정 설정' },
+  { to: '/notifications', Icon: Bell, label: '알림' },
+  { to: '/my/likes', Icon: Heart, label: '관심목록' },
+  { to: '/my/recent', Icon: Clock, label: '최근 본 글' },
+  { to: '/my/purchases', Icon: Receipt, label: '구매내역' },
+  { to: '/my/sales', Icon: Package, label: '판매관리' },
+  { to: '/my/blocks', Icon: Ban, label: '차단 목록' },
+  // 알림과 알림 설정이 나란히 있어 종 하나로는 갈리지 않는다. 꺼진 종(`BellOff`)이
+  // "여기서 끄고 켠다"를 그대로 말한다.
+  { to: '/settings/notifications', Icon: BellOff, label: '알림 설정' },
+  { to: '/settings/account', Icon: Settings, label: '계정 설정' },
 ];
 
 function MyPageMenu() {
@@ -44,12 +59,10 @@ function MyPageMenu() {
                            dark:text-gray-50 dark:hover:bg-gray-900"
               >
                 <span className="flex items-center gap-3">
-                  <span aria-hidden="true">{item.icon}</span>
+                  <item.Icon size={18} className="text-gray-500 dark:text-gray-400" />
                   <span className="font-medium">{item.label}</span>
                 </span>
-                <span aria-hidden="true" className="text-gray-400">
-                  ›
-                </span>
+                <ChevronRight size={16} className="text-gray-400" />
               </Link>
             </li>
           );

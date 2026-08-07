@@ -1,3 +1,4 @@
+import BrandMark from '../../../shared/ui/brandMark';
 import { Navigate, useNavigate } from 'react-router-dom';
 import OnboardingSteps, { type CompletedOnboardingDraft } from './onboardingSteps';
 import PageSpinner from '../../../shared/ui/pageSpinner';
@@ -70,7 +71,10 @@ function OnboardingPage() {
     <main className="flex min-h-screen page-narrow flex-col justify-center gap-6 p-6">
       <header className="flex flex-col items-center gap-2 text-center">
         <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-          🍆 가지마켓
+          <span className="flex items-center justify-center gap-2">
+            <BrandMark size={28} />
+            가지마켓
+          </span>
         </span>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">
           {regionOnly ? '거래할 동네를 정해 주세요' : '시작하기 전에 몇 가지만 알려 주세요'}
