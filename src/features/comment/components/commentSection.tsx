@@ -38,6 +38,11 @@ const REPLY_INDENT_CLASS =
  *
  * 답글 입력칸은 한 번에 하나만 열린다(`replyTargetId`). 여러 개를 열어 두면 어느 칸에
  * 쓰고 있었는지 스스로도 헷갈리고, 등록 버튼이 화면에 여러 개 남는다.
+ *
+ * **비밀 댓글을 가리는 일은 여기서 하지 않는다.** 볼 자격이 없으면 목록에 오지도 않는다
+ * (0033의 `comments_select`). 그래서 "댓글 n"도 받아 온 줄을 그대로 세면 보는 사람 기준으로
+ * 맞고, 화면이 공개 범위를 다시 판단할 자리가 없다 — 체크칸 하나가 늘었을 뿐이다.
+ * 체크칸은 **1단 폼에만** 붙는다. 답글은 부모를 따라가므로 고를 것이 없다.
  */
 function CommentSection(props: CommentSectionProps) {
   // 폼을 비우는 방법이다. 폼이 값을 들고 있으므로 성공할 때마다 새로 세운다
@@ -52,13 +57,13 @@ function CommentSection(props: CommentSectionProps) {
   const editMutation = useEditCommentMutation(props.postId);
   const deleteMutation = useDeleteCommentMutation(props.postId);
 
-  function handleSubmit(content: string): void {
+  function handleSubmit(content: string, isSecret: boolean): void {
     if (props.viewerId === null) {
       return;
     }
 
     createMutation.mutate(
-      { content, parentId: null },
+      { content, parentId: null, isSecret },
       {
         onSuccess: function clearForm(): void {
           setFormKey(function next(previous: number): number {
@@ -69,13 +74,17 @@ function CommentSection(props: CommentSectionProps) {
     );
   }
 
-  function handleReplySubmit(parentId: number, content: string): void {
+  /**
+   * 답글은 비밀 여부를 **고르지 않는다.** 부모 값을 그대로 실어 보내고, 서버가 한 번 더
+   * 부모에서 받아 적는다(0033). 화면이 틀려도 결과가 어긋나지 않는 자리다.
+   */
+  function handleReplySubmit(parentId: number, isSecret: boolean, content: string): void {
     if (props.viewerId === null) {
       return;
     }
 
     createMutation.mutate(
-      { content, parentId },
+      { content, parentId, isSecret },
       {
         onSuccess: function closeReplyForm(): void {
           setReplyTargetId(null);
@@ -219,10 +228,15 @@ function CommentSection(props: CommentSectionProps) {
                 label={`${node.comment.author.nickname}님에게 답글`}
                 placeholder="답글을 남겨 보세요."
                 submitLabel="답글 등록"
+                note={
+                  node.comment.isSecret
+                    ? '비밀 댓글의 답글도 판매자와 작성자만 볼 수 있어요.'
+                    : undefined
+                }
                 isPending={isSubmitting(commentId)}
                 onCancel={closeReply}
                 onSubmit={function submitReply(content: string): void {
-                  handleReplySubmit(commentId, content);
+                  handleReplySubmit(commentId, node.comment.isSecret, content);
                 }}
               />
             ) : null}
@@ -274,6 +288,7 @@ function CommentSection(props: CommentSectionProps) {
           label="댓글"
           placeholder="궁금한 점을 물어보세요."
           submitLabel="댓글 등록"
+          canBeSecret
           isPending={isSubmitting(null)}
           onSubmit={handleSubmit}
         />

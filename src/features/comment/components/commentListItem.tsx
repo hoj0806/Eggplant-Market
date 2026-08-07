@@ -49,6 +49,11 @@ type CommentListItemProps = {
  * "수정됨"은 시각 옆에 붙는다. 판단은 `isEdited` 하나가 하고 게시물 상세와 같은 규칙을 쓴다 —
  * 서버가 "무엇이 수정인가"를 이미 정해 두었으므로(0020) 여기서 다시 따지지 않는다.
  *
+ * **"비밀" 표는 남에게 알리는 표가 아니다.** 비밀 댓글은 볼 자격이 없으면 아예 오지 않으므로
+ * (0033의 `comments_select`) 이 표를 보는 사람은 언제나 판매자거나 실타래 주인이다.
+ * 그들에게 "이 줄은 우리 둘만 본다"를 알리는 것이 이 표가 하는 일이다 —
+ * 없으면 판매자는 자기 답이 모두에게 보이는 줄 알고 쓴다.
+ *
  * 고치는 동안에는 답글·수정·삭제 버튼을 감춘다. 고치던 것을 두고 다른 일을 시작할 수 있으면
  * 쓰던 글이 어디로 갔는지 알 수 없게 된다.
  */
@@ -109,6 +114,14 @@ function CommentListItem(props: CommentListItemProps) {
               {formatTimeAgo(comment.createdAt, props.now)}
               {isEdited(comment.createdAt, comment.updatedAt) ? ' · 수정됨' : ''}
             </span>
+            {comment.isSecret ? (
+              <span
+                className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600
+                           dark:bg-gray-800 dark:text-gray-300"
+              >
+                비밀
+              </span>
+            ) : null}
           </div>
 
           {props.editForm !== undefined ? (

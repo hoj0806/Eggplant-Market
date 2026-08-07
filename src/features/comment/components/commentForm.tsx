@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import TextArea from '../../../shared/ui/textArea';
 import {
   COMMENT_MAX_LENGTH,
@@ -19,9 +19,20 @@ type CommentFormProps = {
   /** 고치기 폼에만 온다. 원래 내용을 채운 채로 연다. */
   initialContent?: string;
   isPending: boolean;
+  /**
+   * 참이면 "비밀 댓글" 체크칸이 붙는다. **1단 폼에만 온다** —
+   * 답글의 공개 범위는 부모를 따라가고 서버가 받아 적는다(0033).
+   */
+  canBeSecret?: boolean;
+  /** 입력칸 밑에 붙는 안내 한 줄. 지금은 비밀 댓글에 답글을 달 때만 온다. */
+  note?: string;
   /** 답글 폼에만 온다. 있으면 취소 버튼이 붙는다. */
   onCancel?(): void;
-  onSubmit(content: string): void;
+  /**
+   * `isSecret`은 체크칸이 있는 폼에서만 참이 될 수 있다. 없는 폼(답글·고치기)은 언제나
+   * false를 주므로 받는 쪽이 "이 폼에 체크칸이 있었나"를 되물을 필요가 없다.
+   */
+  onSubmit(content: string, isSecret: boolean): void;
 };
 
 /**
@@ -36,9 +47,14 @@ type CommentFormProps = {
  *
  * `initialContent`는 **처음 한 번만** 쓰인다(useState의 초깃값). 고치는 중에 서버에서 새 값이
  * 와도 입력칸을 덮지 않는다 — 쓰고 있던 글이 사라지는 것보다 낫다.
+ *
+ * 비밀 여부도 내용과 같이 여기서 들고 있다가 `onSubmit`으로 함께 올린다. 부모가 들면
+ * 폼이 여럿인 화면에서 "어느 폼의 체크칸인가"를 부모가 다시 가려야 하는데, 비우는 일도
+ * 부모의 `key` 갈아 끼우기가 이미 맡고 있어 그때 함께 false로 돌아간다.
  */
 function CommentForm(props: CommentFormProps) {
   const [content, setContent] = useState(props.initialContent ?? '');
+  const [isSecret, setIsSecret] = useState(false);
   const [errors, setErrors] = useState<CommentFieldErrors>({});
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
@@ -50,7 +66,8 @@ function CommentForm(props: CommentFormProps) {
       return;
     }
 
-    props.onSubmit(content.trim());
+    // 체크칸이 없는 폼은 언제나 false다. 감춰 둔 상태가 딸려 나가지 않는다.
+    props.onSubmit(content.trim(), props.canBeSecret === true && isSecret);
   }
 
   function handleChange(value: string): void {
@@ -68,6 +85,10 @@ function CommentForm(props: CommentFormProps) {
     }
   }
 
+  function handleSecretChange(event: ChangeEvent<HTMLInputElement>): void {
+    setIsSecret(event.target.checked);
+  }
+
   return (
     <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-2">
       <TextArea
@@ -82,7 +103,33 @@ function CommentForm(props: CommentFormProps) {
         onValueChange={handleChange}
       />
 
-      <div className="flex justify-end gap-2">
+      {props.note !== undefined ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400">{props.note}</p>
+      ) : null}
+
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {props.canBeSecret === true ? (
+          <label
+            htmlFor={`${props.fieldId}-secret`}
+            className="mr-auto flex cursor-pointer items-center gap-2 text-xs
+                       font-medium text-gray-600 dark:text-gray-300"
+          >
+            <input
+              id={`${props.fieldId}-secret`}
+              name={`${props.fieldId}-secret`}
+              type="checkbox"
+              checked={isSecret}
+              disabled={props.isPending}
+              onChange={handleSecretChange}
+              className="h-4 w-4 shrink-0 accent-emerald-600"
+            />
+            비밀 댓글
+            <span className="font-normal text-gray-500 dark:text-gray-400">
+              판매자와 나만 볼 수 있어요
+            </span>
+          </label>
+        ) : null}
+
         {props.onCancel !== undefined ? (
           <button
             type="button"
