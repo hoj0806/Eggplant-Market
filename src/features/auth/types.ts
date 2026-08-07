@@ -15,6 +15,18 @@ export type SignUpValues = EmailCredentials & {
   passwordConfirm: string;
 };
 
+/**
+ * 재설정 링크로 들어와 새 비밀번호만 정할 때의 값.
+ *
+ * `SignUpValues`에서 이메일을 뺀 모양인데 그렇다고 적지는 않았다 —
+ * 여기서 이메일을 안 묻는 이유는 **링크가 이미 누구인지 말해 주기 때문**이지
+ * 가입 값에서 한 칸을 덜어낸 것이 아니다.
+ */
+export type NewPasswordValues = {
+  password: string;
+  passwordConfirm: string;
+};
+
 export type AuthFieldName = 'email' | 'password' | 'passwordConfirm';
 
 export type AuthFieldErrors = Partial<Record<AuthFieldName, string>>;

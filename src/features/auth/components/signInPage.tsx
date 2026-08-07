@@ -58,6 +58,19 @@ function SignInPage() {
 
       <SignInForm isPending={signInMutation.isPending} onSubmit={handleSubmit} />
 
+      {/*
+        폼 바로 아래다. 비밀번호를 틀려 오류를 본 사람의 눈이 그다음에 닿는 자리가 여기다 —
+        푸터(회원가입)까지 내려가면 이미 다시 입력해 보고 있다.
+      */}
+      <p className="text-right text-sm">
+        <Link
+          to="/forgot-password"
+          className="text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+        >
+          비밀번호를 잊으셨나요?
+        </Link>
+      </p>
+
       <AuthDivider />
 
       <GoogleSignInButton

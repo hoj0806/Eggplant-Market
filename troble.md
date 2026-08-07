@@ -2263,3 +2263,71 @@ insert·update·delete가 각각 다른 정책이므로, 한 규칙이 두 명�
 그리고 **서버가 새로 말을 하기 시작하면 그 말을 받는 자리를 함께 확인한다.**
 0027에서 한 번, 0029에서 또 한 번, 이번이 세 번째다. 서버 문구를 늘리거나 바꾼 마이그레이션은
 **그 문구를 그대로 넣은 테스트**를 같은 PR에 붙이는 것으로 갈음한다.
+
+## 초기화 중에 생긴 인증 사건은 늦게 구독하면 못 받는다 (2026-08-07)
+
+### 1. `PASSWORD_RECOVERY`를 놓치면 정상 흐름이 "만료된 링크"가 된다
+
+**증상**(짜다가 미리 잡은 것이다 — 물리기 전에 소스를 읽었다): 비밀번호 재설정 화면은
+"이 세션이 재설정 링크로 선 것인가"를 알아야 한다. 모르면 로그인만 돼 있어도 통과시키게 되고,
+그러면 **남이 열어 둔 브라우저로 주소만 쳐서 비밀번호를 바꿔 계정을 가져갈 수 있다.**
+
+세션 객체에는 그 표시가 없다. 있는 것은 `onAuthStateChange`의 `PASSWORD_RECOVERY` 사건뿐인데,
+`useAuthSessionSync`가 **세션을 먼저 읽고 그다음에 구독하고** 있었다.
+
+```ts
+loadInitialSession();                    // ← 먼저
+const unsubscribe = subscribeToAuthChanges(…);   // ← 나중
+```
+
+이 순서면 사건을 받는가? 추측하지 않고 설치된 소스를 읽었다.
+
+**원인 찾기**: `node_modules/@supabase/auth-js/dist/main/GoTrueClient.js`.
+
+```js
+async initialize() {
+    if (this.initializePromise) { return await this.initializePromise; }
+    // Open the notification queue before _initialize() runs so that every
+    // _notifyAllSubscribers call inside the init chain enqueues instead of firing.
+    this._pendingInitNotifications = [];
+    this.initializePromise = (async () => { … return await this._initialize(); })();
+    const result = await this.initializePromise;
+    // flush queued notifications in order.
+    const queue = this._pendingInitNotifications ?? [];
+    this._pendingInitNotifications = null;
+    for (const n of queue) { await this._notifyAllSubscribers(n.event, n.session, n.broadcast); }
+    return result;
+}
+```
+
+그리고 URL에서 세션을 꺼내는 자리가 `params.type == 'recovery' ? 'PASSWORD_RECOVERY' : 'SIGNED_IN'`을
+`_notifyAllSubscribers`로 보낸다.
+
+**원인**: 초기화 중의 알림은 **곧바로 나가지 않고 큐에 담겼다가, 초기화가 끝난 뒤
+"그때 등록돼 있는" 구독자에게** 흘러간다(그렇게 하는 이유는 콜백이 `getSession()`을 부르면
+`initializePromise`를 기다리다 교착에 빠지기 때문이다 — 주석에 그렇게 적혀 있다).
+
+즉 **플러시보다 늦게 구독하면 그 사건은 영영 안 온다.** 그런데 `getSession()`도
+`initializePromise`를 기다리므로, 세션 읽기를 먼저 걸어 두면 두 대기가 같은 약속에 줄을 서서
+어느 쪽이 먼저 깨어날지가 미묘해진다.
+
+**해결**: 구독을 먼저 걸고 세션 읽기를 나중에 둔다. 두 줄을 맞바꾼 것이 전부다.
+
+```ts
+const unsubscribe = subscribeToAuthChanges(…);   // ← 먼저
+loadInitialSession();                            // ← 나중
+```
+
+### 남는 교훈
+
+**"사건을 구독한다"는 코드는 그 사건이 언제 처음 발생하는지부터 확인한다.** 라이브러리가
+초기화 중에 한 번만 쏘는 사건이라면, 구독 시점이 곧 기능의 동작 여부다.
+
+이번에 위험했던 것은 **틀렸을 때의 모양**이다. 사건을 놓쳐도 오류가 안 난다 —
+정상 흐름이 조용히 "링크가 만료되었습니다"가 될 뿐이라, 링크를 다시 받아 봐도 똑같이 실패하고
+**원인이 화면 어디에도 안 적힌다.** 0027·0029·0035에서 되풀이된 "오류가 아니라 덜 정확한
+결과로 떨어지는" 종류다.
+
+그리고 **화면에만 있는 확인을 보안 경계로 부르지 않는다.** `/reset-password`의 이 판정은
+UX이고, 서버 쪽 잠금은 Supabase의 "Secure password change"뿐이다 — 대시보드 스위치라
+코드가 켤 수 없어 `note.md`의 배포 준비 목록에 적었다.

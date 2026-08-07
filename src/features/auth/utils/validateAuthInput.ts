@@ -1,4 +1,9 @@
-import type { AuthFieldErrors, EmailCredentials, SignUpValues } from '../types';
+import type {
+  AuthFieldErrors,
+  EmailCredentials,
+  NewPasswordValues,
+  SignUpValues,
+} from '../types';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
@@ -59,6 +64,32 @@ export function validateSignInValues(values: EmailCredentials): AuthFieldErrors 
 
 export function validateSignUpValues(values: SignUpValues): AuthFieldErrors {
   const errors = validateSignInValues(values);
+
+  const passwordConfirmError = validatePasswordConfirm(
+    values.password,
+    values.passwordConfirm,
+  );
+  if (passwordConfirmError !== undefined) {
+    errors.passwordConfirm = passwordConfirmError;
+  }
+
+  return errors;
+}
+
+/**
+ * 재설정 링크로 들어와 새 비밀번호를 정할 때.
+ *
+ * 가입 때와 같은 규칙을 그대로 쓴다 — 같은 칸에 들어가는 같은 값이라 규칙이 갈릴 이유가 없다.
+ * **"지금 쓰던 것과 달라야 한다"는 안 본다.** 잊어버려서 온 사람에게 물어볼 수 없는 값이고,
+ * 같은 값이면 서버가 `same_password`로 답한다(`authErrorMessage`가 그 문구를 맡는다).
+ */
+export function validateNewPasswordValues(values: NewPasswordValues): AuthFieldErrors {
+  const errors: AuthFieldErrors = {};
+
+  const passwordError = validatePassword(values.password);
+  if (passwordError !== undefined) {
+    errors.password = passwordError;
+  }
 
   const passwordConfirmError = validatePasswordConfirm(
     values.password,

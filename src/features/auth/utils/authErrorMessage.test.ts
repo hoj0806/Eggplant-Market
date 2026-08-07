@@ -46,13 +46,43 @@ describe('toAuthErrorMessage', function toAuthErrorMessageSuite() {
     ).toBe('사용할 수 없는 이메일 주소입니다. 다른 이메일로 시도해 주세요.');
   });
 
-  it('메일 발송 rate limit을 안내한다', function emailRateLimitCase() {
+  // 문구를 좁혔다. 예전에는 일반 rate limit과 한 문구를 썼는데, 비밀번호 재설정 화면이
+  // 생기면서 **이 오류를 사용자가 실제로 보게 됐다** — 거기서 "요청이 너무 잦습니다"는
+  // 무엇을 기다려야 하는지 안 알려 준다. 기다릴 것은 메일 발송 한도다.
+  it('메일 발송 rate limit은 메일 기준으로 안내한다', function emailRateLimitCase() {
     expect(
       toAuthErrorMessage({
         code: 'over_email_send_rate_limit',
         message: 'email rate limit exceeded',
       }),
-    ).toBe('요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.');
+    ).toBe('메일을 너무 자주 요청했습니다. 잠시 후 다시 시도해 주세요.');
+  });
+
+  // 일반 rate limit(로그인 시도 등)은 그대로다.
+  it('그 밖의 rate limit은 지금까지 문구를 쓴다', function generalRateLimitCase() {
+    expect(toAuthErrorMessage({ message: 'Request rate limit reached' })).toBe(
+      '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.',
+    );
+  });
+
+  // 재설정 링크는 한 번 쓰면 끝이고 유효 시간도 짧다.
+  it('만료된 재설정 링크를 안내한다', function expiredLinkCase() {
+    expect(
+      toAuthErrorMessage({
+        code: 'otp_expired',
+        message: 'Email link is invalid or has expired',
+      }),
+    ).toBe('링크가 만료되었거나 이미 사용되었습니다. 재설정 링크를 다시 받아 주세요.');
+  });
+
+  // 잊어버려서 온 사람에게 화면이 미리 물을 수 없는 값이라 서버 문구를 받는다.
+  it('예전과 같은 비밀번호를 안내한다', function samePasswordCase() {
+    expect(
+      toAuthErrorMessage({
+        code: 'same_password',
+        message: 'New password should be different from the old password.',
+      }),
+    ).toBe('지금 쓰고 있는 비밀번호와 다른 비밀번호를 입력해 주세요.');
   });
 
   it('만료된 세션은 재로그인을 안내한다', function expiredSessionCase() {
