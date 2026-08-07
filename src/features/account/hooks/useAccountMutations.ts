@@ -1,18 +1,7 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
-import { changePassword, deleteAccount, type ChangePasswordInput } from '../api/accountApi';
+import { deleteAccount } from '../api/accountApi';
 import { signOutLocally } from '../../auth/api/authApi';
 import { selectClearSession, useAuthStore } from '../../auth/store/authStore';
-
-/** 비밀번호 변경은 캐시에 남는 것이 없다. 사용자도 세션도 그대로다. */
-export function useChangePasswordMutation(): UseMutationResult<
-  void,
-  Error,
-  ChangePasswordInput
-> {
-  return useMutation<void, Error, ChangePasswordInput>({
-    mutationFn: changePassword,
-  });
-}
 
 /**
  * 회원탈퇴.

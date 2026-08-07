@@ -1,11 +1,8 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import AppLayout from './appLayout';
 import AccountSettingsPage from '../features/account/components/accountSettingsPage';
 import AuthCallbackPage from '../features/auth/components/authCallbackPage';
-import ForgotPasswordPage from '../features/auth/components/forgotPasswordPage';
-import ResetPasswordPage from '../features/auth/components/resetPasswordPage';
 import SignInPage from '../features/auth/components/signInPage';
-import SignUpPage from '../features/auth/components/signUpPage';
 import BlockedUsersPage from '../features/block/components/blockedUsersPage';
 import HomePage from '../features/browse/components/homePage';
 import SearchPage from '../features/browse/components/searchPage';
@@ -171,8 +168,10 @@ export const router = createBrowserRouter([
   // 아래는 탭바 밖이다. 로그인·온보딩은 아직 갈 곳이 없는 사람이 보는 화면이고,
   // 상세·채팅방·설정은 한 가지 일을 끝내고 돌아가는 화면이다.
   {
+    // 소셜 로그인만 남으면서 가입과 로그인이 같은 행동이 됐다. 옛 주소를 살려 두되
+    // 로그인으로 보낸다 — 북마크나 밖에서 걸린 링크가 막다른 길이 되지 않게.
     path: '/signup',
-    element: <SignUpPage />,
+    element: <Navigate to="/login" replace />,
   },
   {
     path: '/login',
@@ -263,18 +262,5 @@ export const router = createBrowserRouter([
   {
     path: '/auth/callback',
     element: <AuthCallbackPage />,
-  },
-  {
-    // 비밀번호를 잊었을 때. 로그인 전 화면이라 가드가 없다.
-    path: '/forgot-password',
-    element: <ForgotPasswordPage />,
-  },
-  {
-    // 재설정 링크가 떨어지는 곳. **`/auth/callback`과 갈라 둔 이유는 그쪽이 세션이 서면
-    // 곧바로 홈으로 보내기 때문이다** — 거기로 보내면 로그인만 되고 비밀번호를 정할 자리가
-    // 없다. 가드를 두르지 않는 것도 같은 결이다. 링크로 들어온 사람은 이미 세션이 있고,
-    // 없이 들어온 사람에게는 화면이 스스로 만료 안내를 낸다.
-    path: '/reset-password',
-    element: <ResetPasswordPage />,
   },
 ]);
