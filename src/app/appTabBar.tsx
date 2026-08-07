@@ -36,6 +36,10 @@ function UnreadBadge(props: { count: number }) {
  * 지금 어디에 있는지가 늘 보인다.
  *
  * 안 읽은 배지는 로그인한 사람에게만 붙는다 — 게스트는 방이 없어 쿼리 자체가 돌지 않는다.
+ *
+ * **`md`부터는 사라진다**(`md:hidden`). 그 위에서는 `AppHeaderNav`가 같은 다섯 자리를
+ * 화면 위쪽에 놓는다 — 데스크탑에서 화면 아래는 눈에서 가장 먼 곳이라, 엄지를 위해
+ * 만든 물건을 그대로 두면 마우스가 매번 끝까지 내려가야 한다.
  */
 function AppTabBar() {
   const location = useLocation();
@@ -46,7 +50,7 @@ function AppTabBar() {
     <nav
       aria-label="주요 메뉴"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white
-                 dark:border-gray-800 dark:bg-gray-950"
+                 md:hidden dark:border-gray-800 dark:bg-gray-950"
     >
       <ul className="mx-auto flex max-w-screen-sm">
         {APP_TABS.map(function renderTab(tab: AppTab) {

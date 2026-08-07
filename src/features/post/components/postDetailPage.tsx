@@ -116,7 +116,7 @@ function PostDetailPage() {
 
   if (postId === null || postQuery.isError) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col items-center justify-center gap-3 p-6">
+      <main className="flex min-h-screen page-detail flex-col items-center justify-center gap-3 p-6">
         <p className="text-gray-700 dark:text-gray-200">게시물을 찾을 수 없습니다.</p>
         <Link
           to="/"
@@ -135,7 +135,7 @@ function PostDetailPage() {
   const post = postQuery.data;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
+    <main className="flex min-h-screen page-detail flex-col gap-4 p-6">
       {/*
         제목을 주지 않는다 — 이 화면의 제목 자리에는 사진과 글이 곧바로 온다.
         오른쪽에는 ⋯ 메뉴가 하나 붙는다. 내 글이면 관리(수정·끌올·삭제),
@@ -159,31 +159,52 @@ function PostDetailPage() {
         }
       />
 
-      <PostImageCarousel images={post.images} title={post.title} />
+      {/*
+        `lg`부터 2단이다. 모바일에서는 사진 → 판매자 → 값 → 설명 → 버튼을 **위에서 아래로**
+        훑지만, 데스크탑에서 그 순서를 그대로 세우면 사진이 화면을 가득 채우고 값과 버튼이
+        스크롤 아래로 밀린다 — **살지 말지 정하는 데 필요한 것이 한눈에 안 들어온다.**
 
-      <PostSellerCard seller={post.seller} dongName={post.dongName} />
+        왼쪽은 사진 하나로 두고(가장 넓은 자리를 차지할 값어치가 있다), 오른쪽에 판매자·제목·
+        가격·설명·거래장소·버튼을 모은다. `items-start`가 있어야 짧은 쪽이 늘어나지 않는다.
 
-      <section className="flex flex-col gap-2">
-        <div className="flex items-start gap-2">
-          <PostStatusBadge status={post.status} />
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">{post.title}</h1>
+        `lg:sticky`로 왼쪽 사진을 붙여 두면 오른쪽 설명이 길어도 사진이 따라온다.
+        `top-16`은 상단 내비게이션(약 60px) 밑에 걸리지 않게 하는 값이다.
+
+        댓글은 이 안에 넣지 않는다 — 아래 참고.
+      */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
+        <div className="lg:sticky lg:top-16">
+          <PostImageCarousel images={post.images} title={post.title} />
         </div>
-        <PostMeta post={post} />
-        <p className="text-xl font-bold text-gray-900 dark:text-gray-50">
-          {formatPrice(post.price)}
-        </p>
-      </section>
 
-      {/* 줄바꿈을 그대로 살린다. 설명은 사용자가 쓴 대로 보여야 한다. */}
-      <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
-        {post.description}
-      </p>
+        <div className="flex flex-col gap-4">
+          <PostSellerCard seller={post.seller} dongName={post.dongName} />
 
-      <TradePlaceSection post={post} />
+          <section className="flex flex-col gap-2">
+            <div className="flex items-start gap-2">
+              <PostStatusBadge status={post.status} />
+              <h1 className="text-lg font-semibold text-gray-900 lg:text-2xl dark:text-gray-50">
+                {post.title}
+              </h1>
+            </div>
+            <PostMeta post={post} />
+            <p className="text-xl font-bold text-gray-900 lg:text-2xl dark:text-gray-50">
+              {formatPrice(post.price)}
+            </p>
+          </section>
 
-      {/* 판매자에게는 상태 변경 패널이, 그 밖에는 찜·채팅 버튼이 온다. 높이가 달라 위로 맞춘다. */}
-      <div className="flex flex-wrap items-start gap-2 pt-2">
-        <PostActions post={post} viewerId={viewerId} />
+          {/* 줄바꿈을 그대로 살린다. 설명은 사용자가 쓴 대로 보여야 한다. */}
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+            {post.description}
+          </p>
+
+          <TradePlaceSection post={post} />
+
+          {/* 판매자에게는 상태 변경 패널이, 그 밖에는 찜·채팅 버튼이 온다. 높이가 달라 위로 맞춘다. */}
+          <div className="flex flex-wrap items-start gap-2 pt-2">
+            <PostActions post={post} viewerId={viewerId} />
+          </div>
+        </div>
       </div>
 
       {/*
@@ -197,7 +218,14 @@ function PostDetailPage() {
         가른다. 후기 안내(ReviewPrompt)보다도 아래인 것은 그쪽이 거래 당사자에게만
         잠깐 떴다 사라지는 안내여서다.
       */}
-      <CommentSection postId={post.id} viewerId={viewerId} sellerId={post.seller.id} />
+      {/*
+        2단 **밖**이다. 댓글은 물건을 다 본 뒤에 읽는 대화라 오른쪽 칸에 끼워 넣으면
+        가격·버튼과 자리를 다투고, 왼쪽 사진과 높이가 어긋난다.
+        대신 `lg:max-w-2xl`로 폭을 좁힌다 — 대화는 한 줄이 길어지면 읽기 나빠진다.
+      */}
+      <div className="lg:max-w-2xl">
+        <CommentSection postId={post.id} viewerId={viewerId} sellerId={post.seller.id} />
+      </div>
     </main>
   );
 }

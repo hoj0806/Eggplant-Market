@@ -84,7 +84,7 @@ function PostEditPage() {
 
   if (postId === null || postQuery.isError) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col items-center justify-center gap-3 p-6">
+      <main className="flex min-h-screen page-narrow flex-col items-center justify-center gap-3 p-6">
         <p className="text-gray-700 dark:text-gray-200">게시물을 찾을 수 없습니다.</p>
         <Link
           to="/"
@@ -113,7 +113,7 @@ function PostEditPage() {
     updatePostMutation.error !== null ? toPostErrorMessage(updatePostMutation.error) : null;
 
   return (
-    <main className="mx-auto flex max-w-screen-sm flex-col gap-6 p-6">
+    <main className="flex page-narrow flex-col gap-6 p-6">
       <PageHeader
         backTo={`/posts/${post.id}`}
         backLabel="게시물"

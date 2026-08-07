@@ -67,7 +67,7 @@ function OnboardingPage() {
   const regionOnly = profile !== undefined && needsRegionOnly(profile);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col justify-center gap-6 p-6">
+    <main className="flex min-h-screen page-narrow flex-col justify-center gap-6 p-6">
       <header className="flex flex-col items-center gap-2 text-center">
         <span className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
           🍆 가지마켓

@@ -41,7 +41,7 @@ function NotificationPage() {
   });
 
   return (
-    <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
+    <main className="flex page-wide flex-col gap-4 p-6">
       <header className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">알림</h1>
 

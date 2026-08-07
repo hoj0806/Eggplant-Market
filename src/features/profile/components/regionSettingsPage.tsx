@@ -89,7 +89,7 @@ function RegionSettingsPage() {
   const errorMessage = failedMutation !== null ? toProfileErrorMessage(failedMutation) : null;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-6 p-6">
+    <main className="flex min-h-screen page-narrow flex-col gap-6 p-6">
       <PageHeader
         backTo="/"
         backLabel="홈"

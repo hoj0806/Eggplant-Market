@@ -23,7 +23,7 @@ function MyPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-screen-sm flex-col gap-6 p-6">
+    <main className="flex page-wide flex-col gap-6 p-6">
       <header>
         <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">나의 가지마켓</h1>
       </header>

@@ -33,14 +33,24 @@ function PostCard(props: PostCardProps) {
 
   return (
     <li>
+      {/*
+        가로에서 세로로. 모바일에서는 썸네일이 왼쪽에 붙은 **한 줄**이라 훑어 내리기 좋고,
+        데스크탑에서는 격자 한 칸을 채우는 **타일**이 된다(사진을 위에 크게).
+        같은 카드가 두 모양을 갖는 것이지 카드가 둘인 것이 아니다 — `PostCard`를
+        홈·검색·마이페이지가 함께 쓰므로("같은 게시물이 화면마다 다르게 보일 이유가 없다")
+        여기 한 곳을 고치면 목록 여섯이 함께 따라온다.
+      */}
       <Link
         to={`/posts/${post.id}`}
-        className="flex gap-3 rounded-xl p-2 transition hover:bg-gray-50 dark:hover:bg-gray-900"
+        className="flex gap-3 rounded-xl p-2 transition hover:bg-gray-50
+                   md:h-full md:flex-col md:gap-0 md:p-0 md:hover:bg-transparent
+                   dark:hover:bg-gray-900 md:dark:hover:bg-transparent"
       >
         {post.thumbnailUrl === null ? (
           <span
             className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-gray-100
-                       text-xs text-gray-400 dark:bg-gray-800"
+                       text-xs text-gray-400 md:aspect-square md:h-auto md:w-full
+                       md:rounded-xl dark:bg-gray-800"
           >
             사진 없음
           </span>
@@ -48,11 +58,14 @@ function PostCard(props: PostCardProps) {
           <img
             src={post.thumbnailUrl}
             alt={post.title}
-            className="h-24 w-24 shrink-0 rounded-lg bg-gray-100 object-cover dark:bg-gray-800"
+            // 데스크탑에서는 정사각형으로 칸을 채운다. 높이를 고정하지 않고 aspect로 두면
+            // 격자 열 수가 바뀌어도 사진 비율이 그대로다.
+            className="h-24 w-24 shrink-0 rounded-lg bg-gray-100 object-cover
+                       md:aspect-square md:h-auto md:w-full md:rounded-xl dark:bg-gray-800"
           />
         )}
 
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1 md:pt-2">
           <div className="flex items-start gap-2">
             {post.status === 'selling' ? null : <PostStatusBadge status={post.status} />}
             <span className="truncate font-medium text-gray-900 dark:text-gray-50">
