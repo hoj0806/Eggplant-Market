@@ -1,3 +1,4 @@
+import { Heart } from 'lucide-react';
 import { useToggleLikeMutation } from '../hooks/useToggleLikeMutation';
 
 type LikeButtonProps = {
@@ -31,7 +32,11 @@ function LikeButton(props: LikeButtonProps) {
                       : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
                   }`}
     >
-      <span aria-hidden="true">{props.isLiked ? '♥' : '♡'}</span>
+      {/*
+        같은 아이콘을 `fill`로만 가른다. 예전에는 `♥`와 `♡`가 **서로 다른 글자**라
+        폰트에 따라 굵기·크기가 달라 눌렀을 때 아이콘이 살짝 움찔했다.
+      */}
+      <Heart size={16} fill={props.isLiked ? 'currentColor' : 'none'} />
       <span>{props.likeCount}</span>
     </button>
   );

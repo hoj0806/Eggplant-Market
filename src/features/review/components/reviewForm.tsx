@@ -3,7 +3,7 @@ import SubmitButton from '../../../shared/ui/submitButton';
 import TextArea from '../../../shared/ui/textArea';
 import {
   MAX_MANNER_TAGS,
-  REVIEW_RATING_EMOJI,
+  REVIEW_RATING_ICON,
   REVIEW_RATING_LABEL,
   REVIEW_RATING_ORDER,
   toMannerTagOptions,
@@ -109,9 +109,10 @@ function ReviewForm(props: ReviewFormProps) {
                   isSelected ? RATING_SELECTED_CLASS : RATING_UNSELECTED_CLASS
                 }`}
               >
-                <span aria-hidden="true" className="text-xl">
-                  {REVIEW_RATING_EMOJI[value]}
-                </span>
+                {(function renderRatingIcon() {
+                  const RatingIcon = REVIEW_RATING_ICON[value];
+                  return <RatingIcon size={22} />;
+                })()}
                 {REVIEW_RATING_LABEL[value]}
               </button>
             );

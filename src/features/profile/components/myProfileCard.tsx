@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ProfileAvatar from './profileAvatar';
 import { toTemperatureText } from '../utils/mannerTemperature';
@@ -38,11 +39,9 @@ function MyProfileCard(props: MyProfileCardProps) {
         */}
         <Link to="/my/manner" className="shrink-0 rounded-lg text-right transition hover:opacity-80">
           <span className="block text-xs text-gray-500 dark:text-gray-400">매너온도 기록</span>
-          <span className="block font-semibold text-emerald-600 dark:text-emerald-400">
+          <span className="flex items-center justify-end gap-0.5 font-semibold text-emerald-600 dark:text-emerald-400">
             {toTemperatureText(profile.mannerTemp)}
-            <span aria-hidden="true" className="ml-1 text-gray-400">
-              ›
-            </span>
+            <ChevronRight size={14} className="text-gray-400" />
           </span>
         </Link>
       </div>

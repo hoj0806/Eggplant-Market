@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import RegionCountList from './regionCountList';
@@ -99,7 +100,7 @@ function MapPage() {
             to={{ pathname: '/search', search: searchParams.toString() }}
             className="text-sm text-emerald-700 transition hover:underline dark:text-emerald-400"
           >
-            목록으로 ›
+            목록으로 <ChevronRight size={16} />
           </Link>
         </div>
         <p className="truncate text-sm text-gray-500 dark:text-gray-400">

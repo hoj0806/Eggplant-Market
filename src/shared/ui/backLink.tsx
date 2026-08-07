@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 type BackLinkProps = {
@@ -41,8 +42,8 @@ function BackLink(props: BackLinkProps) {
       aria-label={props.isLabelHidden === true ? props.label : undefined}
       className={LINK_CLASS}
     >
-      <span aria-hidden="true">←</span>
-      {props.isLabelHidden === true ? null : ` ${props.label}`}
+      <ArrowLeft size={16} />
+      {props.isLabelHidden === true ? null : props.label}
     </Link>
   );
 }

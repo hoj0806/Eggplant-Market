@@ -1,3 +1,5 @@
+import BrandMark from '../../../shared/ui/brandMark';
+import { ChevronRight, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import NeighborhoodPostList from './neighborhoodPostList';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
@@ -62,7 +64,10 @@ function MemberGreeting(props: { profile: Profile | undefined; viewerId: string 
             to="/settings/region"
             className="text-sm text-emerald-700 transition hover:underline dark:text-emerald-400"
           >
-            {profile?.region?.fullName ?? '동네 설정하기'} ›
+            <span className="inline-flex items-center gap-0.5">
+              {profile?.region?.fullName ?? '동네 설정하기'}
+              <ChevronRight size={14} />
+            </span>
           </Link>
         </div>
       </div>
@@ -94,7 +99,10 @@ function HomePage() {
           같은 이름이 세로로 두 번 쌓인다.
         */}
         <h1 className="text-2xl font-bold text-emerald-600 md:hidden dark:text-emerald-400">
-          🍆 가지마켓
+          <span className="flex items-center gap-1.5">
+            <BrandMark size={26} />
+            가지마켓
+          </span>
         </h1>
 
         {status === 'loading' ? (
@@ -112,7 +120,10 @@ function HomePage() {
                      transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900
                      dark:text-gray-500 dark:hover:bg-gray-800"
         >
-          🔍 물건 이름이나 내용으로 검색
+          <span className="flex items-center gap-2">
+            <Search size={16} />
+            물건 이름이나 내용으로 검색
+          </span>
         </Link>
       </header>
 

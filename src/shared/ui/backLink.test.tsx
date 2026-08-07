@@ -17,7 +17,8 @@ describe('BackLink', function backLinkSuite() {
     const link = screen.getByRole('link', { name: '마이페이지' });
 
     expect(link).toHaveAttribute('href', '/my');
-    expect(link).toHaveTextContent('← 마이페이지');
+    // 화살표는 이제 SVG 아이콘이라 글자로 잡히지 않는다. 링크의 **이름**이 목적지인지만 본다.
+    expect(link).toHaveTextContent('마이페이지');
   });
 
   it('화살표는 보조기기가 읽지 않는다', function arrowIsDecorative() {

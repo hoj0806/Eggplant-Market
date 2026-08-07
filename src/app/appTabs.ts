@@ -1,7 +1,19 @@
+import { Home, MessageCircle, PenLine, Search, User, type LucideIcon } from 'lucide-react';
+
 export type AppTab = {
   to: string;
   label: string;
-  icon: string;
+  /**
+   * 이 자리를 나타내는 아이콘. **컴포넌트다**(이모지 문자열이 아니다).
+   *
+   * 이모지는 폰트가 그리는 글자라 기기마다 모양이 달랐다 — 같은 `🏠`가 안드로이드에서는
+   * 파란 지붕, 애플에서는 갈색 지붕으로 나오고, 크기를 키우면 거칠어진다.
+   * 색도 못 정해서 켜진 탭과 꺼진 탭이 **같은 색**으로 보였다.
+   *
+   * lucide는 `currentColor`로 그리는 SVG라 글자색을 그대로 따라간다 — 활성 색을
+   * 아이콘에도 쓰려고 따로 적을 것이 없다.
+   */
+  Icon: LucideIcon;
   /**
    * 가운데에 크게 띄우는 자리인가.
    *
@@ -20,11 +32,13 @@ export type AppTab = {
  * 왼쪽 둘은 "보러 오는" 자리, 가운데는 "올리는" 자리, 오른쪽 둘은 "내 것"이다.
  */
 export const APP_TABS: ReadonlyArray<AppTab> = [
-  { to: '/', label: '홈', icon: '🏠' },
-  { to: '/search', label: '검색', icon: '🔍' },
-  { to: '/posts/new', label: '글쓰기', icon: '✏️', isPrimary: true },
-  { to: '/chats', label: '채팅', icon: '💬' },
-  { to: '/my', label: '나의 가지마켓', icon: '👤' },
+  { to: '/', label: '홈', Icon: Home },
+  { to: '/search', label: '검색', Icon: Search },
+  // 연필 하나(`PenLine`)다. `Plus`도 후보였는데 그쪽은 "무엇이든 더한다"는 뜻이라
+  // 파는 글을 쓰러 가는 자리와 어긋난다.
+  { to: '/posts/new', label: '글쓰기', Icon: PenLine, isPrimary: true },
+  { to: '/chats', label: '채팅', Icon: MessageCircle },
+  { to: '/my', label: '나의 가지마켓', Icon: User },
 ];
 
 /**

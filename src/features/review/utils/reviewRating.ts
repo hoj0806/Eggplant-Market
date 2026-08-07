@@ -1,3 +1,4 @@
+import { Frown, Meh, Smile, type LucideIcon } from 'lucide-react';
 import type { ReviewRating } from '../types';
 
 /** 화면에 놓이는 순서. 좋은 쪽을 앞에 둔다 — 대부분의 거래가 그쪽이다. */
@@ -9,11 +10,17 @@ export const REVIEW_RATING_LABEL: Record<ReviewRating, string> = {
   bad: '별로예요',
 };
 
-/** 프로필의 받은 후기 옆에 붙는 표식. 글자만으로는 훑을 때 눈에 걸리지 않는다. */
-export const REVIEW_RATING_EMOJI: Record<ReviewRating, string> = {
-  good: '😊',
-  normal: '😐',
-  bad: '😞',
+/**
+ * 프로필의 받은 후기 옆에 붙는 표식. 글자만으로는 훑을 때 눈에 걸리지 않는다.
+ *
+ * 이모지(`😊 😐 😞`)에서 아이콘으로 바꿨다. 표정 이모지는 기기마다 인상이 크게 달라
+ * **같은 "보통이에요"가 애플에서는 무표정, 안드로이드에서는 뾰로통하게** 보였다.
+ * 남의 평가를 옮겨 적는 자리라 그 차이가 뜻을 바꾼다.
+ */
+export const REVIEW_RATING_ICON: Record<ReviewRating, LucideIcon> = {
+  good: Smile,
+  normal: Meh,
+  bad: Frown,
 };
 
 /**

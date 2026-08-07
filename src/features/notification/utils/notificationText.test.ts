@@ -29,7 +29,7 @@ describe('toNotificationView — 첫 후기', function firstReviewSuite() {
       VIEWER_ID,
     );
 
-    expect(view.title).toBe('🎉 첫 거래후기를 받았어요');
+    expect(view.title).toBe('첫 거래후기를 받았어요');
     expect(view.body).toBe('매너온도가 올랐어요. 프로필에서 확인해 보세요');
     expect(view.to).toBe(`/users/${VIEWER_ID}`);
   });

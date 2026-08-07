@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { ALLOWED_POST_IMAGE_TYPES, MAX_POST_IMAGE_COUNT } from '../utils/validatePostInput';
 import type { PostImageItem } from '../types';
@@ -120,7 +121,7 @@ function PostImagePicker(props: PostImagePickerProps) {
                            rounded-full bg-gray-900/80 text-xs text-white transition
                            hover:bg-gray-900 disabled:opacity-60"
               >
-                ✕
+                <X size={14} />
               </button>
             </div>
           );

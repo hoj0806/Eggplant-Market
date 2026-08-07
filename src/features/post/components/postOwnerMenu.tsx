@@ -1,3 +1,4 @@
+import { MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useNow } from '../../../shared/hooks/useNow';
@@ -77,7 +78,7 @@ function PostOwnerMenu(props: PostOwnerMenuProps) {
         className="flex h-9 w-9 items-center justify-center rounded-full text-lg text-gray-500
                    transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
       >
-        ⋯
+        <MoreHorizontal size={18} />
       </button>
 
       {isOpen ? (

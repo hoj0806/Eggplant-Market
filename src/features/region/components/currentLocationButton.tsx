@@ -1,3 +1,5 @@
+import { MapPin } from 'lucide-react';
+
 type CurrentLocationButtonProps = {
   isPending: boolean;
   disabled: boolean;
@@ -16,7 +18,7 @@ function CurrentLocationButton(props: CurrentLocationButtonProps) {
                  hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60
                  dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-950"
     >
-      <span aria-hidden="true">📍</span>
+      <MapPin size={16} />
       {props.isPending ? '현재 위치를 확인하는 중…' : '현재 위치로 동네 찾기'}
     </button>
   );
