@@ -31,12 +31,20 @@ function MyProfileCard(props: MyProfileCardProps) {
           </div>
         </div>
 
-        <span className="shrink-0 text-right">
-          <span className="block text-xs text-gray-500 dark:text-gray-400">매너온도</span>
+        {/*
+          기록으로 들어가는 길을 **숫자 자체**에 붙였다. "왜 이 값이지"를 묻는 순간이
+          곧 이 숫자를 보는 순간이라, 메뉴 목록에 아홉 번째 줄을 더하는 것보다 가깝다
+          (myPageMenu의 순서는 자주 여는 것부터라는 규칙을 지키고 있다).
+        */}
+        <Link to="/my/manner" className="shrink-0 rounded-lg text-right transition hover:opacity-80">
+          <span className="block text-xs text-gray-500 dark:text-gray-400">매너온도 기록</span>
           <span className="block font-semibold text-emerald-600 dark:text-emerald-400">
             {toTemperatureText(profile.mannerTemp)}
+            <span aria-hidden="true" className="ml-1 text-gray-400">
+              ›
+            </span>
           </span>
-        </span>
+        </Link>
       </div>
 
       <div className="flex gap-2">

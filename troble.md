@@ -2130,3 +2130,59 @@ definer는 함수 소유자(`postgres`, 곧 테이블 주인)의 권한으로 �
 **적기 전에 밟아 보는 것이 쌌다.** 정책은 틀려도 조용히 "안 보임"으로 나타나는 종류라
 (0023의 `manner_temp`, 0027의 `offer_status`가 그랬다) 화면부터 만들었으면
 "왜 답글이 안 보이지"를 한참 뒤졌을 것이다.
+
+## `grant`로 막은 줄 알았는데 아무것도 안 막고 있었다 (2026-08-07)
+
+### 1. 정책 없는 delete는 오류가 아니라 **조용히 성공한다**
+
+**증상**: 0034의 `manner_temp_events`는 **시스템만 쓰고 본인만 읽는** 표다. 그래서 select 정책
+하나만 두고, 쐐기를 박는 셈으로 이렇게 적었다.
+
+```sql
+grant select on manner_temp_events to authenticated;
+```
+
+"읽기만 줬으니 쓰기는 권한에서 막힌다"고 읽힌다. 밟아 보니 **둘 다 사실이 아니었다.**
+
+**원인 찾기**: `authenticated`로 갈아타고 끼워 넣기와 지우기를 각각 해 봤다.
+
+```
+insert → 42501 new row violates row-level security policy for table "manner_temp_events"
+delete → 오류 없음. 그런데 6줄이 그대로 남아 있다
+```
+
+지우기가 **오류도 없이 아무것도 안 지운다.** 권한에서 막혔다면 `permission denied for table`이
+나왔어야 한다. 그래서 실제 권한을 봤다.
+
+```sql
+select grantee, string_agg(privilege_type, ',') from information_schema.role_table_grants
+ where table_name in ('manner_temp_events', 'reports') and grantee in ('anon','authenticated')
+ group by grantee, table_name;
+
+-- anon          DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+-- authenticated DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+```
+
+`reports`도 똑같다. 0014가 "select 정책이 없어 설계상 관리자 전용"이라고 적은 그 표다.
+
+**원인**: 두 가지가 겹쳤다.
+
+1. **Supabase가 public 스키마의 표에 `anon`·`authenticated` 양쪽으로 모든 권한을 기본 부여한다.**
+   내가 쓴 `grant select`는 이미 있는 것에 더한 것이라 **아무것도 안 좁혔다.**
+   `grant`는 주는 명령이지 빼앗는 명령이 아니다 — 좁히려면 `revoke`여야 했다.
+2. **RLS는 명령마다 막는 모양이 다르다.** insert는 새 행이 `with check`를 통과해야 하므로
+   **오류로 튀지만**, update·delete는 `using`이 고르는 **행 집합**을 좁힐 뿐이다.
+   정책이 없으면 고를 행이 0개가 되고, 0행을 지우는 것은 **정상적인 성공**이다.
+
+**해결**: `grant` 줄을 지우고, 좁히는 것이 RLS뿐이라는 사실과 세 명령의 모양 차이를
+마이그레이션 주석에 적었다. 동작은 처음부터 맞았다 — **틀린 것은 코드가 아니라 "무엇이 막고
+있는가"에 대한 내 설명**이었고, 그 설명이 파일에 주석으로 남으면 다음 사람이 그걸 믿는다.
+
+### 남는 교훈
+
+**"막았다"고 적기 전에 무엇이 막고 있는지 확인한다.** 이 저장소는 RLS로 막는 곳이 스물몇
+군데인데, 그중 `grant`를 함께 적은 자리가 있다면 그 `grant`는 대부분 장식이다.
+
+그리고 **delete·update가 조용히 성공하는 것을 "됐다"로 읽지 않는다.** PostgREST는 0행을
+지워도 204를 준다. 언젠가 "이력 지우기" 같은 것을 만들 사람이 화면에서 눌러 보고 오류가
+없으니 됐다고 여길 수 있는 자리다 — 실제로 지워졌는지는 **행 수로** 확인해야 한다.
