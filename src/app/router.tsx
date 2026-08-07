@@ -2,6 +2,8 @@ import { createBrowserRouter } from 'react-router-dom';
 import AppLayout from './appLayout';
 import AccountSettingsPage from '../features/account/components/accountSettingsPage';
 import AuthCallbackPage from '../features/auth/components/authCallbackPage';
+import ForgotPasswordPage from '../features/auth/components/forgotPasswordPage';
+import ResetPasswordPage from '../features/auth/components/resetPasswordPage';
 import SignInPage from '../features/auth/components/signInPage';
 import SignUpPage from '../features/auth/components/signUpPage';
 import BlockedUsersPage from '../features/block/components/blockedUsersPage';
@@ -261,5 +263,18 @@ export const router = createBrowserRouter([
   {
     path: '/auth/callback',
     element: <AuthCallbackPage />,
+  },
+  {
+    // 비밀번호를 잊었을 때. 로그인 전 화면이라 가드가 없다.
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
+  },
+  {
+    // 재설정 링크가 떨어지는 곳. **`/auth/callback`과 갈라 둔 이유는 그쪽이 세션이 서면
+    // 곧바로 홈으로 보내기 때문이다** — 거기로 보내면 로그인만 되고 비밀번호를 정할 자리가
+    // 없다. 가드를 두르지 않는 것도 같은 결이다. 링크로 들어온 사람은 이미 세션이 있고,
+    // 없이 들어온 사람에게는 화면이 스스로 만료 안내를 낸다.
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
   },
 ]);

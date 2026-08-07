@@ -5,7 +5,11 @@ type AuthLayoutProps = {
   title: string;
   description: string;
   children: ReactNode;
-  footer: ReactNode;
+  /**
+   * 없을 수 있다. 로그인·회원가입은 서로를 가리키지만, 새 비밀번호를 정하는 화면처럼
+   * **그 자리에서 끝나는** 화면은 보낼 곳이 없다 — 빈 줄만 남기느니 아예 안 그린다.
+   */
+  footer?: ReactNode;
 };
 
 /** 로그인·회원가입 화면의 공통 껍데기(로고, 카드, 하단 안내). */
@@ -25,9 +29,11 @@ function AuthLayout(props: AuthLayoutProps) {
         {props.children}
       </section>
 
-      <footer className="text-center text-sm text-gray-600 dark:text-gray-400">
-        {props.footer}
-      </footer>
+      {props.footer === undefined ? null : (
+        <footer className="text-center text-sm text-gray-600 dark:text-gray-400">
+          {props.footer}
+        </footer>
+      )}
     </main>
   );
 }
