@@ -17,7 +17,7 @@ const PRIMARY_LINK_CLASS =
 /** 돌아가는 길은 언제나 그 거래의 게시물이다 — 구매자로 왔든 판매자로 왔든 같은 자리다. */
 function ReviewLayout(props: { postId: number; children: ReactNode }) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
+    <main className="flex min-h-screen page-narrow flex-col gap-4 p-6">
       <BackLink to={`/posts/${props.postId}`} label="거래한 물건" />
       {props.children}
     </main>
@@ -96,7 +96,7 @@ function ReviewWritePage() {
 
   if (postId === null || postQuery.isError) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col items-center justify-center gap-3 p-6">
+      <main className="flex min-h-screen page-narrow flex-col items-center justify-center gap-3 p-6">
         <p className="text-gray-700 dark:text-gray-200">게시물을 찾을 수 없습니다.</p>
         <Link to="/" className={PRIMARY_LINK_CLASS}>
           홈으로 가기

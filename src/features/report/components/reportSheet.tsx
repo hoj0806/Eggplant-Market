@@ -30,7 +30,7 @@ type ReportSheetProps = {
 const OVERLAY_CLASS =
   'fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6';
 const PANEL_CLASS =
-  'flex max-h-[90vh] w-full max-w-screen-sm flex-col gap-5 overflow-y-auto rounded-t-2xl ' +
+  'flex max-h-[90vh] w-full page-narrow flex-col gap-5 overflow-y-auto rounded-t-2xl ' +
   'bg-white p-6 shadow-xl sm:rounded-2xl dark:bg-gray-950';
 
 /**

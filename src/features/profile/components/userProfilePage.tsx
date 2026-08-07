@@ -46,7 +46,7 @@ function UserProfilePage() {
 
   if (profileQuery.isError) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col items-center justify-center gap-3 p-6">
+      <main className="flex min-h-screen page-wide flex-col items-center justify-center gap-3 p-6">
         <p className="text-gray-700 dark:text-gray-200">사용자를 찾을 수 없습니다.</p>
         <Link
           to="/"
@@ -71,7 +71,7 @@ function UserProfilePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-4 p-6">
+    <main className="flex min-h-screen page-wide flex-col gap-4 p-6">
       {/* 제목은 아래 UserProfileCard가 사람 이름으로 대신한다. */}
       <PageHeader
         backTo="/"

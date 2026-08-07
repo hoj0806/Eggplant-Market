@@ -125,7 +125,7 @@ function SearchPage() {
   const isNarrowed = filters.keyword !== '' || hasActiveFilter(filters);
 
   return (
-    <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
+    <main className="flex page-wide flex-col gap-4 p-6">
       <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">검색</h1>

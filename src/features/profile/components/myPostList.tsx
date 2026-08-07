@@ -65,7 +65,11 @@ function MyPostList(props: MyPostListProps) {
 
   return (
     <>
-      <ul className="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
+      {/* 격자 규칙은 홈·검색(`PostList`)과 같다. 같은 카드라 같은 자리에서 갈라져야 한다. */}
+      <ul
+        className="flex flex-col divide-y divide-gray-100 md:grid md:grid-cols-2 md:gap-x-5
+                   md:gap-y-6 md:divide-y-0 xl:grid-cols-3 dark:divide-gray-800"
+      >
         {posts.map(function renderCard(post: MyPostSummary) {
           return (
             <PostCard
@@ -79,7 +83,7 @@ function MyPostList(props: MyPostListProps) {
         })}
 
         {/* 다음 페이지를 부르는 표식. 목록의 일부가 아니라 관찰 대상일 뿐이다. */}
-        <li ref={sentinelRef} aria-hidden="true" className="h-px" />
+        <li ref={sentinelRef} aria-hidden="true" className="h-px md:col-span-full" />
       </ul>
 
       {query.isFetchingNextPage ? <p className={MESSAGE_CLASS}>더 불러오는 중입니다…</p> : null}

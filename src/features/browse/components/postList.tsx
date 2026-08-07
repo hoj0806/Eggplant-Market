@@ -68,13 +68,28 @@ function PostList(props: PostListProps) {
 
   return (
     <>
-      <ul className="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
+      {/*
+        모바일은 줄 목록, 데스크탑은 격자다.
+        `divide-y`는 줄 목록일 때만 뜻이 있어 격자에서 걷어낸다(`md:divide-y-0`) —
+        안 걷어내면 칸 사이에 가로선이 어긋나게 그어진다.
+
+        열 수를 `md` 2 · `xl` 3으로 둔 것은 카드 폭 때문이다. `page-wide`가 `lg`에서
+        1152px까지 벌어지는데 거기서 4열로 나누면 카드가 260px 밑으로 좁아져
+        제목이 대부분 잘린다. 격자는 "몇 개가 들어가나"가 아니라 **한 칸이 읽히나**로 정한다.
+
+        마지막의 표식은 격자에서 한 칸을 차지하면 안 된다 — 빈 칸이 하나 생겨 마지막 줄이
+        어긋난다. `md:col-span-full`로 한 줄을 통째로 쓰게 두면 높이 1px짜리 띠로만 남는다.
+      */}
+      <ul
+        className="flex flex-col divide-y divide-gray-100 md:grid md:grid-cols-2 md:gap-x-5
+                   md:gap-y-6 md:divide-y-0 xl:grid-cols-3 dark:divide-gray-800"
+      >
         {props.posts.map(function renderCard(post: PostSummary) {
           return <PostCard key={post.id} post={post} now={now} />;
         })}
 
         {/* 다음 페이지를 부르는 표식. 목록의 일부가 아니라 관찰 대상일 뿐이다. */}
-        <li ref={sentinelRef} aria-hidden="true" className="h-px" />
+        <li ref={sentinelRef} aria-hidden="true" className="h-px md:col-span-full" />
       </ul>
 
       {props.isFetchingNextPage ? <p className={MESSAGE_CLASS}>더 불러오는 중입니다…</p> : null}

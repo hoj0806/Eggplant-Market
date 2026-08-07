@@ -68,7 +68,7 @@ function ChatRoomPage() {
 
   if (roomId === null || roomQuery.isError) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col items-center justify-center gap-3 p-6">
+      <main className="flex min-h-screen page-narrow flex-col items-center justify-center gap-3 p-6">
         <p className="text-gray-700 dark:text-gray-200">채팅방을 찾을 수 없습니다.</p>
         <Link
           to="/chats"
@@ -95,7 +95,7 @@ function ChatRoomPage() {
     deleteMessage.error;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col gap-3 p-6">
+    <main className="flex min-h-screen page-narrow flex-col gap-3 p-6">
       <header className="flex items-center gap-2">
         {/*
           이 헤더만 PageHeader를 쓰지 않는다 — 한 줄에 아바타·상대 이름·신고 메뉴가 함께 있어

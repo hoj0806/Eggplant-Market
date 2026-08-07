@@ -24,7 +24,7 @@ function AuthCallbackPage() {
   return (
     <main
       role="status"
-      className="mx-auto flex min-h-screen max-w-screen-sm flex-col items-center justify-center gap-3 p-6"
+      className="flex min-h-screen page-narrow flex-col items-center justify-center gap-3 p-6"
     >
       <span className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
       <p className="text-sm text-gray-600 dark:text-gray-400">로그인 처리 중입니다…</p>

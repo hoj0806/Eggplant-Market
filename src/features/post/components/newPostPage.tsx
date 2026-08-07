@@ -64,7 +64,7 @@ function NewPostPage() {
     createPostMutation.error !== null ? toPostErrorMessage(createPostMutation.error) : null;
 
   return (
-    <main className="mx-auto flex max-w-screen-sm flex-col gap-6 p-6">
+    <main className="flex page-narrow flex-col gap-6 p-6">
       <header className="flex flex-col gap-2">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">중고거래 글쓰기</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400">

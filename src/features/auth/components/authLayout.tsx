@@ -15,7 +15,7 @@ type AuthLayoutProps = {
 /** 로그인·회원가입 화면의 공통 껍데기(로고, 카드, 하단 안내). */
 function AuthLayout(props: AuthLayoutProps) {
   return (
-    <main className="mx-auto flex min-h-screen max-w-screen-sm flex-col justify-center gap-6 p-6">
+    <main className="flex min-h-screen page-narrow flex-col justify-center gap-6 p-6">
       <header className="flex flex-col items-center gap-2 text-center">
         <Link to="/" className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
           🍆 가지마켓

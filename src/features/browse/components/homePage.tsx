@@ -67,7 +67,13 @@ function MemberGreeting(props: { profile: Profile | undefined; viewerId: string 
         </div>
       </div>
 
-      <NotificationBellLink viewerId={props.viewerId} />
+      {/*
+        데스크탑에서는 같은 종이 상단 내비게이션에 있다. 배지가 한 화면에 둘이면
+        어느 쪽이 맞는지 알 수 없어(그 판단은 탭바에도 같게 적혀 있다) 여기를 감춘다.
+      */}
+      <span className="md:hidden">
+        <NotificationBellLink viewerId={props.viewerId} />
+      </span>
     </div>
   );
 }
@@ -81,9 +87,15 @@ function HomePage() {
   const isMember = status === 'authenticated';
 
   return (
-    <main className="mx-auto flex max-w-screen-sm flex-col gap-4 p-6">
+    <main className="flex page-wide flex-col gap-4 p-6">
       <header className="flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">🍆 가지마켓</h1>
+        {/*
+          데스크탑에서는 상단 내비게이션이 로고를 이미 들고 있다. 둘을 함께 두면
+          같은 이름이 세로로 두 번 쌓인다.
+        */}
+        <h1 className="text-2xl font-bold text-emerald-600 md:hidden dark:text-emerald-400">
+          🍆 가지마켓
+        </h1>
 
         {status === 'loading' ? (
           <p className="text-gray-600 dark:text-gray-300">세션을 확인하는 중입니다…</p>
