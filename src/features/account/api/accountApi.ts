@@ -1,43 +1,13 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '../../../shared/lib/supabaseClient';
 
-export type ChangePasswordInput = {
-  /** 본인 확인용으로 다시 로그인할 때 쓴다. 세션에 있는 이메일을 그대로 넘긴다. */
-  email: string;
-  currentPassword: string;
-  newPassword: string;
-};
-
 const DELETE_ACCOUNT_FUNCTION = 'delete-account';
 
 /**
- * 비밀번호 변경.
- *
- * `updateUser`는 **지금 세션만 있으면 통과한다** — 현재 비밀번호를 묻지 않는다.
- * 남이 열어 둔 브라우저를 잡으면 비밀번호를 바꿔 계정을 통째로 가져갈 수 있다는 뜻이라,
- * 바꾸기 전에 signInWithPassword로 본인인지 한 번 확인한다.
- * (Supabase의 "Secure password change" 설정도 같은 일을 하지만 대시보드 스위치라
- *  코드만 보고는 켜져 있는지 알 수 없다. 여기서 확실히 한다.)
- *
- * 확인 로그인이 세션을 새로 발급하지만 사용자는 그대로다. onAuthStateChange가
- * 새 세션을 받아 authStore를 갱신하므로 화면은 아무 일 없다는 듯 이어진다.
+ * 비밀번호 변경은 **없앴다.** 로그인이 소셜뿐이라 가지마켓이 들고 있는 비밀번호가 없다 —
+ * 바꿀 것은 카카오·구글 쪽에 있고, 우리가 대신 바꿔 줄 수 있는 값이 아니다.
+ * (`accountSettingsPage`가 그 사실을 한 문단으로 알린다.)
  */
-export async function changePassword(input: ChangePasswordInput): Promise<void> {
-  const { error: signInError } = await supabase.auth.signInWithPassword({
-    email: input.email,
-    password: input.currentPassword,
-  });
-
-  if (signInError !== null) {
-    throw signInError;
-  }
-
-  const { error } = await supabase.auth.updateUser({ password: input.newPassword });
-
-  if (error !== null) {
-    throw error;
-  }
-}
 
 /**
  * Edge Function이 4xx/5xx로 답하면 supabase-js는 본문을 읽지 않고

@@ -1,104 +1,34 @@
-import type { AuthChangeEvent } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Provider } from '@supabase/supabase-js';
 import { supabase } from '../../../shared/lib/supabaseClient';
-import type { AuthSession, EmailCredentials, SignUpResult } from '../types';
+import type { AuthSession, SocialProvider } from '../types';
 
 const OAUTH_REDIRECT_PATH = '/auth/callback';
 
+function buildRedirectUrl(): string {
+  return `${window.location.origin}${OAUTH_REDIRECT_PATH}`;
+}
+
 /**
- * 비밀번호 재설정 링크가 떨어지는 곳. **`/auth/callback`과 갈라 둔다.**
+ * 소셜 로그인.
  *
- * 그쪽은 세션이 서면 곧바로 홈으로 보내는 화면이라(`authCallbackPage`), 재설정 링크를
- * 거기로 보내면 **로그인만 되고 새 비밀번호를 정할 자리 없이 밀려난다.**
- * 링크가 데려다줄 곳은 "새 비밀번호를 정하는 화면"이어야 한다.
+ * **가입과 로그인을 가르지 않는다.** OAuth는 처음 온 사람이면 계정을 만들고 이미 있으면
+ * 그대로 들여보내므로, 화면에서 "가입"과 "로그인"을 나눠 물을 것이 없다 —
+ * 이메일 로그인을 걷어내면서 `/signup`이 사라진 이유가 이것이다.
+ * `profiles` 행은 DB 트리거(`handle_new_user`)가 어느 쪽이든 만들어 준다.
+ *
+ * 성공하면 브라우저가 그 서비스의 동의 화면으로 옮겨 가므로 **이 뒤의 코드는 실행되지 않는다.**
+ * 돌아오는 곳은 `/auth/callback`이다.
+ *
+ * 아직 Supabase에서 켜지 않은 프로바이더를 부르면 `provider is not enabled`가 오고,
+ * `authErrorMessage`가 "해당 소셜 로그인이 아직 활성화되지 않았습니다"로 옮긴다.
  */
-const PASSWORD_RESET_PATH = '/reset-password';
-
-function buildRedirectUrl(path: string = OAUTH_REDIRECT_PATH): string {
-  return `${window.location.origin}${path}`;
-}
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
-/**
- * 이메일 회원가입. profiles 행은 DB 트리거(handle_new_user)가 자동 생성한다.
- * 이메일 확인이 켜져 있으면 session이 null로 돌아온다.
- */
-export async function signUpWithEmail(
-  credentials: EmailCredentials,
-): Promise<SignUpResult> {
-  const { data, error } = await supabase.auth.signUp({
-    email: normalizeEmail(credentials.email),
-    password: credentials.password,
-    options: { emailRedirectTo: buildRedirectUrl() },
-  });
-
-  if (error !== null) {
-    throw error;
-  }
-
-  return { session: data.session, needsEmailConfirm: data.session === null };
-}
-
-export async function signInWithEmail(
-  credentials: EmailCredentials,
-): Promise<AuthSession> {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: normalizeEmail(credentials.email),
-    password: credentials.password,
-  });
-
-  if (error !== null) {
-    throw error;
-  }
-
-  return data.session;
-}
-
-/** 구글 OAuth. 성공 시 브라우저가 구글 동의 화면으로 이동하므로 이후 코드는 실행되지 않는다. */
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithSocial(provider: SocialProvider): Promise<void> {
   const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+    // SocialProvider는 Provider의 부분집합이다. 우리가 쓰는 둘만 쓰도록 좁혀 둔 이름이라
+    // 여기서 원래 타입으로 되돌려 넘긴다.
+    provider: provider as Provider,
     options: { redirectTo: buildRedirectUrl() },
   });
-
-  if (error !== null) {
-    throw error;
-  }
-}
-
-/**
- * 비밀번호 재설정 메일 보내기.
- *
- * **가입된 이메일인지 알려 주지 않는다.** Supabase는 없는 주소에도 성공으로 답하는데,
- * 그 편이 맞다 — 여기서 "가입되지 않은 이메일입니다"를 내면 **아무나 이메일을 넣어 보며
- * 누가 이 서비스를 쓰는지 알아낼 수 있다.** 그래서 이 함수는 성공/실패만 돌려주고,
- * 화면도 "가입된 주소라면 보냈다"로 적는다.
- *
- * 그래도 오류가 나는 경우는 있다 — 형식이 틀린 주소, 그리고 **메일 발송 한도**다.
- * 무료 티어 내장 SMTP는 한도가 낮아 `over_email_send_rate_limit`이 뜬다(그래서 이 프로젝트가
- * 한동안 Confirm email을 꺼 두었다). 커스텀 SMTP를 붙이면 그쪽 한도를 따른다.
- */
-export async function sendPasswordResetEmail(email: string): Promise<void> {
-  const { error } = await supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
-    redirectTo: buildRedirectUrl(PASSWORD_RESET_PATH),
-  });
-
-  if (error !== null) {
-    throw error;
-  }
-}
-
-/**
- * 새 비밀번호 정하기. **재설정 링크로 들어와 세션이 선 다음에만 쓴다.**
- *
- * `accountApi.changePassword`와 달리 현재 비밀번호를 묻지 않는다 — 그 자리에서
- * 본인임을 증명한 것은 **메일함을 열었다는 사실**이다. 대신 그 증명이 실제로 있었는지를
- * 화면이 확인한다(`resetPasswordPage` · `PASSWORD_RECOVERY`).
- */
-export async function updatePassword(newPassword: string): Promise<void> {
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
 
   if (error !== null) {
     throw error;

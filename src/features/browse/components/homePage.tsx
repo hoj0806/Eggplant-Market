@@ -12,21 +12,16 @@ function GuestActions() {
       <p className="text-gray-600 dark:text-gray-300">
         로그인하고 우리 동네 중고거래를 시작해 보세요.
       </p>
-      <div className="flex gap-2">
-        <Link
-          to="/login"
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-        >
-          로그인
-        </Link>
-        <Link
-          to="/signup"
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700
-                     transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-        >
-          회원가입
-        </Link>
-      </div>
+      {/*
+        버튼이 하나다. 소셜 로그인만 남으면서 **가입과 로그인이 같은 행동**이 됐다 —
+        둘을 나란히 두면 처음 온 사람이 무엇을 눌러야 할지 고르게 되는데, 고를 것이 없다.
+      */}
+      <Link
+        to="/login"
+        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+      >
+        시작하기
+      </Link>
     </div>
   );
 }

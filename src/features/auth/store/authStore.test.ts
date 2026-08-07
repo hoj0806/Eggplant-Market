@@ -60,30 +60,4 @@ describe('authStore', function authStoreSuite() {
     expect(state.session).toBeNull();
     expect(state.user).toBeNull();
   });
-
-  // --- 비밀번호 재설정 표 -------------------------------------------------
-
-  // 재설정 링크로 들어오면 세션이 **먼저** 서고 그다음에 PASSWORD_RECOVERY가 온다.
-  // setSession이 표를 끄면 방금 켠 것을 스스로 지운다.
-  it('세션을 다시 넣어도 재설정 표는 꺼지지 않는다', function keepRecoveryCase() {
-    useAuthStore.getState().beginPasswordRecovery();
-    useAuthStore.getState().setSession(createSession('user-3', 'forgot@example.com'));
-
-    expect(useAuthStore.getState().isPasswordRecovery).toBe(true);
-  });
-
-  // 한 번 받은 링크가 계속 열려 있으면 몇 번이고 비밀번호를 바꿀 수 있는 창이 된다.
-  it('endPasswordRecovery는 그 창을 닫는다', function endRecoveryCase() {
-    useAuthStore.getState().beginPasswordRecovery();
-    useAuthStore.getState().endPasswordRecovery();
-
-    expect(useAuthStore.getState().isPasswordRecovery).toBe(false);
-  });
-
-  it('로그아웃하면 재설정 표도 함께 사라진다', function clearRecoveryCase() {
-    useAuthStore.getState().beginPasswordRecovery();
-    useAuthStore.getState().clearSession();
-
-    expect(useAuthStore.getState().isPasswordRecovery).toBe(false);
-  });
 });
