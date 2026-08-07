@@ -42,6 +42,26 @@ export type UserProfile = {
   reviewCount: number;
 };
 
+/**
+ * 매너온도가 한 번 움직인 기록(0034). **본인만 읽는다.**
+ *
+ * "왜 움직였는지"는 담겨 있지 않다 — 대신 그 순간의 **근거**가 담긴다. 이유를 손으로 적으면
+ * 넘겨주는 쪽이 틀리거나 빠뜨려도 표는 멀쩡해 보이므로(0018의 "알 수 없는 이웃님이"와 같은
+ * 자리), 지어내지 않고 앞뒤 줄을 견주어 읽어 내기로 했다 — `toMannerTempCauseText`.
+ */
+export type MannerTempEvent = {
+  id: number;
+  /** 바뀌기 전 온도. */
+  beforeTemp: number;
+  /** 바뀐 뒤 온도. `36.5 + reviewSum`을 0~99로 가둔 값과 같아야 한다. */
+  afterTemp: number;
+  /** 그 순간 받은 후기 개수. 앞 줄과 견주면 들어왔는지 사라졌는지가 나온다. */
+  reviewCount: number;
+  /** 그 순간 받은 후기 점수의 합. **가두기 전의 값**이라 잘림까지 드러난다. */
+  reviewSum: number;
+  createdAt: string;
+};
+
 /** 온보딩 1단계(프로필) 값. */
 export type ProfileOnboardingValues = {
   nickname: string;

@@ -16,6 +16,7 @@ import NewPostPage from '../features/post/components/newPostPage';
 import PostDetailPage from '../features/post/components/postDetailPage';
 import PostEditPage from '../features/post/components/postEditPage';
 import LikedPostsPage from '../features/profile/components/likedPostsPage';
+import MannerTempHistoryPage from '../features/profile/components/mannerTempHistoryPage';
 import MyPage from '../features/profile/components/myPage';
 import OnboardingPage from '../features/profile/components/onboardingPage';
 import ProfileSettingsPage from '../features/profile/components/profileSettingsPage';
@@ -105,6 +106,18 @@ export const router = createBrowserRouter([
           <RequireOnboarding>
             <RequireMember>
               <LikedPostsPage />
+            </RequireMember>
+          </RequireOnboarding>
+        ),
+      },
+      {
+        // 매너온도 기록. 내 것만 보는 자리라(0034의 정책이 본인만 읽게 한다)
+        // 남의 프로필에는 같은 길이 없다.
+        path: '/my/manner',
+        element: (
+          <RequireOnboarding>
+            <RequireMember>
+              <MannerTempHistoryPage />
             </RequireMember>
           </RequireOnboarding>
         ),
