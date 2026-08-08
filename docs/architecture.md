@@ -130,12 +130,34 @@ reports는 생성만 허용(조회 불가).
 
 ## 6. 테스트 전략 (Jest)
 
+`jest.config.cjs`가 **두 갈래(projects)** 로 나뉜다. `npm test`는 둘 다,
+`npm run test:unit` / `npm run test:integration`은 한쪽만 돌린다.
+
+### unit (jsdom) — `*.test.ts(x)`
+
 - **단위**: 순수 유틸/포매터/셀렉터, Zustand 스토어 액션.
 - **컴포넌트**: React Testing Library 렌더·상호작용.
-- **훅/통합**: TanStack Query 훅은 QueryClient 래퍼로 테스트.
-- **"mock 데이터 금지" 해석**: *앱 런타임*은 항상 실제 Supabase에서 읽는다(하드코딩 배열 금지).
-  테스트는 **로컬 Supabase 인스턴스(`supabase start`)** 를 시드해 실제 스키마로 검증(= mock이 아닌 실 DB 동작).
-  *(구현 착수 전 재확인 권장)*
+- **훅**: TanStack Query 훅은 QueryClient 래퍼로.
+- api 계층은 mock한다. 그쪽이 `supabaseClient`(=`import.meta`)에 닿아 ts-jest에서 못 읽힌다.
+
+### integration (node) — `*.int.test.ts`
+
+**실제 Supabase 프로젝트에 붙는다. mock이 없다.**
+
+- **로컬 인스턴스가 아니라 원격이다.** `supabase start`는 Docker를 요구하는데 이 환경에 없다.
+- `moduleNameMapper`가 앱의 `shared/lib/supabaseClient`를 테스트용 클라이언트로 갈아끼운다.
+  덕분에 테스트가 SQL을 새로 쓰지 않고 **화면이 실제로 부르는 함수**를 그대로 밟는다.
+- **심는 것은 서비스 키, 확인은 언제나 anon 키.** 서비스 키로 읽으면 RLS가 꺼져
+  "안 보여야 할 것이 안 보인다"를 검증할 수 없다.
+- 각 스위트가 **자기 데이터를 심고 `afterAll`에서 치운다**(`shared/testUtils/integration/fixtures.ts`).
+  남이 심어 둔 데이터에 기대면 화면에서 글 하나 지울 때 무더기로 깨지고,
+  jest가 파일을 병렬로 돌리므로 옆 스위트와도 부딪힌다.
+- `SUPABASE_SERVICE_ROLE_KEY`가 없으면 씨앗이 필요한 스위트가 **이유를 적어 두고 실패한다**
+  (조용히 건너뛰지 않는다).
+
+**닿지 못하는 곳**: 로그인한 사용자로서의 RLS. 소셜 전용이 되며 Email 프로바이더를 껐기 때문에
+테스트가 세션을 만들 수 없다(`admin.createUser`는 되지만 `signInWithPassword`가 막힌다).
+"자기 글은 찜할 수 없다"(0006)처럼 **정책에만 있는 규칙**이 그 그늘에 있다.
 
 ---
 
