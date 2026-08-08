@@ -1,7 +1,7 @@
 # EggPlant Market — 아키텍처 설계 문서
 
 당근마켓 클론 중고거래 플랫폼의 구현 설계 문서. 기능 명세는 [`../feature.md`](../feature.md),
-코딩 규칙은 [`../convention.md`](../convention.md), 개발 원칙은 [`../cluade.md`](../cluade.md) 참고.
+코딩 규칙은 [`../convention.md`](../convention.md), 개발 원칙은 [`../CLAUDE.md`](../CLAUDE.md) 참고.
 
 > 현재 단계는 **설계 + DB 스키마(SQL)** 까지. React 앱 스캐폴딩·기능 구현은 이후 `todo.md` 지시 시 진행한다.
 
@@ -18,9 +18,9 @@
 | 서버 상태 | **TanStack Query** | 캐싱·무한스크롤·낙관적 업데이트 |
 | 백엔드 | **Supabase** (Postgres + Auth + Storage + Realtime) | RLS로 권한 제어 |
 | 위치/지도 | 카카오맵 JS SDK | 동네 설정, 상품 위치 |
-| 테스트 | **Jest** + ts-jest + React Testing Library | `cluade.md` 요구 |
+| 테스트 | **Jest** + ts-jest + React Testing Library | `CLAUDE.md` 요구 |
 
-> Vite에선 Vitest가 더 자연스럽지만 `cluade.md`가 Jest를 명시하므로 Jest(ts-jest, jsdom) 사용.
+> Vite에선 Vitest가 더 자연스럽지만 `CLAUDE.md`가 Jest를 명시하므로 Jest(ts-jest, jsdom) 사용.
 
 **상태 분리 원칙**
 - **Zustand**: `authStore`(user/session), `uiStore`(테마·모달, localStorage 영속).
