@@ -22,6 +22,8 @@ function ChatImageMessage(props: ChatImageMessageProps) {
     <img
       src={urlQuery.data}
       alt="보낸 사진"
+      loading="lazy"
+      decoding="async"
       className="max-h-60 w-40 rounded-lg bg-gray-100 object-cover dark:bg-gray-800"
     />
   );

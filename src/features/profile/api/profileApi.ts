@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
+import { downscaleImage } from '../../../shared/utils/downscaleImage';
 import { toAvatarStoragePath } from '../utils/avatarStoragePath';
 import { toSearchRadius } from '../../browse/utils/searchRadius';
 import type { Region } from '../../region/types';
@@ -137,11 +138,14 @@ export async function fetchProfile(userId: string): Promise<Profile> {
  * 파일명에 타임스탬프를 붙여 CDN 캐시가 옛 이미지를 물고 있는 것을 피한다.
  */
 export async function uploadAvatar(userId: string, file: File): Promise<string> {
-  const path = `${userId}/${Date.now()}.${toFileExtension(file)}`;
+  // 프로필 사진은 화면에서 가장 커야 40px 남짓인데 원본은 폰 사진 그대로 들어온다.
+  // 게다가 이 사진은 **글·댓글·채팅 목록마다 따라다녀** 한 번 줄이면 가장 여러 번 아낀다.
+  const prepared = await downscaleImage(file);
+  const path = `${userId}/${Date.now()}.${toFileExtension(prepared)}`;
 
   const { error } = await supabase.storage
     .from(AVATAR_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, prepared, { contentType: prepared.type, upsert: true });
 
   if (error !== null) {
     throw error;

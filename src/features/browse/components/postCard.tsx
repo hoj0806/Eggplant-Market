@@ -58,6 +58,11 @@ function PostCard(props: PostCardProps) {
           <img
             src={post.thumbnailUrl}
             alt={post.title}
+            // 화면에 들어올 때 받는다. 목록은 스무 칸씩 이어 붙는데 전부 한 번에 받으면
+            // **첫 화면에 보이지도 않는 사진들이 보이는 사진과 대역폭을 다툰다.**
+            loading="lazy"
+            // 그리는 일을 주 스레드 밖으로 미룬다. 무한 스크롤이 끊기는 것을 막는다.
+            decoding="async"
             // 데스크탑에서는 정사각형으로 칸을 채운다. 높이를 고정하지 않고 aspect로 두면
             // 격자 열 수가 바뀌어도 사진 비율이 그대로다.
             className="h-24 w-24 shrink-0 rounded-lg bg-gray-100 object-cover

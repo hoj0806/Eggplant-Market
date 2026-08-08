@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
+import { downscaleImage } from '../../../shared/utils/downscaleImage';
 import { uniqueChannelTopic } from '../../../shared/utils/uniqueChannelTopic';
 import type { PostStatus } from '../../post/types';
 import type {
@@ -228,11 +229,14 @@ async function sendOneImageMessage(
   file: File,
   index: number,
 ): Promise<ChatMessage> {
-  const path = `${roomId}/${senderId}/${Date.now()}-${index}.${toFileExtension(file)}`;
+  // 채팅 사진도 올리기 전에 줄인다. 방을 다시 열 때마다 내려받는 것이라
+  // 한 번 줄이면 그 대화가 이어지는 내내 아낀다.
+  const prepared = await downscaleImage(file);
+  const path = `${roomId}/${senderId}/${Date.now()}-${index}.${toFileExtension(prepared)}`;
 
   const uploadResult = await supabase.storage
     .from(CHAT_IMAGE_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, prepared, { contentType: prepared.type, upsert: true });
 
   if (uploadResult.error !== null) {
     throw uploadResult.error;

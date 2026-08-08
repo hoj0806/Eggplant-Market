@@ -4,6 +4,7 @@ import { DEFAULT_POST_SORT } from '../../browse/utils/postSort';
 // 게시물 삭제가 채팅 사진까지 치운다(0032). 스토리지 경로 규칙은 채팅 기능이 알고 있고,
 // 그것을 여기서 다시 적으면 규칙이 두 벌이 된다.
 import { fetchPostChatPartners, listChatRoomImagePaths, removeChatImages } from '../../chat/api/chatApi';
+import { downscaleImages } from '../../../shared/utils/downscaleImage';
 import { POST_IMAGE_BUCKET, toPostImagePaths } from '../utils/postImagePath';
 import type { PostSearchFilters, PostSortOption } from '../../browse/types';
 import type { TradePlace } from '../../place/types';
@@ -199,7 +200,12 @@ async function uploadPostImages(sellerId: string, files: File[]): Promise<Upload
   const uploaded: UploadedImage[] = [];
   const stamp = Date.now();
 
-  for (const [index, file] of files.entries()) {
+  // 올리기 전에 줄인다. 폰 사진은 한 장에 3~5MB인데 화면이 쓰는 것은 그 일부다.
+  // 여기서 한 번 줄이면 올리는 사람뿐 아니라 **그 뒤로 이 글을 보는 모든 사람**의
+  // 데이터가 함께 준다. 실패하면 원본이 그대로 오므로 업로드가 막히지 않는다.
+  const prepared = await downscaleImages(files);
+
+  for (const [index, file] of prepared.entries()) {
     const path = `${sellerId}/${stamp}-${index}.${toFileExtension(file)}`;
 
     const { error } = await supabase.storage
