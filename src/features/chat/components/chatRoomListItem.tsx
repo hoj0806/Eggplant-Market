@@ -80,6 +80,8 @@ function ChatRoomListItem(props: ChatRoomListItemProps) {
           <img
             src={room.postThumbnailUrl}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="h-12 w-12 shrink-0 rounded-lg bg-gray-100 object-cover dark:bg-gray-800"
           />
         )}

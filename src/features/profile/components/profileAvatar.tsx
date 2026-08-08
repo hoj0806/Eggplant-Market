@@ -41,6 +41,10 @@ function ProfileAvatar(props: ProfileAvatarProps) {
       <img
         src={props.avatarUrl}
         alt={`${props.nickname}님의 프로필 사진`}
+        // 프로필 사진은 댓글·채팅·후기 목록마다 따라다닌다. 한 화면에 수십 개가 서는데
+        // 대부분은 스크롤해야 보인다.
+        loading="lazy"
+        decoding="async"
         className={`${sizeClass} shrink-0 rounded-full object-cover
                     ring-1 ring-gray-200 dark:ring-gray-700`}
       />
