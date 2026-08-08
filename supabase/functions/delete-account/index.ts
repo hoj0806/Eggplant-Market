@@ -12,7 +12,7 @@
 // 그 뒷정리가 이 함수가 하는 나머지 일이다.
 //
 // 배포: supabase functions deploy delete-account
-//   (SUPABASE_URL·SUPABASE_ANON_KEY·SUPABASE_SERVICE_ROLE_KEY는 런타임이 자동으로 넣어 준다)
+//   (키는 런타임이 자동으로 넣어 준다. 어떤 변수를 읽는지는 readApiKey의 주석을 보라)
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
@@ -34,6 +34,43 @@ const LIST_PAGE_SIZE = 100;
 type ChatRoomRow = {
   id: number;
 };
+
+/**
+ * 키를 읽는다 — **새 형식을 먼저, 레거시는 대비책으로.**
+ *
+ * 런타임은 두 벌을 함께 넣어 준다.
+ *   `SUPABASE_PUBLISHABLE_KEYS` / `SUPABASE_SECRET_KEYS` — 새 형식. **이름을 키로 하는 JSON**이다.
+ *     예: `{"default":"sb_secret_..."}`
+ *   `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` — 레거시 JWT. 문자열 하나다.
+ *
+ * 2026-08-08에 레거시 두 키를 대시보드에서 **비활성화했다.** 유출된 service_role을 죽이려면
+ * 그 길밖에 없었다(레거시 키는 회전이 불가능하다 — JWT 시크릿을 바꿔야 하고 그러면
+ * 로그인한 사람이 전부 튕긴다). 그 순간 이 함수가 **비활성 키를 들고 도는 상태**가 됐다.
+ *
+ * 그래서 새 형식을 먼저 본다. 레거시 갈래를 남겨 두는 이유는 이 함수가 다른 프로젝트나
+ * 로컬(`supabase start`)에서도 그대로 떠야 하기 때문이다 — 거기는 아직 레거시만 있다.
+ */
+function readApiKey(jsonVar: string, legacyVar: string): string | undefined {
+  const raw = Deno.env.get(jsonVar);
+
+  if (raw !== undefined && raw !== '') {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      // 이름을 하나만 만들었으면 그것이 `default`다. 여러 개면 첫 번째로 물러난다.
+      const key = parsed['default'] ?? Object.values(parsed)[0];
+
+      if (typeof key === 'string' && key !== '') {
+        return key;
+      }
+    } catch {
+      // 모양이 다르면 레거시로 내려간다. 여기서 죽이면 탈퇴가 통째로 막힌다.
+    }
+  }
+
+  const legacy = Deno.env.get(legacyVar);
+
+  return legacy === '' ? undefined : legacy;
+}
 
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -142,8 +179,8 @@ Deno.serve(async function handleDeleteAccount(request: Request): Promise<Respons
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const anonKey = readApiKey('SUPABASE_PUBLISHABLE_KEYS', 'SUPABASE_ANON_KEY');
+  const serviceRoleKey = readApiKey('SUPABASE_SECRET_KEYS', 'SUPABASE_SERVICE_ROLE_KEY');
   if (
     supabaseUrl === undefined ||
     anonKey === undefined ||
