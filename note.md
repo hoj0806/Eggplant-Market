@@ -5308,3 +5308,63 @@ expect(near.length).toBe(3);   // 반경 1km 안에 심은 것이 셋
   브라우저에서 눈으로 확인해야 한다 — 큰 사진을 올린 뒤 `storage.objects`의 크기를 보면 된다.
 - **`MAX_POST_IMAGE_BYTES`(5MB)는 그대로 뒀다.** 이제 줄여서 올리므로 더 큰 원본을 받아도
   되는데, 검증 상수를 바꾸는 일이라 판단을 남겨 둔다. 고화소 폰 사진이 5MB를 넘는 일이 있다.
+
+---
+
+## 배포 (2026-08-08)
+
+Vercel로 올렸다 — `https://eggplant-market-ga6d-flame.vercel.app`.
+코드 변경은 `vercel.json` 한 파일과 Edge Function 키 수정뿐이고, 나머지는 콘솔 작업이다.
+
+### 브랜치를 먼저 정리했다
+
+`main`이 **첫 커밋에서 멈춰 104 커밋 뒤처져 있었다.** Vercel은 기본으로 `main`을 프로덕션
+브랜치로 잡으므로 그대로 뒀으면 **초기 스캐폴딩이 배포됐을 것이다.** `develop → main` 릴리스
+PR(#52)로 맞췄다. 앞으로 배포는 그 PR을 한 번씩 올리는 일이 되고, **`main`은 지금 배포되어
+있는 것**을 가리킨다.
+
+### `vercel.json` 두 줄
+
+```json
+{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "headers": [{ "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control",
+                 "value": "public, max-age=31536000, immutable" }] }] }
+```
+
+- **폴백이 없으면 `/posts/12` 새로고침이 404다.** 경로는 react-router가 맡으므로 전부
+  `index.html`로 보낸다.
+- `/assets`는 Vite가 **내용 해시로 파일명을 만든다**(`index-DCIWANCy.js`). 내용이 바뀌면
+  이름이 바뀌므로 1년 캐시가 안전하고, 재방문자는 JS·CSS를 다시 받지 않는다.
+  이 성질은 **배포가 실제로 됐는지 판별하는 데도 쓰였다**(`troble.md`).
+
+### 도메인은 두 곳만 등록하면 된다
+
+| 어디 | 무엇을 |
+|---|---|
+| Supabase → URL Configuration | Site URL + Redirect URLs에 `https://<도메인>/**` |
+| 카카오 → **플랫폼 키 → JavaScript 키 → JavaScript SDK 도메인** | 배포 주소 |
+
+**구글 OAuth와 카카오 로그인 Redirect URI는 손댈 것이 없다.** 둘 다 Supabase 콜백
+(`https://<ref>.supabase.co/auth/v1/callback`) 하나만 알고 있으면 되고, 앱 도메인은
+Supabase의 Redirect URLs가 맡는다. 배포할 때마다 세 곳을 고쳐야 할 것 같지만 실제로는 둘이다.
+
+### 밖에서 검증되는 것과 안 되는 것
+
+배포 뒤 확인을 사람 눈에만 맡기지 않고 최대한 밖에서 쟀다.
+
+| 확인 | 방법 | 결과 |
+|---|---|---|
+| SPA 폴백 | `/posts/1`·`/settings/account`에 curl | 200 + `index.html` ✅ |
+| 자산 캐시 | 응답 헤더 | `max-age=31536000, immutable` ✅ |
+| **번들에 비밀키가 섞였는가** | 번들 내려받아 `sb_secret_`·`eyJ`·`service_role` 검색 | 없음 ✅ |
+| 카카오 도메인 등록 | SDK를 **Referer 바꿔 가며** 요청 | 401 → 200 ✅ |
+| **Supabase Redirect URLs** | `/authorize`의 응답 | **판별 불가** ❌ |
+
+마지막 것이 중요하다. 등록하지 않은 주소를 넣어도 `/authorize`는 그대로 통과시킨다 —
+**GoTrue는 콜백으로 돌아올 때 검사**하기 때문이다. 즉 이 항목만은 **실제로 로그인해 봐야**
+알 수 있다. 밖에서 재는 것에도 한계가 있고, 그 경계를 아는 것이 중요하다.
+
+### 이번 범위 밖
+
+- **화면 확인 여덟 건**은 여전히 사람 몫이다(`design.md` §8).
+- 방이 먼저 사라졌을 때 채팅 사진이 고아로 남는 문제를 찾았다 — `backlog.md` §1-3.
