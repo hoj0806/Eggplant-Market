@@ -87,10 +87,14 @@ reports는 생성만 허용(조회 불가).
 ## 4. 기능별 설계
 
 ### 인증 (`features/auth`)
-- Supabase Auth **이메일 + 구글 OAuth** (카카오 로그인은 이후 추가).
+- Supabase Auth **카카오 + 구글 OAuth만**. 이메일·비밀번호는 2026-08-07에 걷어냈고
+  대시보드의 Email 프로바이더도 껐다(2026-08-08) — API로도 이메일 가입이 안 된다.
+- **가입과 로그인을 가르지 않는다.** OAuth가 처음 온 사람이면 계정을 만들고 이미 있으면
+  들여보내므로 `/signup`이 없다. `profiles` 행은 `handle_new_user` 트리거가 만든다.
 - 세션: `supabase.auth.onAuthStateChange` → `authStore` 동기화.
 - **온보딩**(최초 가입): 닉네임 + 카카오맵으로 동네 선택(역지오코딩 → dong_name·좌표) + 반경.
-- 비밀번호 변경(이메일 회원), 회원탈퇴.
+  **소셜이 준 이름·사진은 쓰지 않는다** — 닉네임은 직접 받는다.
+- 회원탈퇴(Edge Function `delete-account`). 비밀번호가 없으니 변경 화면도 없다.
 
 ### 게시물 (`features/post`)
 - 등록: 사진 다중 업로드(Storage), 제목·설명·가격·거래장소·카테고리, 상태 토글(판매중/거래중/거래완료).
@@ -137,6 +141,9 @@ reports는 생성만 허용(조회 불가).
 
 ## 7. 사전 준비물 & 저장소 주의
 
-- **Supabase 프로젝트** URL·anon key, **Google OAuth** 클라이언트, **카카오맵 JS 앱키**(+도메인 등록) 필요(구현 단계).
+- **Supabase 프로젝트** URL·anon key, **Google OAuth** 클라이언트, **카카오 개발자 앱** 필요.
+  카카오 앱 하나가 **지도(JS 앱키)와 로그인(REST API 키 + Client Secret)을 함께** 맡는다 —
+  앱을 나누지 않는다. 로그인 쪽은 Redirect URI로 `https://<project-ref>.supabase.co/auth/v1/callback`을
+  등록하고, Web 플랫폼 사이트 도메인에도 그 주소를 넣어야 등록 칸이 열린다.
 - 현재 폴더는 홈 디렉터리 git 저장소(무관한 히스토리) 내부 → 구현 착수 시 **별도 git 저장소 초기화 + `develop` 브랜치 생성**
   (`SKILL.md`가 `develop` 대상 PR 요구, `main` push 금지).
