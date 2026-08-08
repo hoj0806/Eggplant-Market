@@ -1,0 +1,150 @@
+/**
+ * 필터 상태와 URL 쿼리 사이의 변환.
+ *
+ * 필터의 원본은 컴포넌트 state가 아니라 **URL**이다. 그래야 새로고침·뒤로가기·링크 공유가
+ * 공짜로 따라오고, "필터 초기화"가 쿼리를 비우는 한 줄로 끝난다.
+ *
+ * 대신 URL은 사용자가 직접 고칠 수 있는 값이라 여기서 들어오는 것을 하나도 믿지 않는다.
+ * 깨진 값은 오류가 아니라 "그 필터가 없는 것"으로 본다 — 주소를 잘못 붙여넣었다고
+ * 화면이 죽는 것보다 낫다.
+ */
+
+import { DEFAULT_POST_SORT, SORT_PARAM, toPostSortOption } from './postSort';
+import type { PostSearchFilters, PostSearchScope, PostSortOption } from '../types';
+
+export const KEYWORD_PARAM = 'q';
+export const CATEGORY_PARAM = 'category';
+export const MIN_PRICE_PARAM = 'minPrice';
+export const MAX_PRICE_PARAM = 'maxPrice';
+export const AVAILABLE_PARAM = 'available';
+export const SCOPE_PARAM = 'scope';
+
+const AVAILABLE_ON = '1';
+const SCOPE_RADIUS = 'radius';
+
+/** 지금까지의 유일한 기준. URL에 아무 말이 없으면 이쪽이다. */
+export const DEFAULT_POST_SEARCH_SCOPE: PostSearchScope = 'region';
+
+export const EMPTY_POST_SEARCH_FILTERS: PostSearchFilters = {
+  keyword: '',
+  categoryId: null,
+  minPrice: null,
+  maxPrice: null,
+  availableOnly: false,
+};
+
+/** 0 이상의 정수만 통과시킨다. 소수점·음수·문자·빈 값은 전부 null. */
+export function toNonNegativeInteger(raw: string | null): number | null {
+  if (raw === null || raw.trim() === '') {
+    return null;
+  }
+
+  const parsed = Number(raw);
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
+/** 카테고리 id는 1 이상이다. 0은 "선택 안 함"과 구분되지 않으므로 버린다. */
+function toCategoryId(raw: string | null): number | null {
+  const parsed = toNonNegativeInteger(raw);
+
+  return parsed === null || parsed === 0 ? null : parsed;
+}
+
+export function fromSearchParams(params: URLSearchParams): PostSearchFilters {
+  return {
+    keyword: params.get(KEYWORD_PARAM)?.trim() ?? '',
+    categoryId: toCategoryId(params.get(CATEGORY_PARAM)),
+    minPrice: toNonNegativeInteger(params.get(MIN_PRICE_PARAM)),
+    maxPrice: toNonNegativeInteger(params.get(MAX_PRICE_PARAM)),
+    availableOnly: params.get(AVAILABLE_PARAM) === AVAILABLE_ON,
+  };
+}
+
+/**
+ * 검색 기준도 필터·정렬과 같은 자리(URL)에 둔다.
+ *
+ * 프로필에 저장하지 않는 이유는 이것이 **지금 이 화면을 어떻게 보고 있는가**이지
+ * 사용자의 설정이 아니기 때문이다. 반경 자체(`search_radius_m`)는 설정이라 프로필에 있지만,
+ * "지금 반경으로 보는 중인가"는 뒤로가기로 되돌아가야 하는 값이다.
+ */
+export function scopeFromSearchParams(params: URLSearchParams): PostSearchScope {
+  return params.get(SCOPE_PARAM) === SCOPE_RADIUS ? 'radius' : DEFAULT_POST_SEARCH_SCOPE;
+}
+
+/**
+ * 정렬도 필터와 같은 자리(URL)에 둔다. 모르는 값이면 기본 정렬로 되돌린다.
+ *
+ * 기준을 함께 읽어 넘긴다 — 거리순은 반경 기준에서만 뜻이 있어서(0024),
+ * 기준을 모르면 "아는 값인지"를 판단할 수 없다.
+ */
+export function sortFromSearchParams(params: URLSearchParams): PostSortOption {
+  return toPostSortOption(params.get(SORT_PARAM), scopeFromSearchParams(params));
+}
+
+/** 기본값인 항목은 키 자체를 넣지 않는다. 주소창이 짧아야 사용자가 무엇을 걸었는지 읽을 수 있다. */
+export function toSearchParams(
+  filters: PostSearchFilters,
+  sort: PostSortOption = DEFAULT_POST_SORT,
+  scope: PostSearchScope = DEFAULT_POST_SEARCH_SCOPE,
+): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (filters.keyword !== '') {
+    params.set(KEYWORD_PARAM, filters.keyword);
+  }
+  if (filters.categoryId !== null) {
+    params.set(CATEGORY_PARAM, String(filters.categoryId));
+  }
+  if (filters.minPrice !== null) {
+    params.set(MIN_PRICE_PARAM, String(filters.minPrice));
+  }
+  if (filters.maxPrice !== null) {
+    params.set(MAX_PRICE_PARAM, String(filters.maxPrice));
+  }
+  if (filters.availableOnly) {
+    params.set(AVAILABLE_PARAM, AVAILABLE_ON);
+  }
+  if (sort !== DEFAULT_POST_SORT) {
+    params.set(SORT_PARAM, sort);
+  }
+  if (scope !== DEFAULT_POST_SEARCH_SCOPE) {
+    params.set(SCOPE_PARAM, SCOPE_RADIUS);
+  }
+
+  return params;
+}
+
+/**
+ * 검색어를 뺀 필터가 하나라도 걸려 있는가. "필터 초기화" 버튼을 켤지 정하는 데 쓴다.
+ * 검색어를 세지 않는 이유는 `clearFilters`가 검색어를 남기기 때문이다.
+ */
+export function hasActiveFilter(filters: PostSearchFilters): boolean {
+  return (
+    filters.categoryId !== null ||
+    filters.minPrice !== null ||
+    filters.maxPrice !== null ||
+    filters.availableOnly
+  );
+}
+
+/**
+ * 필터만 지우고 검색어는 남긴다.
+ * "'노트북' 검색 결과에서 조건만 풀어 보고 싶다"가 흔한 요구라, 검색어까지 지우면 처음부터 다시 쳐야 한다.
+ */
+export function clearFilters(filters: PostSearchFilters): PostSearchFilters {
+  return { ...EMPTY_POST_SEARCH_FILTERS, keyword: filters.keyword };
+}
+
+/** 최소가 최대보다 크면 결과가 언제나 0건이다. 조용히 0건을 보여주지 말고 이유를 알려 준다. */
+export function validatePriceRange(min: number | null, max: number | null): string | null {
+  if (min === null || max === null) {
+    return null;
+  }
+
+  return min > max ? '최소 가격이 최대 가격보다 큽니다.' : null;
+}

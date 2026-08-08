@@ -2,3 +2,41 @@
 
 /* 클래스 기반 다크모드 (.dark) */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * 바탕색은 화면이 아니라 여기서 한 번만 정한다.
+ * 페이지마다 배경을 칠하면 어느 한 곳을 빠뜨렸을 때 다크모드에서 흰 판이 튀어나온다.
+ */
+@layer base {
+  body {
+    @apply bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-50;
+  }
+}
+
+/*
+ * 화면 폭도 바탕색과 같은 이유로 여기서 한 번만 정한다.
+ *
+ * 반응형을 붙이기 전에는 `max-w-screen-sm`이 스물세 파일에 그대로 적혀 있었다.
+ * 그 상태로 데스크탑 폭을 더하면 `md:max-w-4xl`이 스물세 번 복사되고, 다음에 값을
+ * 바꿀 때 또 스물세 곳을 고쳐야 한다 — 한 곳을 빠뜨리면 그 화면만 좁게 남는다.
+ *
+ * 그래서 화면은 **폭이 아니라 성격**을 적는다. 셋뿐이다.
+ *
+ *   page-narrow  한 줄이 길어지면 못 읽는 것   폼 · 설정 · 온보딩 · 채팅방
+ *   page-wide    많이 늘어놓을수록 나은 것     홈 · 검색 · 목록 · 알림 · 지도
+ *   page-detail  둘을 나란히 놓을 것           게시물 상세(2단)
+ *
+ * 모바일에서는 셋이 전부 `max-w-screen-sm`이라 **지금 보이는 화면 그대로**다.
+ * 갈라지는 것은 `md`(768px)부터다.
+ */
+@utility page-narrow {
+  @apply mx-auto w-full max-w-screen-sm md:max-w-2xl;
+}
+
+@utility page-wide {
+  @apply mx-auto w-full max-w-screen-sm md:max-w-4xl lg:max-w-6xl;
+}
+
+@utility page-detail {
+  @apply mx-auto w-full max-w-screen-sm lg:max-w-5xl;
+}
