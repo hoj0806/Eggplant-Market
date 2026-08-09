@@ -1,4 +1,7 @@
 import {
+  MAX_POST_IMAGE_BYTES,
+  MAX_POST_IMAGE_SOURCE_BYTES,
+  findOversizedImage,
   hasPostFieldError,
   toNewImageFiles,
   validatePostCategory,
@@ -6,6 +9,7 @@ import {
   validatePostFormValues,
   validatePostImages,
   validatePostPrice,
+  validateUploadableImages,
   validatePostTitle,
 } from './validatePostInput';
 import type { PostFormValues, PostImageItem } from '../types';
@@ -126,15 +130,81 @@ describe('validatePostImages', function imagesSuite() {
     );
   });
 
-  it('5MB를 넘는 사진을 막는다', function tooLargeCase() {
-    expect(validatePostImages([makeNewImage({ size: 6 * 1024 * 1024 })])).toBe(
-      '사진 한 장의 용량은 5MB 이하여야 합니다.',
+  it('12MB를 넘는 사진을 막는다', function tooLargeCase() {
+    expect(validatePostImages([makeNewImage({ size: 13 * 1024 * 1024 })])).toBe(
+      '사진 한 장의 용량은 12MB 이하여야 합니다.',
     );
+  });
+
+  it('5MB가 넘어도 고를 수는 있다 — 줄이면 작아지기 때문', function overStorageLimitCase() {
+    // 2026-08-09 이전에는 여기서 막혔다. 4MB 사진이 483kB가 되는데도
+    // **줄여 보지도 않고** 거절하고 있었다. 줄인 뒤의 상한은 업로드 직전에 다시 잰다.
+    expect(validatePostImages([makeNewImage({ size: 6 * 1024 * 1024 })])).toBeUndefined();
+  });
+
+  it('정확히 12MB는 통과한다', function atSourceLimitCase() {
+    expect(
+      validatePostImages([makeNewImage({ size: MAX_POST_IMAGE_SOURCE_BYTES })]),
+    ).toBeUndefined();
   });
 
   // 이미 올라간 사진은 등록할 때 같은 검사를 통과한 것들이라 파일을 다시 볼 방법이 없다.
   it('이미 올라간 사진만 남아 있어도 통과시킨다', function existingOnlyCase() {
     expect(validatePostImages([makeExistingImage()])).toBeUndefined();
+  });
+});
+
+describe('findOversizedImage', function oversizedSuite() {
+  it('상한을 넘는 첫 파일을 준다', function firstOverCase() {
+    const big = makeFile({ size: 100 });
+
+    expect(findOversizedImage([makeFile({ size: 10 }), big], 50)).toBe(big);
+  });
+
+  it('상한과 같으면 넘은 것이 아니다', function atLimitCase() {
+    expect(findOversizedImage([makeFile({ size: 50 })], 50)).toBeNull();
+  });
+
+  it('빈 목록은 null', function emptyCase() {
+    expect(findOversizedImage([], 50)).toBeNull();
+  });
+});
+
+describe('validateUploadableImages', function uploadableSuite() {
+  /**
+   * 줄인 **뒤에** 재는 검사다. 여기 걸리는 것은 줄일 수 없었던 사진이다 —
+   * GIF(캔버스에 그리면 움직임이 사라져 손대지 않는다)이거나,
+   * 이미 1600px 이하인데 용량만 큰 경우다.
+   */
+  it('줄인 뒤에도 저장 상한을 넘으면 막는다', function overStorageCase() {
+    expect(validateUploadableImages([makeFile({ size: MAX_POST_IMAGE_BYTES + 1 })])).toBe(
+      '줄여도 5MB를 넘는 사진이 있습니다. 더 작은 사진을 올려 주세요.',
+    );
+  });
+
+  it('줄어들어 상한 아래면 통과한다', function shrunkCase() {
+    // 원본 6MB가 483kB가 되는 흔한 경우. 고를 때 막지 않은 것이 여기서 값을 한다.
+    expect(validateUploadableImages([makeFile({ size: 483 * 1024 })])).toBeUndefined();
+  });
+
+  it('정확히 저장 상한은 통과한다', function atStorageLimitCase() {
+    // 버킷의 file_size_limit과 같은 값이라, 여기서 통과한 것은 서버도 받는다.
+    expect(
+      validateUploadableImages([makeFile({ size: MAX_POST_IMAGE_BYTES })]),
+    ).toBeUndefined();
+  });
+});
+
+describe('상한 두 개의 관계', function limitRelationSuite() {
+  it('고를 때의 상한이 저장 상한보다 크다', function sourceIsLooser() {
+    // 이 순서가 뒤집히면 "고를 수는 있는데 무조건 업로드가 막히는" 구간이 생긴다.
+    expect(MAX_POST_IMAGE_SOURCE_BYTES).toBeGreaterThan(MAX_POST_IMAGE_BYTES);
+  });
+
+  it('저장 상한은 버킷 설정과 같은 5MB다', function matchesBucket() {
+    // supabase/migrations/0005_post_create.sql의 file_size_limit = 5242880.
+    // 갈리면 클라이언트가 통과시킨 것을 서버가 거절한다.
+    expect(MAX_POST_IMAGE_BYTES).toBe(5242880);
   });
 });
 
