@@ -2605,3 +2605,39 @@ function qU(){return`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${ck}&…`}
 
 **교훈**: **초록을 보고 끝내면 검사가 아예 안 도는 경우와 구분이 안 된다.**
 새로 만든 그물은 **한 번은 일부러 걸어 봐야** 그물인지 안다.
+
+### 8. 윈도우 node 22가 `npx.cmd`를 못 띄운다
+
+**증상**: `scripts/runSmoke.mjs`가 `spawn("npx.cmd", ["jest", …])`에서 `EINVAL`로 죽는다.
+
+**원인**: node가 윈도우에서 `.cmd`·`.bat` 직접 실행을 막는다(명령 주입 취약점 대응).
+`shell: true`를 주면 뚫리지만, 그러면 **주소가 셸을 거치므로** 따옴표 처리를 신경 써야 한다.
+
+**해결**: jest의 진입 파일을 지금 node로 직접 돌린다.
+
+```js
+const require = createRequire(import.meta.url);
+const jestBin = resolve(dirname(require.resolve("jest/package.json")), "bin/jest.js");
+spawn(process.execPath, [jestBin, "--selectProjects", "smoke"], { … });
+```
+
+`require.resolve("jest/bin/jest.js")`는 **안 된다** — jest의 `package.json` `exports`가
+bin을 안 내보내서 `ERR_PACKAGE_PATH_NOT_EXPORTED`다. **패키지 위치를 먼저 잡고
+경로를 붙여야** 한다.
+
+**교훈**: 패키지의 파일을 경로로 찾을 때 `exports`가 막고 있으면
+`package.json`을 resolve해 **디렉터리를 얻는 우회**가 있다.
+
+### 9. Vercel Preview는 밖에서 못 잰다
+
+**증상**: Preview 배포 주소로 파비콘 Content-Type을 미리 확인하려 했는데 **모든 경로가
+302**였다. `/`도, `/favicon.svg`도.
+
+**원인**: Vercel 배포 보호(Deployment Protection)가 켜져 있어 인증 없이는 못 들어간다.
+
+**해결**: 확인을 프로덕션으로 미뤘다. 그리고 스모크의 `fetch`에 `redirect: "manual"`을
+줬다 — **따라가면 로그인 화면을 200으로 받아 들고 "잘 뜬다"고 착각한다.**
+
+**교훈**: 계획 ⑥이 "Preview에서 소셜 로그인이 안 돌아온다"를 걱정했는데,
+실제로는 **Preview 자체가 안 열린다.** 걱정의 전제가 틀렸던 셈이라 와일드카드 등록은
+고민할 필요가 없어졌다.
