@@ -15,6 +15,11 @@
 //   (키는 런타임이 자동으로 넣어 준다. 어떤 변수를 읽는지는 readApiKey의 주석을 보라)
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import {
+  LIST_PAGE_SIZE,
+  type StorageEntry,
+  sweepOrphanChatImages,
+} from './chatImageSweep.ts';
 
 const CORS_HEADERS: Record<string, string> = {
   'access-control-allow-origin': '*',
@@ -27,9 +32,6 @@ const USER_PREFIXED_BUCKETS: ReadonlyArray<string> = ['avatars', 'post-images'];
 
 /** 채팅 사진만 `{room_id}/{user_id}/…`라 방 번호를 먼저 알아내야 한다(0008). */
 const CHAT_IMAGE_BUCKET = 'chat-images';
-
-/** storage.list의 기본 상한이 100이다. 그 이상은 offset으로 넘긴다. */
-const LIST_PAGE_SIZE = 100;
 
 type ChatRoomRow = {
   id: number;
@@ -147,6 +149,31 @@ async function removeFiles(
   await client.storage.from(bucket).remove(paths);
 }
 
+/** `chatImageSweep`이 저장소를 만지는 통로. 클라이언트 타입을 그쪽에 들이지 않으려고 감싼다. */
+function chatImageListPage(client: SupabaseClient) {
+  return async function listPage(
+    prefix: string,
+    offset: number,
+    limit: number,
+  ): Promise<StorageEntry[]> {
+    const { data, error } = await client.storage
+      .from(CHAT_IMAGE_BUCKET)
+      .list(prefix, { limit, offset });
+
+    // 못 읽으면 빈 쪽으로 돌려 그 자리에서 멈추게 한다. 뒷정리라서 던지지 않는다.
+    if (error !== null || data === null) {
+      return [];
+    }
+    return data as StorageEntry[];
+  };
+}
+
+function chatImageRemove(client: SupabaseClient) {
+  return async function remove(paths: ReadonlyArray<string>): Promise<void> {
+    await removeFiles(client, CHAT_IMAGE_BUCKET, [...paths]);
+  };
+}
+
 async function removeUserFiles(
   client: SupabaseClient,
   userId: string,
@@ -157,11 +184,24 @@ async function removeUserFiles(
     await removeFiles(client, bucket, paths);
   }
 
-  // 방을 통째로 비우지 않는다. 같은 방에 상대가 올린 사진이 함께 들어 있다.
+  // ① 방 기록으로 훑는다. 방을 통째로 비우지 않는다 — 같은 방에 상대가 올린 사진이 함께 있다.
   for (const roomId of roomIds) {
     const paths = await listFilePaths(client, CHAT_IMAGE_BUCKET, `${roomId}/${userId}`);
     await removeFiles(client, CHAT_IMAGE_BUCKET, paths);
   }
+
+  // ② 버킷을 훑어 나머지를 줍는다.
+  //
+  // ①만으로는 **남의 탈퇴에 방이 먼저 사라진 경우**를 못 잡는다. 그때 fetchRoomIds는
+  // 빈 배열이고, 자기 사진인데도 지울 경로를 알 수 없다(backlog.md §1-3).
+  // ①을 남겨 두는 이유는 그쪽이 훨씬 싸고, 대부분의 탈퇴는 방이 살아 있을 때 일어나기
+  // 때문이다. 여기서는 ①이 이미 본 방을 건너뛴다.
+  await sweepOrphanChatImages(
+    chatImageListPage(client),
+    chatImageRemove(client),
+    userId,
+    roomIds,
+  );
 }
 
 Deno.serve(async function handleDeleteAccount(request: Request): Promise<Response> {
