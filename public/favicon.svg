@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="1.8 1.15 20.4 20.4" width="32" height="32">
+  <!--
+    브라우저 탭의 가지. 경로와 색은 src/shared/ui/brandMarkShape.ts와 같아야 하고,
+    brandMarkShape.test.ts가 그것을 지킨다.
+
+    화면(brandMark.tsx)과 다른 것은 둘뿐이고, 둘 다 16px에서 살아남으려는 조정이다.
+    - 뷰박스를 도형에 바짝 붙여 잘랐다(옆 여백을 안 버린다).
+    - 줄기 굵기 1.6 → 2.4. 1.6은 16px에서 한 픽셀 남짓이라 지워진다.
+  -->
+  <path fill="#7C3AED" d="M12 6.2c4.1 0 7.1 3.4 7.1 7.7 0 4.2-3.2 7.1-7.1 7.1s-7.1-2.9-7.1-7.1c0-4.3 3-7.7 7.1-7.7z"/>
+  <path fill="#16A34A" d="M12 7.4c-2.1 0-3.8-1.1-4.6-2.8 1.9-.7 3.6-.2 4.6 1 1-1.2 2.7-1.7 4.6-1-.8 1.7-2.5 2.8-4.6 2.8z"/>
+  <path stroke="#16A34A" stroke-width="2.4" stroke-linecap="round" d="M12 5.6V2.9"/>
+</svg>

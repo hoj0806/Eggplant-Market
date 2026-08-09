@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>가지마켓 (EggPlant Market)</title>
+    <!--
+      .ico를 먼저, .svg를 나중에 적는다. SVG를 읽는 브라우저는 뒤에 온 쪽을 골라 svg를 쓰고,
+      못 읽는 쪽은 앞의 ico로 내려앉는다. 순서를 뒤집으면 구형이 svg를 집었다가 아무것도
+      못 그린다.
+
+      링크가 있어도 .ico 파일은 있어야 한다. 브라우저는 링크와 별개로 `/favicon.ico`를
+      찔러 보는데, 파일이 없으면 vercel.json의 SPA 폴백이 index.html을 돌려준다.
+    -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
     <script>
       // 첫 그림이 그려지기 전에 테마를 붙인다. React가 뜬 뒤에 붙이면 다크로 쓰는 사람에게
       // 흰 화면이 한 번 번쩍인다. 키와 값은 src/shared/store/uiStore.ts와 같아야 한다.
