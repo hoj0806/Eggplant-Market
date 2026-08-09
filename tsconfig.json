@@ -23,5 +23,8 @@
 
     "types": ["node", "jest", "@testing-library/jest-dom", "vite/client"]
   },
-  "include": ["src", "vite.config.ts"]
+  // Edge Function의 `index.ts`는 뺀다 — Deno 전역과 `npm:` 지정자를 쓰므로 여기서 죽는다.
+  // 거기서 떼어 낸 순수 모듈(`chatImage*`)만 넣는다. Jest가 실제로 돌리는 코드인데
+  // 빼 두면 타입 검사를 한 번도 안 받는다(ts-jest는 isolatedModules라 검사하지 않는다).
+  "include": ["src", "vite.config.ts", "supabase/functions/**/chatImage*.ts"]
 }
