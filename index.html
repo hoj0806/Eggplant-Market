@@ -14,6 +14,39 @@
     -->
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
+
+    <!--
+      링크를 붙였을 때 뜨는 카드. 값은 src/shared/ui/siteMeta.ts와 같아야 하고,
+      siteMeta.test.ts가 그것을 지킨다.
+
+      og:image는 **절대 주소**다. 상대 경로를 페이스북은 알아서 붙여 주지만
+      슬랙·카카오를 포함한 여러 수집기는 그대로 두고 그림을 못 찾는다.
+
+      어느 경로를 공유해도 이 한 장이 뜬다. 게시물마다 다른 카드는 안 만들기로 했다
+      (backlog.md §4 「앱 껍데기」).
+    -->
+    <meta
+      name="description"
+      content="우리 동네 이웃과 중고물품을 사고파는 곳. 가까운 거래만 모아 보고, 채팅으로 바로 약속을 잡으세요."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="가지마켓" />
+    <meta property="og:title" content="가지마켓 (EggPlant Market)" />
+    <meta
+      property="og:description"
+      content="우리 동네 이웃과 중고물품을 사고파는 곳. 가까운 거래만 모아 보고, 채팅으로 바로 약속을 잡으세요."
+    />
+    <meta property="og:url" content="https://eggplant-market-ga6d-flame.vercel.app" />
+    <meta
+      property="og:image"
+      content="https://eggplant-market-ga6d-flame.vercel.app/og-image.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="가지마켓 — 동네 이웃과 중고거래" />
+    <meta property="og:locale" content="ko_KR" />
+    <!-- 트위터는 og를 대부분 물려받지만 카드 종류만은 따로 적어야 큰 그림이 뜬다. -->
+    <meta name="twitter:card" content="summary_large_image" />
     <script>
       // 첫 그림이 그려지기 전에 테마를 붙인다. React가 뜬 뒤에 붙이면 다크로 쓰는 사람에게
       // 흰 화면이 한 번 번쩍인다. 키와 값은 src/shared/store/uiStore.ts와 같아야 한다.
