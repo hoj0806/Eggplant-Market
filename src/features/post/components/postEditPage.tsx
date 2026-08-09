@@ -6,7 +6,7 @@ import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
 import { usePostDetailQuery } from '../hooks/usePostQueries';
 import { useUpdatePostMutation } from '../hooks/useUpdatePostMutation';
-import { toPostErrorMessage } from '../utils/postErrorMessage';
+import { toPostActionErrorMessage } from '../utils/postErrorMessage';
 import { toPostId } from '../utils/postId';
 import type { PostDetail, PostFormValues, PostImageItem } from '../types';
 
@@ -110,7 +110,7 @@ function PostEditPage() {
   const center = post.tradePlace?.coords ?? profileQuery.data?.region?.coords ?? null;
 
   const errorMessage =
-    updatePostMutation.error !== null ? toPostErrorMessage(updatePostMutation.error) : null;
+    updatePostMutation.error !== null ? toPostActionErrorMessage(updatePostMutation.error) : null;
 
   return (
     <main className="flex page-narrow flex-col gap-6 p-6">

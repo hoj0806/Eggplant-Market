@@ -4,7 +4,7 @@ import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
 import { useCreatePostMutation } from '../hooks/useCreatePostMutation';
-import { toPostErrorMessage } from '../utils/postErrorMessage';
+import { toPostActionErrorMessage } from '../utils/postErrorMessage';
 import { toNewImageFiles } from '../utils/validatePostInput';
 import type { PostFormValues } from '../types';
 
@@ -61,7 +61,7 @@ function NewPostPage() {
   }
 
   const errorMessage =
-    createPostMutation.error !== null ? toPostErrorMessage(createPostMutation.error) : null;
+    createPostMutation.error !== null ? toPostActionErrorMessage(createPostMutation.error) : null;
 
   return (
     <main className="flex page-narrow flex-col gap-6 p-6">
