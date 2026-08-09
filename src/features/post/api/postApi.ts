@@ -6,6 +6,7 @@ import { DEFAULT_POST_SORT } from '../../browse/utils/postSort';
 import { fetchPostChatPartners, listChatRoomImagePaths, removeChatImages } from '../../chat/api/chatApi';
 import { downscaleImages } from '../../../shared/utils/downscaleImage';
 import { POST_IMAGE_BUCKET, toPostImagePaths } from '../utils/postImagePath';
+import { validateUploadableImages } from '../utils/validatePostInput';
 import type { PostSearchFilters, PostSortOption } from '../../browse/types';
 import type { TradePlace } from '../../place/types';
 import type { Region, RegionCoords } from '../../region/types';
@@ -204,6 +205,14 @@ async function uploadPostImages(sellerId: string, files: File[]): Promise<Upload
   // 여기서 한 번 줄이면 올리는 사람뿐 아니라 **그 뒤로 이 글을 보는 모든 사람**의
   // 데이터가 함께 준다. 실패하면 원본이 그대로 오므로 업로드가 막히지 않는다.
   const prepared = await downscaleImages(files);
+
+  // **줄인 뒤에 다시 잰다.** 고를 때의 상한(12MB)은 원본에 걸리고, 버킷은 5MB에서 막는다.
+  // 그 사이가 비어 있으면 GIF처럼 줄일 수 없는 사진이 서버까지 갔다가 거절당한다 —
+  // 사용자에게는 이유를 알 수 없는 실패로 보인다. 여기서 먼저, 이유와 함께 세운다.
+  const oversized = validateUploadableImages(prepared);
+  if (oversized !== undefined) {
+    throw new Error(oversized);
+  }
 
   for (const [index, file] of prepared.entries()) {
     const path = `${sellerId}/${stamp}-${index}.${toFileExtension(file)}`;
