@@ -8,9 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test": "jest",
+    "test": "jest --selectProjects unit integration",
     "test:unit": "jest --selectProjects unit",
-    "test:integration": "jest --selectProjects integration"
+    "test:integration": "jest --selectProjects integration",
+    "test:build": "npm run build && jest --selectProjects build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
