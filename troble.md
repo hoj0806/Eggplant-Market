@@ -2661,3 +2661,48 @@ bin을 안 내보내서 `ERR_PACKAGE_PATH_NOT_EXPORTED`다. **패키지 위치�
 **교훈**: supabase-js는 쿼리 실패를 **던지지 않는다.** `data`만 보고 `toEqual([])`을
 기대하면 실패가 빈 결과로 둔갑한다. 통합 테스트의 씨앗은 **진짜와 같은 모양**이어야 한다 —
 스토리지처럼 느슨한 곳이 섞여 있으면 틀린 씨앗도 절반은 통과한다.
+
+### 11. `remove()`는 없는 경로를 지워도 성공한다
+
+**증상**이라기보다 **성질**이다. 스토리지 뒷정리 경로 여섯을 검증하다 알게 됐다.
+
+```js
+await supabase.storage.from(bucket).remove(["이런/파일은/없다.png"]);
+// → { data: [], error: null }
+```
+
+경로를 한 글자라도 틀리면 **오류 없이 아무 일도 안 일어난다.** 파일은 그대로 쌓이고
+아무 신호도 안 뜬다. 되짚기(`toAvatarStoragePath`·`toPostImagePath`)에 버그가 있으면
+**영원히 모른다.**
+
+**해결**: 검증의 질문을 바꿨다. "지웠나"가 아니라 **"우리가 만든 경로가 진짜 파일과 맞나"**.
+진짜로 올리고 → 진짜 공개 URL을 받고 → 되짚어 → 진짜로 지워지는지 **왕복**을 본다.
+손으로 적은 URL로는 Supabase가 실제로 만드는 주소와 같은지 알 수 없다.
+
+**교훈**: 실패를 조용히 삼키는 API는 **단위 테스트로 못 지킨다.** 입력을 내가 정하는 한
+"내가 생각한 모양"만 확인하게 된다. 한 번은 진짜와 맞춰 봐야 한다.
+
+### 12. 스토리지가 한글 파일 이름을 거절한다
+
+**증상**: 되짚기가 퍼센트 인코딩을 다루는지 보려고 `1786… 가지 사진.png`를 올렸더니
+업로드부터 실패했다 — `Invalid key`.
+
+**원인**: Supabase Storage의 키 규칙이 비ASCII를 안 받는다. 처음엔 `contentType`을 빼먹어
+**전부 `mime type text/plain… is not supported`로 거절**되는 바람에 원인이 가려졌다 —
+키 문제인지 MIME 문제인지 구분이 안 됐다.
+
+**해결**: `contentType`을 주고 문자별로 다시 재 봤다.
+
+```
+plain.png            ok
+with space.png       ok   →  URL에서 with%20space.png
+dash-under_dot.png   ok
+paren(1).png         ok
+plus+sign.png        ok
+한글.png              REJECT  Invalid key
+```
+
+**공백은 받고 인코딩된다.** 그래서 `decodeURIComponent` 갈래는 공백으로 시험했다.
+
+**교훈**: 외부 서비스의 제약을 잴 때는 **한 번에 한 가지만** 바꾼다. MIME과 키를 함께
+틀리면 다섯 줄이 똑같은 이유로 빨개져서 아무것도 못 배운다.
