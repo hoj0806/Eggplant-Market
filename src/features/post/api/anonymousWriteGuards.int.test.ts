@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/testUtils/integration/supabaseTestClient';
+import { getAdminClient } from '../../../shared/testUtils/integration/supabaseAdminClient';
 import {
   createFixture,
   createTestComment,
@@ -164,6 +165,37 @@ describe('익명 쓰기는 전부 막힌다', function anonymousWrites() {
       .eq('id', owner.id)
       .single();
     expect(Number((data as { manner_temp: number | string }).manner_temp)).toBe(36.5);
+  });
+
+  /**
+   * `deleteAllNotifications`("모두 삭제")는 **조건이 사실상 없는 delete**를 보낸다
+   * (`id is not null`은 언제나 참이다). 그 범위를 좁히는 것은 `notifications_delete`(0019)
+   * 하나뿐이라, 정책이 흔들리면 **남의 알림까지 지워지는** 종류의 사고다.
+   *
+   * 그래서 여기서 두 가지를 함께 본다.
+   * 1. 조건 없는 delete를 PostgREST가 **오류 없이 받는다**(받지 않으면 화면이 조용히 실패한다)
+   * 2. 그럼에도 **한 줄도 안 지워진다**(세션이 없으면 `auth.uid()`가 null이다)
+   */
+  it('조건 없는 delete를 보내도 남의 알림이 안 지워진다', async function cannotWipeNotifications() {
+    const admin = getAdminClient();
+    const seeded = await admin
+      .from('notifications')
+      .insert({ user_id: owner.id, type: 'like', payload: { post_id: postId } })
+      .select('id')
+      .single();
+
+    expect(seeded.error).toBeNull();
+
+    const { error } = await supabase.from('notifications').delete().not('id', 'is', null);
+
+    // RLS의 delete는 지울 수 없는 행을 조용히 건너뛴다 — 0건 삭제도 성공이다.
+    expect(error).toBeNull();
+
+    const remaining = await admin
+      .from('notifications')
+      .select('id')
+      .eq('user_id', owner.id);
+    expect((remaining.data ?? []).length).toBe(1);
   });
 
   it('후기를 지어낼 수 없다', async function cannotForgeReview() {

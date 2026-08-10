@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { notificationsQueryKey, unreadNotificationCountQueryKey } from './useNotificationQueries';
 import {
+  deleteAllNotifications,
   deleteNotification,
   markAllNotificationsRead,
   markNotificationRead,
@@ -13,6 +14,7 @@ import {
 import {
   withAllNotificationsRead,
   withDecrementedUnread,
+  withoutAllNotifications,
   withoutNotification,
   withReadNotification,
 } from '../utils/notificationCache';
@@ -98,6 +100,33 @@ export function useDeleteNotificationMutation(
           return withDecrementedUnread(current, input.wasRead);
         },
       );
+    },
+  });
+}
+
+/**
+ * 알림을 모두 지운다.
+ *
+ * 캐시를 고치는 방식은 한 줄 삭제와 같다 — **응답을 받고 나서.** 화면에 머무른 채 누르는
+ * 버튼이라 실패하면 목록이 그대로 남아 다시 누를 수 있다.
+ *
+ * 배지는 `withDecrementedUnread`를 쓰지 않는다. 몇 개가 안 읽은 것이었는지 화면이 모르기
+ * 때문이다 — 목록은 첫 페이지만 받아 온 상태일 수 있고 배지는 전체를 센다. **다 지웠으면
+ * 안 읽은 것도 0이다.** "모두 읽음"이 0을 그대로 쓰는 것과 같은 자리다.
+ */
+export function useDeleteAllNotificationsMutation(
+  viewerId: string | null,
+): UseMutationResult<void, Error, void> {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, void>({
+    mutationFn: deleteAllNotifications,
+    onSuccess: function updateCache(): void {
+      queryClient.setQueryData<NotificationCache>(
+        notificationsQueryKey(viewerId),
+        withoutAllNotifications,
+      );
+      queryClient.setQueryData<number>(unreadNotificationCountQueryKey(viewerId), 0);
     },
   });
 }

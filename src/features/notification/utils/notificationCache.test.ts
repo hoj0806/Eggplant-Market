@@ -2,10 +2,19 @@ import type { InfiniteData } from '@tanstack/react-query';
 import {
   withAllNotificationsRead,
   withDecrementedUnread,
+  withoutAllNotifications,
   withoutNotification,
   withReadNotification,
 } from './notificationCache';
+import { toNextNotificationCursor } from './notificationCursor';
 import type { AppNotification } from '../types';
+
+// 커서 유틸이 페이지 크기 상수 하나 때문에 notificationApi를 import하고, 그쪽은
+// supabaseClient를 거쳐 import.meta.env에 닿는다(troble.md 「탐색」 1번).
+// notificationCursor.test.ts와 같은 처방이다.
+jest.mock('../api/notificationApi', function mockNotificationApi() {
+  return { NOTIFICATIONS_PAGE_SIZE: 20 };
+});
 
 function makeNotification(id: number, isRead: boolean): AppNotification {
   return {
@@ -98,6 +107,44 @@ describe('withoutNotification', function withoutNotificationSuite() {
 
   it('아직 아무 페이지도 없으면 아무것도 하지 않는다', function emptyCase() {
     expect(withoutNotification(undefined, 1)).toBeUndefined();
+  });
+});
+
+describe('withoutAllNotifications', function withoutAllNotificationsSuite() {
+  it('받아 온 페이지를 전부 비운다', function emptiesAllCase() {
+    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, true)]]);
+
+    const next = withoutAllNotifications(cache);
+
+    expect(next?.pages.flat()).toEqual([]);
+  });
+
+  // withoutNotification과 같은 이유다. 페이지 개수와 pageParams 개수가 어긋나면 안 된다.
+  it('페이지 배열 자체는 남긴다', function keepsPagesCase() {
+    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, true)]]);
+
+    const next = withoutAllNotifications(cache);
+
+    expect(next?.pages).toHaveLength(2);
+    expect(next?.pageParams).toHaveLength(2);
+  });
+
+  /**
+   * 빈 페이지를 남겨도 무한 스크롤이 헛돌지 않는다는 것까지 본다 — 커서 규칙이
+   * "마지막 페이지가 덜 찼으면 끝"이라 빈 배열은 저절로 끝으로 읽힌다.
+   * 이 두 함수는 서로를 모르지만 **함께 맞아야** 지운 뒤 목록이 조용해진다.
+   */
+  it('전부 비운 뒤에는 다음 페이지를 부르지 않는다', function stopsPagingCase() {
+    const cache = makeCache([[makeNotification(1, false)]]);
+
+    const next = withoutAllNotifications(cache);
+    const lastPage = next?.pages[next.pages.length - 1] ?? [];
+
+    expect(toNextNotificationCursor(lastPage)).toBeUndefined();
+  });
+
+  it('아직 아무 페이지도 없으면 아무것도 하지 않는다', function emptyCase() {
+    expect(withoutAllNotifications(undefined)).toBeUndefined();
   });
 });
 
