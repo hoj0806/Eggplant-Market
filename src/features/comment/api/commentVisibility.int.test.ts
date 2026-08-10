@@ -1,4 +1,4 @@
-import { fetchPostComments } from './commentApi';
+import { fetchPostCommentPage } from './commentApi';
 import { supabase } from '../../../shared/testUtils/integration/supabaseTestClient';
 import {
   createFixture,
@@ -98,7 +98,7 @@ afterAll(async function clean() {
 
 describe('비밀 댓글', function secretComments() {
   it('로그인하지 않으면 한 줄도 오지 않는다', async function noneForAnonymous() {
-    const comments = await fetchPostComments(postId);
+    const comments = await fetchPostCommentPage(postId, null);
     const secret = comments.filter(function isSecret(comment: PostComment) {
       return comment.isSecret;
     });
@@ -108,7 +108,7 @@ describe('비밀 댓글', function secretComments() {
   });
 
   it('자리 표시조차 남기지 않는다', async function noPlaceholder() {
-    const comments = await fetchPostComments(postId);
+    const comments = await fetchPostCommentPage(postId, null);
     const contents = comments.map(function toContent(comment: PostComment) {
       return comment.content;
     });
@@ -119,7 +119,7 @@ describe('비밀 댓글', function secretComments() {
   });
 
   it('답글은 부모의 비밀을 물려받아 함께 가려진다', async function replyInheritsSecret() {
-    const comments = await fetchPostComments(postId);
+    const comments = await fetchPostCommentPage(postId, null);
 
     // 답글에 is_secret을 넘기지 않았는데도 익명에게 안 왔다면 트리거가 받아 적은 것이다.
     expect(comments.length).toBe(publicCount);
@@ -143,7 +143,7 @@ describe('비밀 댓글', function secretComments() {
 
 describe('댓글 트리', function commentTree() {
   it('답글이 부모 아래로 접히고 잃어버린 줄이 없다', async function twoLevels() {
-    const comments = await fetchPostComments(postId);
+    const comments = await fetchPostCommentPage(postId, null);
     const tree = buildCommentTree(comments);
 
     for (const node of tree) {
@@ -161,7 +161,7 @@ describe('댓글 트리', function commentTree() {
   });
 
   it('오래된 댓글이 위로 온다', async function oldestFirst() {
-    const comments = await fetchPostComments(postId);
+    const comments = await fetchPostCommentPage(postId, null);
     const createdAt = comments.map(function toCreatedAt(comment: PostComment) {
       return comment.createdAt;
     });

@@ -50,6 +50,7 @@ function makePost(overrides: { status?: PostStatus; bumpedAt?: string } = {}): P
     tradePlace: null,
     images: ['https://example.test/1.jpg'],
     viewCount: 3,
+    commentCount: 0,
     likeCount: 2,
     isLiked: false,
     createdAt: new Date(NOW - 72 * HOUR_MS).toISOString(),

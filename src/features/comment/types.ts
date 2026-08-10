@@ -52,3 +52,13 @@ export type CommentAuthor = {
 export type CommentFieldName = 'content';
 
 export type CommentFieldErrors = Partial<Record<CommentFieldName, string>>;
+
+/**
+ * 댓글 목록의 다음 페이지 시작점. **1단 댓글을 가리킨다**(답글은 부모를 따라온다).
+ *
+ * 같은 시각 댓글을 가르려고 id까지 들고 간다 — 0013·0015의 커서와 같은 모양이다.
+ */
+export type CommentCursor = {
+  createdAt: string;
+  id: number;
+};

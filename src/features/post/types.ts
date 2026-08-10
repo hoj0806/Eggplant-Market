@@ -60,6 +60,13 @@ export type PostDetail = {
   images: string[];
   viewCount: number;
   likeCount: number;
+  /**
+   * 댓글 개수(`posts.comment_count`, 0028). **대댓글도 함께 센다.**
+   *
+   * 상세에도 싣는 이유는 댓글 목록이 페이징되기 때문이다 — 받아 온 줄을 세면 "지금까지
+   * 받은 만큼"이 되어 "댓글 10" 밑에 더 보기 버튼이 남는다. 카드와 같은 숫자를 쓴다.
+   */
+  commentCount: number;
   /** 로그인하지 않았으면 언제나 false. */
   isLiked: boolean;
   createdAt: string;
