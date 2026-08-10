@@ -18,6 +18,7 @@ type NotificationRow = {
   preview: string | null;
   offer_amount: number | null;
   is_first: boolean;
+  comment_count: number;
 };
 
 function toAppNotification(row: NotificationRow): AppNotification {
@@ -34,6 +35,7 @@ function toAppNotification(row: NotificationRow): AppNotification {
     preview: row.preview,
     offerAmount: row.offer_amount,
     isFirst: row.is_first,
+    commentCount: row.comment_count,
   };
 }
 

@@ -151,10 +151,15 @@ async function createNeighbor(admin, viewer, nickname) {
   }
 
   // handle_new_user 트리거가 profiles 행을 이미 만들었다. 온보딩만 채운다.
+  //
+  // **닉네임에 접미사를 붙인다.** `profiles.nickname`이 unique라 같은 이름을 두 번 쓸 수
+  // 없는데, 시드는 여러 번 돌 수 있다(계정을 새로 만들어 다시 볼 때). 처음엔 고정 이름을
+  // 썼다가 두 번째 실행이 23505로 죽었다 — 통합 테스트 픽스처가 처음부터 접미사를 붙여
+  // 온 이유가 이것이었다.
   const { error: profileError } = await admin
     .from('profiles')
     .update({
-      nickname,
+      nickname: `${nickname}${suffix.slice(0, 3)}`,
       ...toRegionColumns(viewer),
       region_depth1: viewer.region_depth1,
       region_depth2: viewer.region_depth2,

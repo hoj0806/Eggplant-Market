@@ -43,6 +43,7 @@ const DETAIL: PostDetail = {
   tradePlace: null,
   images: ['https://example.test/1.jpg'],
   viewCount: 3,
+  commentCount: 0,
   likeCount: 2,
   isLiked: false,
   createdAt: '2026-08-02T00:00:00.000Z',

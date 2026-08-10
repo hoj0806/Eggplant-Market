@@ -224,7 +224,12 @@ function PostDetailPage() {
         대신 `lg:max-w-2xl`로 폭을 좁힌다 — 대화는 한 줄이 길어지면 읽기 나빠진다.
       */}
       <div className="lg:max-w-2xl">
-        <CommentSection postId={post.id} viewerId={viewerId} sellerId={post.seller.id} />
+        <CommentSection
+          postId={post.id}
+          commentCount={post.commentCount}
+          viewerId={viewerId}
+          sellerId={post.seller.id}
+        />
       </div>
     </main>
   );

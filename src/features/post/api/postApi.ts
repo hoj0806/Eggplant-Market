@@ -17,7 +17,7 @@ import type { PostDetail, PostImageItem, PostSeller, PostStatus, PostSummary } f
 // profiles는 seller_id 말고도 likes·recently_viewed를 통해 posts와 이어져 있어서
 // 관계를 FK 이름(posts_seller_id_fkey)으로 짚어 줘야 한다. 안 그러면 PGRST201로 거절당한다.
 const POST_DETAIL_COLUMNS =
-  'id, title, description, price, status, category_id, dong_name, trade_location_text, trade_location_lat, trade_location_lng, view_count, like_count, created_at, updated_at, bumped_at, sold_at, seller:profiles!posts_seller_id_fkey (id, nickname, avatar_url, manner_temp), buyer:profiles!posts_buyer_id_fkey (id, nickname, avatar_url), category:categories (id, name), images:post_images (url, sort_order)';
+  'id, title, description, price, status, category_id, dong_name, trade_location_text, trade_location_lat, trade_location_lng, view_count, like_count, comment_count, created_at, updated_at, bumped_at, sold_at, seller:profiles!posts_seller_id_fkey (id, nickname, avatar_url, manner_temp), buyer:profiles!posts_buyer_id_fkey (id, nickname, avatar_url), category:categories (id, name), images:post_images (url, sort_order)';
 
 const DEFAULT_IMAGE_EXTENSION = 'jpg';
 const SAFE_EXTENSION_PATTERN = /^[a-zA-Z0-9]{1,5}$/;
@@ -53,6 +53,7 @@ type PostDetailRow = {
   trade_location_lng: number | null;
   view_count: number;
   like_count: number;
+  comment_count: number;
   created_at: string;
   updated_at: string;
   bumped_at: string;
@@ -161,6 +162,7 @@ function toPostDetail(row: PostDetailRow, isLiked: boolean): PostDetail {
     images: toImageUrls(row.images),
     viewCount: row.view_count,
     likeCount: row.like_count,
+    commentCount: row.comment_count,
     isLiked,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

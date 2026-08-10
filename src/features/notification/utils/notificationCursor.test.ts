@@ -24,6 +24,7 @@ function makeNotification(id: number): AppNotification {
     preview: null,
     offerAmount: null,
     isFirst: false,
+    commentCount: 1,
   };
 }
 

@@ -22,6 +22,7 @@ function makeNotification(
     preview: null,
     offerAmount: null,
     isFirst: false,
+    commentCount: 1,
     ...overrides,
   };
 }

@@ -89,7 +89,13 @@ export function toNotificationView(
 
     case 'comment':
       return {
-        title: `${actor}님이 댓글을 남겼어요`,
+        // 같은 글의 댓글은 한 줄로 묶인다(0037). 묶였을 때 사람 이름을 쓰지 않는 이유는
+        // **아는 것이 최신 한 사람뿐**이어서다 — "외 2명"이라고 적으면 같은 사람이 세 번
+        // 단 경우에 거짓말이 된다. 아바타는 최신 사람 것이 그대로 보인다.
+        title:
+          notification.commentCount > 1
+            ? `댓글 ${notification.commentCount}개가 달렸어요`
+            : `${actor}님이 댓글을 남겼어요`,
         body: notification.preview ?? notification.postTitle,
         to: toPostPath(notification),
       };
