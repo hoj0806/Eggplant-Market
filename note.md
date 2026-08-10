@@ -1829,6 +1829,7 @@ values (new.reviewee_id, 'review', jsonb_build_object('post_id', ..., 'review_id
 ### 무엇을 만들었나
 
 1. **`/notifications`** — 알림 목록. 무한 스크롤, 안 읽은 줄 표시, "모두 읽음".
+   (~~"모두 읽음"~~은 2026-08-10에 걷어냈다 — 아래 후속.)
 2. **홈 헤더의 종 + 안 읽은 배지** — 마이페이지 메뉴에도 링크를 뒀다(배지는 없이).
 3. **`fetch_notifications`** — `payload jsonb`의 id를 서버가 풀어 상대·게시물·미리보기까지 준다.
 4. **Realtime 구독** — `notifications`가 publication에 아예 없었다.
@@ -1938,6 +1939,7 @@ update는 `is_read` 하나뿐이라 잃는 것이 없다. 덕분에 읽음 처�
 
 "모두 읽음"은 반대다. 화면에 머무른 채 누르는 버튼이라 `onSuccess`에서 고친다. 실패하면 굵은
 글씨가 그대로 남아 다시 누를 수 있다.
+**(이 버튼은 2026-08-10에 없앴다. 그 자리의 판단은 "모두 삭제"가 그대로 물려받았다 — 아래 후속.)**
 
 ### 파일 구성
 
@@ -1951,11 +1953,12 @@ supabase/migrations/
 
 notification/                  (여태 .gitkeep만 있던 폴더)
 ├─ api/notificationApi.ts      fetchNotifications · fetchUnreadNotificationCount
-│                              markNotificationRead · markAllNotificationsRead
+│                              markNotificationRead · deleteNotification
+│                              deleteAllNotifications (markAllNotificationsRead는 없앴다)
 │                              subscribeToMyNotifications
 ├─ hooks/useNotificationQueries.ts    목록(무한) · 안 읽은 수
 ├─ hooks/useNotificationRealtime.ts   insert만 구독하고 무효화
-├─ hooks/useNotificationMutations.ts  읽음 하나 · 모두 읽음
+├─ hooks/useNotificationMutations.ts  읽음 하나 · 삭제 하나 · 모두 삭제
 ├─ utils/notificationText.ts   payload → 문구·경로 (순수 함수)
 ├─ utils/notificationCache.ts  읽음 표시를 캐시에 반영하는 순수 함수들
 ├─ utils/notificationCursor.ts
@@ -1980,7 +1983,8 @@ block/hooks/useBlockMutations  ['notifications'] 무효화 추가
 - `count_unread_notifications()` → `1`
 - payload를 바꾸는 update → `23514 알림은 읽음 표시만 바꿀 수 있습니다.`
 - `update ... set is_read = true where is_read = false`("모두 읽음") → 성공, 안 읽은 수 `1 → 0`
-  (`user_id`로 좁히지 않아도 RLS가 내 행만 건드린다)
+  (`user_id`로 좁히지 않아도 RLS가 내 행만 건드린다 — **이 확인은 버튼을 없앤 뒤에도 값이 있다.**
+  같은 규칙 위에 "모두 삭제"가 서 있다)
 - `purge_blocked_notifications`의 delete 조건을 select로 돌려 → 두 사람 사이의 알림 1건이 잡힌다
 - `pg_publication_tables` → `chat_rooms`, `messages`, `notifications`
 
@@ -2816,6 +2820,9 @@ toNextNotificationCursor: 마지막 페이지가 덜 찼으면 → undefined(다
 
 "모두 읽음"은 **안 읽은 것이 있을 때**, "모두 삭제"는 **한 줄이라도 있을 때** 나온다.
 다 읽은 목록도 치우고 싶을 수 있다 — 오히려 그쪽이 치우고 싶은 목록이다.
+
+> **뒤에 일어난 일 (2026-08-10)**: 화면에서 나란히 놓고 보니 **"모두 읽음"이 애매했다.**
+> 그래서 그 버튼을 없앴다 — 아래 "모두 읽음을 걷어냈다".
 
 #### 확인
 
@@ -6135,3 +6142,44 @@ validateUploadableAvatar       → profileApi.uploadAvatar        (downscale 직
 - 어제 흔들렸던 자리가 **다시 났다** — 통합 한 스위트가 `JWT issued at future`로 열 개
   빨갰고 다시 돌리니 통과했다. 어제와 증상이 달라(같은 오류 문구가 열 줄) 원인을
   집었다: 로컬 시계다. `troble.md`에 적었다.
+
+## "모두 읽음"을 걷어냈다 (2026-08-10)
+
+시드를 심고 **화면에서 실제로 보고 나서** 정한 것이다. 머리말에 버튼이 둘 서 있으니
+`모두 읽음`이 **애매했다.**
+
+### 왜 애매했나
+
+누르면 **아무것도 안 사라진다.** 굵은 글씨가 보통 글씨가 되고 배지가 0이 될 뿐, 줄은 스무 개
+그대로 남는다. 알림 화면에서 사람이 하려는 일은 "치우기"인데, 이 버튼은 **치운 것처럼 보이지도
+않으면서 목록을 그대로 둔다.** 옆에 "모두 삭제"가 서 있으니 차이는 더 도드라졌다 —
+하나는 목록이 비고 하나는 그대로다.
+
+**읽음 표시 자체를 없앤 것이 아니다.** 알림을 누르면 그 줄은 여전히 읽음이 되고 배지도 하나
+줄어든다(`markNotificationRead`). 없앤 것은 **"한꺼번에 읽음으로 바꾸는 버튼"** 하나다.
+
+### 함께 걷어낸 것
+
+버튼만 감추면 부르는 데 없는 코드가 남는다. 0017이 "정책만 남아 있는 것은 위험하지 않다"고
+했다가 절반만 맞았던 자리를 되풀이하지 않으려고 **끝까지 지웠다.**
+
+```
+notificationApi.markAllNotificationsRead        지움
+useNotificationMutations.useMarkAllNotificationsReadMutation   지움
+notificationCache.withAllNotificationsRead      지움 (+ 그 테스트)
+notificationPage의 hasUnread 계산 · 실패 문구    지움
+```
+
+`notificationPage`는 머리말이 한 줄로 줄었다 — 버튼이 하나뿐이라 감싸던 `<div>`도 없앴다.
+
+### 남는 결과 하나
+
+**배지를 한 번에 0으로 내리는 길은 이제 "모두 삭제"뿐이다.** 하나씩 눌러 읽거나, 통째로
+치우거나 둘 중 하나다. 읽지 않은 채로 배지만 지우고 싶은 상황이 있을 수 있지만,
+그것을 위해 "눌러도 목록이 그대로인 버튼"을 두는 값보다 작다고 봤다.
+
+### 확인
+
+- `npm test` **929개**(하나 줄었다 — `withAllNotificationsRead` 테스트) · lint · tsc 통과
+- 화면에서 눈으로 보고 내린 판단이다. **시드가 없었으면 못 봤을 자리다** —
+  알림이 0줄이면 버튼 둘 다 안 뜬다.

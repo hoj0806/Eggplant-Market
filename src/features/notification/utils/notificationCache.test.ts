@@ -1,6 +1,5 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import {
-  withAllNotificationsRead,
   withDecrementedUnread,
   withoutAllNotifications,
   withoutNotification,
@@ -64,17 +63,7 @@ describe('withReadNotification', function withReadNotificationSuite() {
   });
 });
 
-describe('withAllNotificationsRead', function withAllNotificationsReadSuite() {
-  it('받아 온 페이지 전부를 읽음으로 바꾼다', function marksAllCase() {
-    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, false)]]);
-
-    const next = withAllNotificationsRead(cache);
-
-    expect(next?.pages.flat().every(function isRead(n: AppNotification) {
-      return n.isRead;
-    })).toBe(true);
-  });
-});
+// withAllNotificationsRead는 "모두 읽음"과 함께 걷어냈다(2026-08-10).
 
 describe('withoutNotification', function withoutNotificationSuite() {
   it('지운 알림만 목록에서 뺀다', function removeOneCase() {

@@ -35,8 +35,8 @@ const PREF_ROWS: ReadonlyArray<PrefRow> = [
  * 저장 버튼이 없다. 누르는 즉시 저장되고 실패하면 되돌아간다(useToggleNotificationPrefMutation).
  * 스위치 셋짜리 화면에 저장 버튼을 두면 누르지 않고 나간 사람이 안 바뀐 채로 지낸다.
  *
- * 알림 화면(`/notifications`)이 아니라 마이페이지에서 온다. 그쪽 헤더에는 "모두 읽음"이
- * 이미 있어 버튼 둘이 나란히 서면 무엇이 주 행동인지 흐려진다.
+ * 알림 화면(`/notifications`)이 아니라 마이페이지에서 온다. 그쪽 머리말에는 이미 버튼이
+ * 있어(지금은 "모두 삭제") 둘이 나란히 서면 무엇이 주 행동인지 흐려진다.
  * 로그인 가드는 라우터의 RequireMember가 이미 걸었다.
  */
 function NotificationSettingsPage() {

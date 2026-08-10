@@ -15,7 +15,6 @@ jest.mock('../api/notificationApi', function mockNotificationApi() {
     },
     // 훅 파일이 모듈을 통째로 import하므로 자리만 채운다.
     deleteNotification: jest.fn(),
-    markAllNotificationsRead: jest.fn(),
     markNotificationRead: jest.fn(),
   };
 });

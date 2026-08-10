@@ -28,24 +28,6 @@ export function withReadNotification(
   };
 }
 
-/** "모두 읽음"이 누른 뒤의 목록. 받아 온 페이지 전부가 읽은 상태가 된다. */
-export function withAllNotificationsRead(
-  data: InfiniteData<AppNotification[]> | undefined,
-): InfiniteData<AppNotification[]> | undefined {
-  if (data === undefined) {
-    return data;
-  }
-
-  return {
-    ...data,
-    pages: data.pages.map(function markPage(page: AppNotification[]): AppNotification[] {
-      return page.map(function markOne(current: AppNotification): AppNotification {
-        return current.isRead ? current : { ...current, isRead: true };
-      });
-    }),
-  };
-}
-
 /**
  * 지운 알림을 목록에서 빼낸다.
  *

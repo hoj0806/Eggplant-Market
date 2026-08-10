@@ -96,30 +96,13 @@ export async function markNotificationRead(notificationId: number): Promise<void
 }
 
 /**
- * 안 읽은 알림을 모두 읽음으로 표시한다.
- *
- * 범위를 `user_id`로 좁히지 않는다 — RLS가 이미 내 행 말고는 손대지 못하게 한다.
- * 여기서 한 번 더 좁히면 "정책이 규칙의 주인"이라는 약속이 흐려지고,
- * 화면이 들고 있는 사용자 id가 낡았을 때 조용히 아무것도 안 하는 길이 생긴다.
- */
-export async function markAllNotificationsRead(): Promise<void> {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ is_read: true })
-    .eq('is_read', false);
-
-  if (error !== null) {
-    throw error;
-  }
-
-  return undefined;
-}
-
-/**
  * 알림 하나를 지운다.
  *
  * 읽음 표시와 같은 이유로 RPC가 필요 없다 — `notifications_delete`(0019)가 본인 것만 허용한다.
- * 범위를 `user_id`로 좁히지 않는 것도 `markAllNotificationsRead`와 같다. 정책이 규칙의 주인이다.
+ *
+ * **범위를 `user_id`로 좁히지 않는다.** RLS가 이미 내 행 말고는 손대지 못하게 하는데
+ * 여기서 한 번 더 좁히면 "정책이 규칙의 주인"이라는 약속이 흐려지고, 화면이 들고 있는
+ * 사용자 id가 낡았을 때 조용히 어긋나는 길이 생긴다.
  *
  * 남의 알림 id를 보내도 오류가 나지 않는다. RLS는 지울 수 없는 행을 **조용히 건너뛴다** —
  * 0건 삭제는 성공이다. 그래서 화면은 "지웠다"는 응답만으로 무엇이 지워졌는지 알 수 없고,
@@ -139,8 +122,8 @@ export async function deleteNotification(notificationId: number): Promise<void> 
  * 내 알림을 모두 지운다.
  *
  * **지우는 범위를 정하는 것은 정책 하나뿐이다** — `notifications_delete`(0019)의
- * `auth.uid() = user_id`. `user_id`로 한 번 더 좁히지 않는 이유는
- * `markAllNotificationsRead`와 같다: 화면이 들고 있는 id가 낡으면 조용히 어긋난다.
+ * `auth.uid() = user_id`. `user_id`로 한 번 더 좁히지 않는 이유는 한 줄 삭제와 같다:
+ * 화면이 들고 있는 id가 낡으면 조용히 어긋난다.
  *
  * 세션이 없으면(`auth.uid()`가 null) 오류가 아니라 **0건 삭제**로 끝난다.
  * RLS의 delete는 지울 수 없는 행을 조용히 건너뛴다(0019에서 확인한 그대로).
