@@ -41,8 +41,17 @@ const PANEL_CLASS =
  * 안내 한 번이 사용자가 받는 유일한 답이다. 그래서 완료를 폼과 같은 자리에 그리고,
  * 곧바로 닫지 않는다.
  *
- * 완료 화면에서 차단을 권한다. 신고는 사람이 나중에 읽는 일이라 지금 당장 아무것도 바뀌지
- * 않는데, 신고를 누른 사람이 원한 것은 대개 "이 사람을 그만 보고 싶다"이기 때문이다.
+ * 완료 화면에서 차단을 권한다. **신고로는 지금 당장 아무것도 바뀌지 않는데**, 신고를 누른
+ * 사람이 원한 것은 대개 "이 사람을 그만 보고 싶다"이기 때문이다.
+ *
+ * ── 문구가 약속하지 않는 것 (2026-08-10) ──────────────────────────────
+ * 전에는 **"운영팀이 확인한 뒤 조치합니다"** 라고 적혀 있었다. **지키지 않을 말이다.**
+ * 이 앱에는 관리자 개념도, 글을 가리는 수단도, 사용자를 정지시키는 길도 없다 —
+ * `reports`는 insert 정책 하나뿐이라 **쌓이기만 하고 아무도 못 읽는다**(설계상 그렇다,
+ * `backlog.md` §5-7). 그래서 "조치"를 약속하는 대신 **실제로 효과가 있는 것**만 적는다.
+ *
+ * 신고를 없애지는 않았다. 무엇이 문제였는지는 남겨 두는 편이 낫고, 나중에 읽을 일이
+ * 생기면 그때 읽으면 된다. **다만 화면이 없는 일을 말하지는 않는다.**
  */
 function ReportSheet(props: ReportSheetProps) {
   const [reason, setReason] = useState<ReportReason | null>(null);
@@ -91,12 +100,15 @@ function ReportSheet(props: ReportSheetProps) {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-50">
-                신고가 접수되었어요.
+                신고를 보냈어요.
               </p>
               <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                운영팀이 확인한 뒤 조치합니다. 처리 결과는 따로 알려드리지 않고, 접수한 신고는 다시
-                볼 수 없어요. 지금 바로 이 {props.target.type === 'post' ? '판매자' : '사용자'}를
-                보고 싶지 않다면 차단해 주세요.
+                접수한 신고는 다시 볼 수 없고, 결과를 따로 알려드리지도 않아요.{' '}
+                <b>
+                  지금 바로 도움이 되는 것은 차단이에요
+                </b>{' '}
+                — 차단하면 이 {props.target.type === 'post' ? '판매자' : '사용자'}의 글과 대화가
+                서로에게 보이지 않아요.
               </p>
             </div>
 
@@ -157,7 +169,7 @@ function ReportSheet(props: ReportSheetProps) {
               label="상세 내용 (선택)"
               value={detail}
               placeholder="무슨 일이 있었는지 적어 주시면 확인에 도움이 됩니다."
-              description="적어 주신 내용은 운영팀만 봅니다."
+              description="적어 주신 내용은 다른 사용자에게 보이지 않아요."
               maxLength={MAX_REPORT_DETAIL_LENGTH}
               rows={4}
               disabled={mutation.isPending}
