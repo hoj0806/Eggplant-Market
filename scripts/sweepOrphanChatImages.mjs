@@ -13,11 +13,23 @@
  * 그렇게 남은 파일은 **누구도 지울 수 없다.** 주인이 이미 없으니 그 사람의 탈퇴가 다시
  * 일어날 일이 없고, 방도 사라져 정책이 볼 근거도 없다. 사람이 와서 치워야 한다.
  *
- * 무엇을 고아로 보는가
- * -------------------
- * **경로 둘째 칸(`user_id`)의 주인이 `auth.users`에 없는 파일.** 방이 있는지는 묻지 않는다 —
- * 방은 살아 있어도 주인이 없으면 그 사진은 아무도 못 읽는다(`chat_images_select`가
- * "그 방의 참여자"를 요구하는데 참여자 자리가 비었다).
+ * 무엇을 고아로 보는가 — 규칙 둘
+ * -----------------------------
+ * 판정 기준은 하나다: **아무도 못 읽는 파일인가.** `chat_images_select`(0008)가 읽기를 허락하는
+ * 조건이 "그 방이 있고 내가 그 방 참여자일 것"이라, 그 조건이 영영 참이 될 수 없으면 쓰레기다.
+ * 그렇게 되는 길이 둘이다.
+ *
+ *   ① 주인 없음 — 경로 둘째 칸(`user_id`)이 `auth.users`에 없다.
+ *                 참여자 자리가 비었으니 방이 살아 있어도 못 읽는다.
+ *   ② 방 없음   — 경로 첫 칸(`room_id`)이 `chat_rooms`에 없다.
+ *                 **주인이 살아 있어도** 볼 근거가 되는 행이 없다.
+ *
+ * **②가 "상대가 올린 사진" 자리다.** A가 탈퇴하면 방이 cascade로 사라지는데, 그 방에 B가 올린
+ * 사진은 B가 멀쩡히 살아 있어 ①에 안 걸린다. B가 탈퇴할 때 훑기가 줍기는 하지만
+ * **B가 영영 탈퇴하지 않으면 영영 남는다.** 그래서 규칙을 하나 더 둔다.
+ *
+ * 방 번호는 다시 쓰이지 않는다(`bigint generated always as identity`). 지금 없는 방이
+ * 나중에 되살아나는 일이 없으므로 ②는 되돌아볼 여지가 없는 판정이다.
  *
  * **기본이 찾기만 하는 것**인 이유는 되돌릴 수 없어서다. 목록을 눈으로 보고 `--go`를 붙인다.
  */
@@ -129,6 +141,23 @@ async function fetchLiveUserIds(admin) {
   }
 }
 
+/** 살아 있는 방 번호 집합. 서비스 키라 RLS를 지나간다. */
+async function fetchLiveRoomIds(admin) {
+  const { data, error } = await admin.from('chat_rooms').select('id');
+
+  if (error !== null) {
+    console.error('채팅방 목록을 읽지 못했다.');
+    console.error(error);
+    process.exit(1);
+  }
+
+  return new Set(
+    data.map(function toKey(row) {
+      return String(row.id);
+    }),
+  );
+}
+
 async function main() {
   loadEnvLocal();
 
@@ -137,33 +166,45 @@ async function main() {
   });
 
   const isGo = process.argv.includes('--go');
-  const live = await fetchLiveUserIds(admin);
+  const liveUsers = await fetchLiveUserIds(admin);
+  const liveRooms = await fetchLiveRoomIds(admin);
   const roomFolders = foldersOf(await listAll(admin, ''));
 
-  console.log(`\n방 폴더 ${roomFolders.length}개 · 살아 있는 계정 ${live.size}개\n`);
+  console.log(
+    `\n방 폴더 ${roomFolders.length}개 · 살아 있는 방 ${liveRooms.size}개 · 계정 ${liveUsers.size}개\n`,
+  );
 
+  /** `{ path, reason }`. 왜 지우는지를 함께 들고 다녀야 찾기만 했을 때 눈으로 판단할 수 있다. */
   const orphans = [];
 
   for (const room of roomFolders) {
+    // ② 방이 없으면 그 폴더는 통째로 쓰레기다. 누구 것인지 물을 필요도 없다.
+    const isDeadRoom = !liveRooms.has(room);
+
     for (const owner of foldersOf(await listAll(admin, room))) {
-      if (live.has(owner)) {
+      // ① 주인 없음.
+      const isDeadOwner = !liveUsers.has(owner);
+
+      if (!isDeadRoom && !isDeadOwner) {
         continue;
       }
 
+      const reason = isDeadRoom ? '방 없음' : '주인 없음';
+
       for (const file of filesOf(await listAll(admin, `${room}/${owner}`))) {
-        orphans.push(`${room}/${owner}/${file}`);
+        orphans.push({ path: `${room}/${owner}/${file}`, reason });
       }
     }
   }
 
   if (orphans.length === 0) {
-    console.log('고아 파일이 없다.\n');
+    console.log('아무도 못 읽는 파일이 없다.\n');
     return;
   }
 
-  console.log(`주인이 없는 파일 ${orphans.length}개:`);
-  for (const path of orphans) {
-    console.log(`  ${path}`);
+  console.log(`아무도 못 읽는 파일 ${orphans.length}개:`);
+  for (const orphan of orphans) {
+    console.log(`  [${orphan.reason}] ${orphan.path}`);
   }
 
   if (!isGo) {
@@ -171,7 +212,10 @@ async function main() {
     return;
   }
 
-  const { error } = await admin.storage.from(BUCKET).remove(orphans);
+  const paths = orphans.map(function toPath(orphan) {
+    return orphan.path;
+  });
+  const { error } = await admin.storage.from(BUCKET).remove(paths);
 
   if (error !== null) {
     console.error('\n지우지 못했다.');
@@ -179,7 +223,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\n${orphans.length}개를 지웠다.\n`);
+  console.log(`\n${paths.length}개를 지웠다.\n`);
 }
 
 await main();
