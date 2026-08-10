@@ -12,7 +12,8 @@
     "test:unit": "jest --selectProjects unit",
     "test:integration": "jest --selectProjects integration",
     "test:build": "npm run build && jest --selectProjects build",
-    "test:smoke": "node scripts/runSmoke.mjs"
+    "test:smoke": "node scripts/runSmoke.mjs",
+    "seed": "node scripts/seedDemo.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
