@@ -56,12 +56,12 @@ function NotificationPage() {
       <NotificationList
         query={notificationsQuery}
         viewerId={viewerId}
-        deletingId={deleteMutation.isPending ? (deleteMutation.variables?.id ?? null) : null}
+        deletingId={deleteMutation.isPending ? (deleteMutation.variables ?? null) : null}
         onSelect={function markOneRead(notification: AppNotification): void {
-          markReadMutation.mutate({ id: notification.id, wasRead: notification.isRead });
+          markReadMutation.mutate(notification.id);
         }}
         onDelete={function removeOne(notification: AppNotification): void {
-          deleteMutation.mutate({ id: notification.id, wasRead: notification.isRead });
+          deleteMutation.mutate(notification.id);
         }}
       />
     </main>

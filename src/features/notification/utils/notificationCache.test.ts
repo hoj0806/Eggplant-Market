@@ -1,6 +1,6 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import {
-  withDecrementedUnread,
+  withDecrementedCount,
   withoutAllNotifications,
   withoutNotification,
   withReadNotification,
@@ -137,21 +137,25 @@ describe('withoutAllNotifications', function withoutAllNotificationsSuite() {
   });
 });
 
-describe('withDecrementedUnread', function withDecrementedUnreadSuite() {
-  it('안 읽은 알림을 누르면 하나 줄어든다', function decrementCase() {
-    expect(withDecrementedUnread(3, false)).toBe(2);
+describe('withDecrementedCount', function withDecrementedCountSuite() {
+  it('한 줄을 지우면 하나 줄어든다', function decrementCase() {
+    expect(withDecrementedCount(3)).toBe(2);
   });
 
-  // 이미 읽은 줄을 다시 눌러 배지가 깎이면 목록과 숫자가 어긋난다.
-  it('이미 읽은 알림을 다시 눌러도 줄지 않는다', function alreadyReadCase() {
-    expect(withDecrementedUnread(3, true)).toBe(3);
+  /**
+   * 2026-08-10에 뜻이 바뀐 자리다. 배지가 "안 읽은 것"을 셀 때는 **이미 읽은 줄을 지워도
+   * 숫자가 그대로**여야 했다(그 줄은 애초에 안 세어졌으니까). 이제 "남아 있는 것"을 세므로
+   * 읽었든 아니든 줄이 사라지면 하나 준다.
+   */
+  it('이미 읽은 줄을 지워도 하나 줄어든다', function alreadyReadCase() {
+    expect(withDecrementedCount(1)).toBe(0);
   });
 
   it('0 아래로는 내려가지 않는다', function floorCase() {
-    expect(withDecrementedUnread(0, false)).toBe(0);
+    expect(withDecrementedCount(0)).toBe(0);
   });
 
   it('아직 숫자를 받지 못했으면 0으로 둔다', function undefinedCase() {
-    expect(withDecrementedUnread(undefined, false)).toBe(0);
+    expect(withDecrementedCount(undefined)).toBe(0);
   });
 });

@@ -83,14 +83,15 @@ export function withoutAllNotifications(
 }
 
 /**
- * 배지 숫자를 하나 줄인다.
+ * 배지 숫자를 하나 줄인다. 줄 하나가 사라졌을 때만 부른다.
  *
- * 이미 읽은 알림을 다시 누르면 줄이지 않는다 — 화면이 그 판단을 하도록 두면 "누를 때마다
- * 하나씩"이라는 규칙이 두 곳에 흩어진다. 0 아래로는 내려가지 않는다.
+ * **읽음 여부를 묻지 않는다** (2026-08-10). 배지가 세는 것이 "안 읽은 것"에서 "남아 있는
+ * 것"으로 바뀌면서, 지우는 순간에는 읽었든 안 읽었든 똑같이 하나가 준다.
+ * 0 아래로는 내려가지 않는다.
  */
-export function withDecrementedUnread(count: number | undefined, wasRead: boolean): number {
-  if (count === undefined || wasRead) {
-    return Math.max(count ?? 0, 0);
+export function withDecrementedCount(count: number | undefined): number {
+  if (count === undefined) {
+    return 0;
   }
 
   return Math.max(count - 1, 0);

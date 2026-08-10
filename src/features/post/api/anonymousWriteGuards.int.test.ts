@@ -233,6 +233,22 @@ describe('익명에게 안 보이는 것', function hiddenFromAnonymous() {
     expect(data).toEqual([]);
   });
 
+  /**
+   * 종 배지가 쓰는 조회다(`fetchNotificationCount`). RPC가 아니라 **평범한 count**로
+   * 세므로 범위를 정하는 것이 `notifications_select` 정책 하나뿐이다.
+   *
+   * `head: true`는 행을 안 받고 숫자만 받는 요청이라 **모양이 다르다** — 코드를 읽어서는
+   * 되는지 알 수 없고 실제로 보내 봐야 안다. 오류 없이 0이 와야 맞다.
+   */
+  it('알림 수를 세도 0이다 — 배지가 남의 것을 세지 않는다', async function countsNothing() {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true });
+
+    expect(error).toBeNull();
+    expect(count).toBe(0);
+  });
+
   it('신고 내역 — select 정책 자체가 없다', async function noReports() {
     const { data, error } = await supabase.from('reports').select('id');
 

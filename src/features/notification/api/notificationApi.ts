@@ -60,15 +60,28 @@ export async function fetchNotifications(
   return (data as NotificationRow[]).map(toAppNotification);
 }
 
-/** 안 읽은 알림 수. 홈 헤더 배지가 쓴다. */
-export async function fetchUnreadNotificationCount(): Promise<number> {
-  const { data, error } = await supabase.rpc('count_unread_notifications');
+/**
+ * **남아 있는** 알림 수. 종 배지가 쓴다.
+ *
+ * 2026-08-10에 뜻이 바뀌었다 — 전에는 *안 읽은* 수였다(`count_unread_notifications` RPC).
+ * "모두 읽음"을 걷어내면서 배지가 0이 되는 길이 **지우는 것 하나**로 정리됐고,
+ * 그러면 배지가 세야 하는 것도 "안 읽은 것"이 아니라 **치우지 않은 것**이다.
+ *
+ * RPC를 안 쓴다. 세는 데 join도 payload 풀기도 필요 없고, **범위는 RLS가 정한다**
+ * (`notifications_select`가 내 행만 보여준다) — 삭제 쪽과 같은 약속이다.
+ *
+ * `head: true`라 행을 안 받고 숫자만 받는다.
+ */
+export async function fetchNotificationCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true });
 
   if (error !== null) {
     throw error;
   }
 
-  return data as number;
+  return count ?? 0;
 }
 
 /**
