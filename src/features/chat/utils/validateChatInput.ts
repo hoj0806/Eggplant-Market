@@ -1,7 +1,20 @@
+import {
+  findOversizedImage,
+  toMegabyteText,
+  validateSourceImageSize,
+} from '../../../shared/utils/imageSizeLimit';
+
 /** 한 번에 보낼 수 있는 글자 수. 대화라 게시물 본문만큼 길 이유가 없다. */
 const MAX_MESSAGE_LENGTH = 1000;
 
 export const MAX_CHAT_IMAGE_COUNT = 5;
+
+/**
+ * **저장 상한.** `chat-images` 버킷의 `file_size_limit`과 같은 값이어야 한다(0008).
+ *
+ * 이 값은 **줄인 뒤의 파일**에 걸린다. 고를 때의 상한은 원본에 걸리는 다른 값이다
+ * (`MAX_IMAGE_SOURCE_BYTES`) — 왜 둘인지는 `shared/utils/imageSizeLimit`에 적었다.
+ */
 export const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export const ALLOWED_CHAT_IMAGE_TYPES: ReadonlyArray<string> = [
@@ -47,14 +60,26 @@ export function validateChatImages(files: ReadonlyArray<File>): string | undefin
     return 'JPG, PNG, WEBP, GIF 형식만 보낼 수 있습니다.';
   }
 
-  const hasTooLarge = files.some(function isTooLarge(file: File): boolean {
-    return file.size > MAX_CHAT_IMAGE_BYTES;
-  });
-  if (hasTooLarge) {
-    return '사진 한 장의 용량은 5MB 이하여야 합니다.';
+  // 원본 기준이다. 저장 상한(5MB)이 아니라 디코드가 감당할 크기를 본다 —
+  // 줄이면 500kB가 될 폰 사진을 줄여 보지도 않고 거절하지 않으려는 것이다.
+  return validateSourceImageSize(files);
+}
+
+/**
+ * 줄인 뒤에도 저장 상한을 넘는 파일이 있는지. 업로드 직전에 재는 두 번째 상한이다.
+ *
+ * 줄이기는 실패해도 원본으로 물러난다(`downscaleImage`). 그래서 여기 걸리는 것은
+ * **줄일 수 없었던 사진**이다 — GIF이거나, 이미 작은 크기인데 용량만 큰 경우다.
+ * 여기서 안 세우면 버킷이 서버에서 거절해 이유를 알 수 없는 실패로 보인다.
+ */
+export function validateUploadableChatImages(
+  files: ReadonlyArray<File>,
+): string | undefined {
+  if (findOversizedImage(files, MAX_CHAT_IMAGE_BYTES) === null) {
+    return undefined;
   }
 
-  return undefined;
+  return `줄여도 ${toMegabyteText(MAX_CHAT_IMAGE_BYTES)}를 넘는 사진이 있습니다. 더 작은 사진을 보내 주세요.`;
 }
 
 /** 전송 버튼을 열지 말지. 검증 문구를 띄우지 않고 그냥 잠글 때 쓴다. */

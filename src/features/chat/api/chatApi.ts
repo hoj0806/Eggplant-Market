@@ -1,6 +1,7 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
 import { downscaleImage } from '../../../shared/utils/downscaleImage';
 import { uniqueChannelTopic } from '../../../shared/utils/uniqueChannelTopic';
+import { validateUploadableChatImages } from '../utils/validateChatInput';
 import type { PostStatus } from '../../post/types';
 import type {
   ChatMessage,
@@ -232,6 +233,15 @@ async function sendOneImageMessage(
   // 채팅 사진도 올리기 전에 줄인다. 방을 다시 열 때마다 내려받는 것이라
   // 한 번 줄이면 그 대화가 이어지는 내내 아낀다.
   const prepared = await downscaleImage(file);
+
+  // **줄인 뒤에 다시 잰다.** 고를 때의 상한(12MB)은 원본에 걸리고, 버킷은 5MB에서 막는다.
+  // 그 사이가 비어 있으면 GIF처럼 줄일 수 없는 사진이 서버까지 갔다가 거절당한다.
+  // 여기서 먼저, 이유와 함께 세운다(postApi.uploadPostImages와 같은 자리다).
+  const oversized = validateUploadableChatImages([prepared]);
+  if (oversized !== undefined) {
+    throw new Error(oversized);
+  }
+
   const path = `${roomId}/${senderId}/${Date.now()}-${index}.${toFileExtension(prepared)}`;
 
   const uploadResult = await supabase.storage

@@ -95,11 +95,24 @@ describe('ChatComposer', function chatComposerSuite() {
 
     await userEvent.upload(
       screen.getByLabelText('사진 보내기'),
-      toImageFile('big.jpg', 'image/jpeg', 5 * 1024 * 1024 + 1),
+      toImageFile('big.jpg', 'image/jpeg', 13 * 1024 * 1024),
     );
 
     expect(onSendImages).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('사진 한 장의 용량은 5MB 이하여야 합니다.');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      '사진 한 장의 용량은 12MB 이하여야 합니다.',
+    );
+  });
+
+  it('버킷 상한(5MB)이 넘어도 보낸다 — 올리기 전에 줄이기 때문', async function sendsOverStorageLimit() {
+    // 고를 때의 상한은 원본에, 저장 상한은 줄인 뒤에 걸린다(chatApi.sendOneImageMessage).
+    const onSendImages = jest.fn();
+    renderComposer(jest.fn(), onSendImages);
+
+    const file = toImageFile('phone.jpg', 'image/jpeg', 6 * 1024 * 1024);
+    await userEvent.upload(screen.getByLabelText('사진 보내기'), file);
+
+    expect(onSendImages).toHaveBeenCalledWith([file]);
   });
 
   it('보내는 중에는 전송 버튼을 잠근다', async function locksWhileSending() {

@@ -1,3 +1,4 @@
+import { MAX_IMAGE_SOURCE_BYTES } from '../../../shared/utils/imageSizeLimit';
 import {
   ALLOWED_AVATAR_TYPES,
   MAX_AVATAR_BYTES,
@@ -6,6 +7,7 @@ import {
   validateNickname,
   validateProfileOnboardingValues,
   validateRegion,
+  validateUploadableAvatar,
 } from './validateProfileInput';
 import type { Region } from '../../region/types';
 
@@ -59,16 +61,49 @@ describe('validateAvatarFile', function validateAvatarFileSuite() {
     );
   });
 
-  it('2MB를 넘으면 오류를 돌려준다', function tooLargeCase() {
-    expect(validateAvatarFile(createFile('image/png', MAX_AVATAR_BYTES + 1))).toBe(
-      '이미지 용량은 2MB 이하여야 합니다.',
+  it('12MB를 넘으면 오류를 돌려준다', function tooLargeCase() {
+    expect(validateAvatarFile(createFile('image/png', MAX_IMAGE_SOURCE_BYTES + 1))).toBe(
+      '사진 한 장의 용량은 12MB 이하여야 합니다.',
     );
   });
 
-  it('허용 형식이고 2MB 이하면 통과시킨다', function validFileCase() {
+  it('허용 형식이고 12MB 이하면 통과시킨다', function validFileCase() {
     for (const type of ALLOWED_AVATAR_TYPES) {
-      expect(validateAvatarFile(createFile(type, MAX_AVATAR_BYTES))).toBeUndefined();
+      expect(validateAvatarFile(createFile(type, MAX_IMAGE_SOURCE_BYTES))).toBeUndefined();
     }
+  });
+
+  it('버킷 상한(2MB)이 넘어도 고를 수는 있다 — 줄이면 작아지기 때문', function overStorageLimitCase() {
+    // 폰 셀피는 2MB를 넘기 일쑤다. 줄이면 대개 500kB도 안 되는데 줄여 보지도 않고
+    // 거절하고 있었다. 저장 상한은 uploadAvatar가 줄인 뒤에 다시 잰다.
+    expect(validateAvatarFile(createFile('image/jpeg', 4 * 1024 * 1024))).toBeUndefined();
+  });
+});
+
+describe('validateUploadableAvatar', function uploadableAvatarSuite() {
+  it('줄인 뒤에도 저장 상한을 넘으면 막는다', function overStorageCase() {
+    expect(validateUploadableAvatar(createFile('image/gif', MAX_AVATAR_BYTES + 1))).toBe(
+      '줄여도 2MB를 넘습니다. 더 작은 사진을 올려 주세요.',
+    );
+  });
+
+  it('줄어들어 상한 아래면 통과한다', function shrunkCase() {
+    expect(validateUploadableAvatar(createFile('image/jpeg', 300 * 1024))).toBeUndefined();
+  });
+
+  it('정확히 저장 상한은 통과한다', function atStorageLimitCase() {
+    expect(validateUploadableAvatar(createFile('image/jpeg', MAX_AVATAR_BYTES))).toBeUndefined();
+  });
+});
+
+describe('프로필 사진 상한 두 개의 관계', function limitRelationSuite() {
+  it('고를 때의 상한이 저장 상한보다 크다', function sourceIsLooser() {
+    expect(MAX_IMAGE_SOURCE_BYTES).toBeGreaterThan(MAX_AVATAR_BYTES);
+  });
+
+  it('저장 상한은 버킷 설정과 같은 2MB다', function matchesBucket() {
+    // supabase/migrations/0002_profile_onboarding.sql의 file_size_limit = 2097152.
+    expect(MAX_AVATAR_BYTES).toBe(2097152);
   });
 });
 
