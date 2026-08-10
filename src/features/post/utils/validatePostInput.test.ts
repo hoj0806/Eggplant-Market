@@ -1,7 +1,6 @@
+import { MAX_IMAGE_SOURCE_BYTES } from '../../../shared/utils/imageSizeLimit';
 import {
   MAX_POST_IMAGE_BYTES,
-  MAX_POST_IMAGE_SOURCE_BYTES,
-  findOversizedImage,
   hasPostFieldError,
   toNewImageFiles,
   validatePostCategory,
@@ -144,7 +143,7 @@ describe('validatePostImages', function imagesSuite() {
 
   it('정확히 12MB는 통과한다', function atSourceLimitCase() {
     expect(
-      validatePostImages([makeNewImage({ size: MAX_POST_IMAGE_SOURCE_BYTES })]),
+      validatePostImages([makeNewImage({ size: MAX_IMAGE_SOURCE_BYTES })]),
     ).toBeUndefined();
   });
 
@@ -154,21 +153,8 @@ describe('validatePostImages', function imagesSuite() {
   });
 });
 
-describe('findOversizedImage', function oversizedSuite() {
-  it('상한을 넘는 첫 파일을 준다', function firstOverCase() {
-    const big = makeFile({ size: 100 });
-
-    expect(findOversizedImage([makeFile({ size: 10 }), big], 50)).toBe(big);
-  });
-
-  it('상한과 같으면 넘은 것이 아니다', function atLimitCase() {
-    expect(findOversizedImage([makeFile({ size: 50 })], 50)).toBeNull();
-  });
-
-  it('빈 목록은 null', function emptyCase() {
-    expect(findOversizedImage([], 50)).toBeNull();
-  });
-});
+// findOversizedImage는 셋이 나눠 쓰게 되면서 shared/utils/imageSizeLimit로 올라갔다.
+// 재는 방법 자체의 테스트도 그쪽에 있다.
 
 describe('validateUploadableImages', function uploadableSuite() {
   /**
@@ -198,7 +184,7 @@ describe('validateUploadableImages', function uploadableSuite() {
 describe('상한 두 개의 관계', function limitRelationSuite() {
   it('고를 때의 상한이 저장 상한보다 크다', function sourceIsLooser() {
     // 이 순서가 뒤집히면 "고를 수는 있는데 무조건 업로드가 막히는" 구간이 생긴다.
-    expect(MAX_POST_IMAGE_SOURCE_BYTES).toBeGreaterThan(MAX_POST_IMAGE_BYTES);
+    expect(MAX_IMAGE_SOURCE_BYTES).toBeGreaterThan(MAX_POST_IMAGE_BYTES);
   });
 
   it('저장 상한은 버킷 설정과 같은 5MB다', function matchesBucket() {

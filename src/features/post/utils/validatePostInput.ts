@@ -1,3 +1,8 @@
+import {
+  findOversizedImage,
+  toMegabyteText,
+  validateSourceImageSize,
+} from '../../../shared/utils/imageSizeLimit';
 import type { PostFieldErrors, PostFormValues, PostImageItem } from '../types';
 
 const MIN_TITLE_LENGTH = 2;
@@ -17,43 +22,6 @@ export const MAX_POST_IMAGE_COUNT = 10;
  * 여기만 올려도 소용이 없다 — 업로드가 서버에서 거절될 뿐이다.
  */
 export const MAX_POST_IMAGE_BYTES = 5 * 1024 * 1024;
-
-/**
- * **고르는 순간의 상한.** 원본에 걸린다.
- *
- * 2026-08-09에 5MB → 12MB로 올렸다. 이제 **올리기 전에 줄이기 때문이다**
- * (4MB → 483kB 실측). 고화소 폰 사진은 원본이 5MB를 넘는 일이 흔한데, 줄이면 500kB도
- * 안 되는 것을 **줄여 보지도 않고 거절**하고 있었다.
- *
- * 그래도 상한을 두는 이유는 메모리다. 디코드는 픽셀을 통째로 펼치므로
- * (8000×6000이면 RGBA 192MB) 낮은 사양 기기에서 탭이 죽을 수 있다.
- * 12MB는 48MP 폰 사진까지 감당하는 선이다.
- *
- * **상한을 올려도 저장 용량의 최악은 안 커진다** — 줄인 뒤 `MAX_POST_IMAGE_BYTES`를
- * 다시 재기 때문이다(`findOversizedImage`). 계획 ⑦이 걱정한 자리가 여기다.
- */
-export const MAX_POST_IMAGE_SOURCE_BYTES = 12 * 1024 * 1024;
-
-function toMegabyteText(bytes: number): string {
-  return `${Math.round(bytes / 1024 / 1024)}MB`;
-}
-
-/**
- * 상한을 넘는 첫 파일. 없으면 null.
- *
- * 고르는 순간(원본)과 줄인 뒤(업로드 직전) **두 곳이 같은 함수를 쓴다.** 두 곳이
- * 각자 재면 한쪽만 고쳐지는 날이 온다.
- */
-export function findOversizedImage(
-  files: ReadonlyArray<File>,
-  limitBytes: number,
-): File | null {
-  return (
-    files.find(function isTooLarge(file: File): boolean {
-      return file.size > limitBytes;
-    }) ?? null
-  );
-}
 
 export const ALLOWED_POST_IMAGE_TYPES: ReadonlyArray<string> = [
   'image/jpeg',
@@ -162,11 +130,7 @@ export function validatePostImages(images: ReadonlyArray<PostImageItem>): string
 
   // 원본 기준이다. 이보다 작아도 **줄인 뒤** 저장 상한을 넘으면 업로드 직전에 걸린다
   // (GIF처럼 줄일 수 없는 것). 여기서는 디코드조차 시도하지 않을 크기만 막는다.
-  if (findOversizedImage(files, MAX_POST_IMAGE_SOURCE_BYTES) !== null) {
-    return `사진 한 장의 용량은 ${toMegabyteText(MAX_POST_IMAGE_SOURCE_BYTES)} 이하여야 합니다.`;
-  }
-
-  return undefined;
+  return validateSourceImageSize(files);
 }
 
 /** 업로드가 줄인 뒤에도 저장 상한을 넘는 파일이 있는지. 넘으면 그 이유를 문구로 준다. */

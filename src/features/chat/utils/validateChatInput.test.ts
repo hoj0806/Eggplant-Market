@@ -1,9 +1,12 @@
+import { MAX_IMAGE_SOURCE_BYTES } from '../../../shared/utils/imageSizeLimit';
 import {
   canSendMessageText,
+  MAX_CHAT_IMAGE_BYTES,
   MAX_CHAT_IMAGE_COUNT,
   validateChatImages,
   validateMessageText,
   validateOfferAmount,
+  validateUploadableChatImages,
 } from './validateChatInput';
 
 function toFile(name: string, type: string, size: number): File {
@@ -65,14 +68,48 @@ describe('validateChatImages', function validateChatImagesSuite() {
     );
   });
 
-  it('5MB를 넘는 사진은 막는다', function tooLarge() {
-    expect(validateChatImages([toImage(5 * 1024 * 1024 + 1)])).toBe(
-      '사진 한 장의 용량은 5MB 이하여야 합니다.',
+  it('12MB를 넘는 사진은 막는다', function tooLarge() {
+    expect(validateChatImages([toImage(MAX_IMAGE_SOURCE_BYTES + 1)])).toBe(
+      '사진 한 장의 용량은 12MB 이하여야 합니다.',
     );
   });
 
-  it('정확히 5MB는 통과한다', function atByteLimit() {
-    expect(validateChatImages([toImage(5 * 1024 * 1024)])).toBeUndefined();
+  it('정확히 12MB는 통과한다', function atByteLimit() {
+    expect(validateChatImages([toImage(MAX_IMAGE_SOURCE_BYTES)])).toBeUndefined();
+  });
+
+  it('버킷 상한(5MB)이 넘어도 고를 수는 있다 — 줄이면 작아지기 때문', function overStorageLimit() {
+    // 게시물이 2026-08-09에 나눈 것과 같은 자리다. 채팅도 올리기 전에 줄이는데
+    // 상한만 원본에 걸려 있어, 줄이면 500kB가 될 폰 사진을 거절하고 있었다.
+    expect(validateChatImages([toImage(6 * 1024 * 1024)])).toBeUndefined();
+  });
+});
+
+describe('validateUploadableChatImages', function uploadableSuite() {
+  it('줄인 뒤에도 저장 상한을 넘으면 막는다', function overStorage() {
+    expect(validateUploadableChatImages([toImage(MAX_CHAT_IMAGE_BYTES + 1)])).toBe(
+      '줄여도 5MB를 넘는 사진이 있습니다. 더 작은 사진을 보내 주세요.',
+    );
+  });
+
+  it('줄어들어 상한 아래면 통과한다', function shrunk() {
+    expect(validateUploadableChatImages([toImage(483 * 1024)])).toBeUndefined();
+  });
+
+  it('정확히 저장 상한은 통과한다', function atStorageLimit() {
+    expect(validateUploadableChatImages([toImage(MAX_CHAT_IMAGE_BYTES)])).toBeUndefined();
+  });
+});
+
+describe('채팅 사진 상한 두 개의 관계', function limitRelationSuite() {
+  it('고를 때의 상한이 저장 상한보다 크다', function sourceIsLooser() {
+    expect(MAX_IMAGE_SOURCE_BYTES).toBeGreaterThan(MAX_CHAT_IMAGE_BYTES);
+  });
+
+  it('저장 상한은 버킷 설정과 같은 5MB다', function matchesBucket() {
+    // supabase/migrations/0008_chat_and_trade_status.sql의 file_size_limit = 5242880.
+    // 갈리면 클라이언트가 통과시킨 것을 서버가 거절한다.
+    expect(MAX_CHAT_IMAGE_BYTES).toBe(5242880);
   });
 });
 

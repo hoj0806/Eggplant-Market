@@ -1,6 +1,7 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
 import { downscaleImage } from '../../../shared/utils/downscaleImage';
 import { toAvatarStoragePath } from '../utils/avatarStoragePath';
+import { validateUploadableAvatar } from '../utils/validateProfileInput';
 import { toSearchRadius } from '../../browse/utils/searchRadius';
 import type { Region } from '../../region/types';
 import type { Profile } from '../types';
@@ -141,6 +142,14 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
   // 프로필 사진은 화면에서 가장 커야 40px 남짓인데 원본은 폰 사진 그대로 들어온다.
   // 게다가 이 사진은 **글·댓글·채팅 목록마다 따라다녀** 한 번 줄이면 가장 여러 번 아낀다.
   const prepared = await downscaleImage(file);
+
+  // **줄인 뒤에 다시 잰다.** 고를 때의 상한(12MB)은 원본에 걸리고, 버킷은 2MB에서 막는다.
+  // 그 사이가 비어 있으면 GIF처럼 줄일 수 없는 사진이 서버까지 갔다가 거절당한다.
+  const oversized = validateUploadableAvatar(prepared);
+  if (oversized !== undefined) {
+    throw new Error(oversized);
+  }
+
   const path = `${userId}/${Date.now()}.${toFileExtension(prepared)}`;
 
   const { error } = await supabase.storage

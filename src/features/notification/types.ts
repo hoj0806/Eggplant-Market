@@ -13,11 +13,13 @@ export type NotificationType = 'comment' | 'like' | 'chat' | 'review' | 'price_o
  * 서버가 풀어 주는 이유는 성능이다 — 풀지 않으면 화면이 알림 한 줄마다 메시지·방·후기를
  * 따로 조회하게 된다. 그래서 여기 있는 값은 대부분 **종류에 따라 비어 있을 수 있다**
  * (후기 알림에 roomId가 없고, 채팅 알림에 offerAmount가 없다).
+ *
+ * **읽음 상태는 없다**(0036). 알림은 읽는 것이 아니라 치우는 것이다 — 누르면 가리키던 곳으로
+ * 가면서 그 줄이 사라진다. 그래서 "봤나"를 적어 둘 칸이 필요 없다.
  */
 export type AppNotification = {
   id: number;
   type: NotificationType;
-  isRead: boolean;
   createdAt: string;
   /** 알림을 일으킨 사람. 대상이 지워졌으면 null이다. */
   actorId: string | null;
