@@ -1,5 +1,9 @@
 import { X } from 'lucide-react';
 import { useEffect, useState, type ChangeEvent } from 'react';
+import {
+  MAX_IMAGE_SOURCE_BYTES,
+  toMegabyteText,
+} from '../../../shared/utils/imageSizeLimit';
 import { ALLOWED_POST_IMAGE_TYPES, MAX_POST_IMAGE_COUNT } from '../utils/validatePostInput';
 import type { PostImageItem } from '../types';
 
@@ -143,8 +147,10 @@ function PostImagePicker(props: PostImagePickerProps) {
       />
 
       <p className="text-xs text-gray-500 dark:text-gray-400">
-        최대 {MAX_POST_IMAGE_COUNT}장, 한 장에 5MB까지 올릴 수 있어요. 첫 번째 사진이 목록에
-        보입니다.
+        {/* 숫자를 손으로 적으면 상한이 바뀐 날 화면만 옛말을 한다 — 실제로 5MB인 채로 남아
+            있었다. 고를 때의 상한을 그대로 읽는다(저장 상한은 줄인 뒤에 걸리므로 적지 않는다). */}
+        최대 {MAX_POST_IMAGE_COUNT}장, 한 장에 {toMegabyteText(MAX_IMAGE_SOURCE_BYTES)}까지 올릴 수
+        있어요. 첫 번째 사진이 목록에 보입니다.
       </p>
 
       {hasError ? (

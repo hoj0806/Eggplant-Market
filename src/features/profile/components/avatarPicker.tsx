@@ -1,5 +1,9 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 import ProfileAvatar from './profileAvatar';
+import {
+  MAX_IMAGE_SOURCE_BYTES,
+  toMegabyteText,
+} from '../../../shared/utils/imageSizeLimit';
 import { ALLOWED_AVATAR_TYPES } from '../utils/validateProfileInput';
 
 type AvatarPickerProps = {
@@ -122,7 +126,7 @@ function AvatarPicker(props: AvatarPickerProps) {
       <p className="text-xs text-gray-500 dark:text-gray-400">
         {displayedUrl === null
           ? '선택하지 않으면 기본 이미지가 사용됩니다. 나중에 언제든 바꿀 수 있어요.'
-          : 'JPG, PNG, WEBP, GIF · 2MB 이하'}
+          : `JPG, PNG, WEBP, GIF · ${toMegabyteText(MAX_IMAGE_SOURCE_BYTES)} 이하`}
       </p>
 
       {hasError ? (
