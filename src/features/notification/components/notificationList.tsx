@@ -8,7 +8,7 @@ type NotificationListProps = {
   viewerId: string;
   /** 지금 지우는 중인 알림. 그 줄의 버튼만 잠근다. */
   deletingId: number | null;
-  onSelect(notification: AppNotification): void;
+  onOpen(notification: AppNotification): void;
   onDelete(notification: AppNotification): void;
 };
 
@@ -62,7 +62,7 @@ function NotificationList(props: NotificationListProps) {
               viewerId={props.viewerId}
               now={now}
               isDeleting={props.deletingId === notification.id}
-              onSelect={props.onSelect}
+              onOpen={props.onOpen}
               onDelete={props.onDelete}
             />
           );

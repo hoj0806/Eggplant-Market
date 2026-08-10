@@ -6,7 +6,6 @@ const VIEWER_ID = 'viewer-1';
 function makeNotification(overrides: Partial<AppNotification> & { type: NotificationType }): AppNotification {
   return {
     id: 1,
-    isRead: false,
     createdAt: '2026-08-05T00:00:00.000Z',
     actorId: 'actor-1',
     actorNickname: '가지팔이',

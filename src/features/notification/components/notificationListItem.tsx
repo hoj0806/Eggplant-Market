@@ -12,7 +12,9 @@ type NotificationListItemProps = {
   /** 목록 전체가 같은 기준으로 "n분 전"을 계산하도록 부모가 넘긴다. */
   now: Date;
   isDeleting: boolean;
-  onSelect(notification: AppNotification): void;
+  /** 줄을 눌렀다. 가리키던 곳으로 가면서 이 줄은 사라진다. */
+  onOpen(notification: AppNotification): void;
+  /** ×를 눌렀다. 안 열고 치우기만 한다. */
   onDelete(notification: AppNotification): void;
 };
 
@@ -21,25 +23,28 @@ const ROW_CLASS = 'flex min-w-0 flex-1 items-start gap-3 py-4 pl-2 text-left';
 /**
  * 알림 한 줄.
  *
- * 안 읽은 줄은 **배경과 점 둘 다**로 표시한다. 색만으로는 색을 구분하지 못하는 사람에게
- * 아무것도 전해지지 않고, 점만으로는 목록을 훑을 때 눈에 띄지 않는다.
- * 스크린리더에는 제목 앞의 "안 읽음" 글자가 대신 읽힌다.
+ * **누르면 사라진다**(0036). 가리키던 곳으로 가면서 그 줄이 지워진다 — 읽음 표시가 없어진
+ * 자리를 이것이 대신한다. 확인한 알림이 목록에 남아 있을 이유가 없고, 남으면 종 배지가
+ * 영영 안 줄어든다.
+ *
+ * 그래서 **안 읽음 표시(배경·점·"안 읽음" 글자)가 전부 없다.** 목록에 있는 줄은 모두
+ * "아직 안 본 것"이라 굵게 쓸 것과 안 쓸 것이 갈리지 않는다.
  *
  * 갈 곳이 없는 알림(가리키던 방·글이 지워진 경우)은 링크가 아니라 그냥 줄로 그린다.
  * 눌러도 아무 일이 없는 링크를 남겨 두면 "눌렀는데 왜 안 가지"가 된다.
+ * **그 줄은 눌러도 안 지워진다** — 치우려면 ×를 쓴다. 갈 곳도 없는데 눌렀다고 사라지면
+ * 무엇이 없어졌는지 확인할 길이 없다.
  *
  * 삭제 버튼은 **링크 밖**에 둔다. 링크 안에 버튼을 넣으면 유효하지 않은 HTML이고,
- * 무엇보다 지우려다 화면이 넘어간다. 그래서 `<li>`가 링크와 버튼을 나란히 안는다.
+ * 무엇보다 치우려다 화면이 넘어간다. 그래서 `<li>`가 링크와 버튼을 나란히 안는다.
  *
  * 지울 때 한 번 더 묻지 않는다. 댓글 삭제와 다른 판단인데, 잘못 눌러도 **잃는 것이 알림
- * 한 줄뿐**이기 때문이다 — 가리키던 방·글·후기는 그대로 있고 채팅 배지처럼 다른 길도 남아
- * 있다. 되돌릴 수 없다는 점은 같지만 되돌릴 만한 것이 아니다.
+ * 한 줄뿐**이기 때문이다 — 가리키던 방·글·후기는 그대로 있다. 되돌릴 수 없다는 점은 같지만
+ * 되돌릴 만한 것이 아니다.
  */
 function NotificationListItem(props: NotificationListItemProps) {
   const notification = props.notification;
   const view = toNotificationView(notification, props.viewerId);
-
-  const unreadClass = notification.isRead ? '' : 'bg-emerald-50/60 dark:bg-emerald-950/30';
 
   function handleDelete(): void {
     props.onDelete(notification);
@@ -54,10 +59,7 @@ function NotificationListItem(props: NotificationListItemProps) {
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="text-sm text-gray-900 dark:text-gray-50">
-          {notification.isRead ? null : <span className="sr-only">안 읽음 </span>}
-          <span className={notification.isRead ? '' : 'font-semibold'}>{view.title}</span>
-        </p>
+        <p className="text-sm font-semibold text-gray-900 dark:text-gray-50">{view.title}</p>
 
         {view.body === null ? null : (
           <p className="truncate text-sm text-gray-600 dark:text-gray-300">{view.body}</p>
@@ -67,25 +69,18 @@ function NotificationListItem(props: NotificationListItemProps) {
           {formatTimeAgo(notification.createdAt, props.now)}
         </span>
       </div>
-
-      {notification.isRead ? null : (
-        <span
-          aria-hidden="true"
-          className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500 dark:bg-emerald-400"
-        />
-      )}
     </>
   );
 
   return (
-    <li className={`flex items-start ${unreadClass}`}>
+    <li className="flex items-start">
       {view.to === null ? (
         <div className={ROW_CLASS}>{content}</div>
       ) : (
         <Link
           to={view.to}
-          onClick={function select(): void {
-            props.onSelect(notification);
+          onClick={function open(): void {
+            props.onOpen(notification);
           }}
           className={`${ROW_CLASS} transition hover:bg-gray-50 dark:hover:bg-gray-900`}
         >

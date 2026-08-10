@@ -1,10 +1,8 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import {
-  withAllNotificationsRead,
-  withDecrementedUnread,
+  withDecrementedCount,
   withoutAllNotifications,
   withoutNotification,
-  withReadNotification,
 } from './notificationCache';
 import { toNextNotificationCursor } from './notificationCursor';
 import type { AppNotification } from '../types';
@@ -16,11 +14,10 @@ jest.mock('../api/notificationApi', function mockNotificationApi() {
   return { NOTIFICATIONS_PAGE_SIZE: 20 };
 });
 
-function makeNotification(id: number, isRead: boolean): AppNotification {
+function makeNotification(id: number): AppNotification {
   return {
     id,
     type: 'chat',
-    isRead,
     createdAt: '2026-08-05T00:00:00.000Z',
     actorId: 'actor-1',
     actorNickname: '가지팔이',
@@ -40,45 +37,12 @@ function makeCache(pages: AppNotification[][]): InfiniteData<AppNotification[]> 
   }) };
 }
 
-describe('withReadNotification', function withReadNotificationSuite() {
-  it('해당 알림만 읽음으로 바꾼다', function marksOneCase() {
-    const cache = makeCache([[makeNotification(1, false), makeNotification(2, false)]]);
-
-    const next = withReadNotification(cache, 1);
-
-    expect(next?.pages[0][0].isRead).toBe(true);
-    expect(next?.pages[0][1].isRead).toBe(false);
-  });
-
-  // 두 번째 페이지까지 내려간 뒤 그 줄을 눌러도 굵은 글씨가 지워져야 한다.
-  it('나중에 받은 페이지에 있어도 찾아서 바꾼다', function laterPageCase() {
-    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, false)]]);
-
-    const next = withReadNotification(cache, 2);
-
-    expect(next?.pages[1][0].isRead).toBe(true);
-  });
-
-  it('아직 아무 페이지도 없으면 아무것도 하지 않는다', function emptyCase() {
-    expect(withReadNotification(undefined, 1)).toBeUndefined();
-  });
-});
-
-describe('withAllNotificationsRead', function withAllNotificationsReadSuite() {
-  it('받아 온 페이지 전부를 읽음으로 바꾼다', function marksAllCase() {
-    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, false)]]);
-
-    const next = withAllNotificationsRead(cache);
-
-    expect(next?.pages.flat().every(function isRead(n: AppNotification) {
-      return n.isRead;
-    })).toBe(true);
-  });
-});
+// 0036에서 읽음 상태를 없앴다. withReadNotification·withAllNotificationsRead도 함께 사라져
+// 여기 남은 것은 전부 "빼는" 함수다.
 
 describe('withoutNotification', function withoutNotificationSuite() {
   it('지운 알림만 목록에서 뺀다', function removeOneCase() {
-    const cache = makeCache([[makeNotification(1, false), makeNotification(2, false)]]);
+    const cache = makeCache([[makeNotification(1), makeNotification(2)]]);
 
     const next = withoutNotification(cache, 1);
 
@@ -88,7 +52,7 @@ describe('withoutNotification', function withoutNotificationSuite() {
   });
 
   it('나중에 받은 페이지에 있어도 찾아서 뺀다', function laterPageCase() {
-    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, false)]]);
+    const cache = makeCache([[makeNotification(1)], [makeNotification(2)]]);
 
     const next = withoutNotification(cache, 2);
 
@@ -97,7 +61,7 @@ describe('withoutNotification', function withoutNotificationSuite() {
 
   // 페이지 개수가 줄면 getNextPageParam이 보는 마지막 페이지가 달라진다.
   it('페이지가 통째로 비어도 페이지 자체는 남긴다', function keepEmptyPageCase() {
-    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, false)]]);
+    const cache = makeCache([[makeNotification(1)], [makeNotification(2)]]);
 
     const next = withoutNotification(cache, 2);
 
@@ -112,7 +76,7 @@ describe('withoutNotification', function withoutNotificationSuite() {
 
 describe('withoutAllNotifications', function withoutAllNotificationsSuite() {
   it('받아 온 페이지를 전부 비운다', function emptiesAllCase() {
-    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, true)]]);
+    const cache = makeCache([[makeNotification(1)], [makeNotification(2)]]);
 
     const next = withoutAllNotifications(cache);
 
@@ -121,7 +85,7 @@ describe('withoutAllNotifications', function withoutAllNotificationsSuite() {
 
   // withoutNotification과 같은 이유다. 페이지 개수와 pageParams 개수가 어긋나면 안 된다.
   it('페이지 배열 자체는 남긴다', function keepsPagesCase() {
-    const cache = makeCache([[makeNotification(1, false)], [makeNotification(2, true)]]);
+    const cache = makeCache([[makeNotification(1)], [makeNotification(2)]]);
 
     const next = withoutAllNotifications(cache);
 
@@ -135,7 +99,7 @@ describe('withoutAllNotifications', function withoutAllNotificationsSuite() {
    * 이 두 함수는 서로를 모르지만 **함께 맞아야** 지운 뒤 목록이 조용해진다.
    */
   it('전부 비운 뒤에는 다음 페이지를 부르지 않는다', function stopsPagingCase() {
-    const cache = makeCache([[makeNotification(1, false)]]);
+    const cache = makeCache([[makeNotification(1)]]);
 
     const next = withoutAllNotifications(cache);
     const lastPage = next?.pages[next.pages.length - 1] ?? [];
@@ -148,21 +112,24 @@ describe('withoutAllNotifications', function withoutAllNotificationsSuite() {
   });
 });
 
-describe('withDecrementedUnread', function withDecrementedUnreadSuite() {
-  it('안 읽은 알림을 누르면 하나 줄어든다', function decrementCase() {
-    expect(withDecrementedUnread(3, false)).toBe(2);
+describe('withDecrementedCount', function withDecrementedCountSuite() {
+  it('한 줄이 사라지면 하나 줄어든다', function decrementCase() {
+    expect(withDecrementedCount(3)).toBe(2);
   });
 
-  // 이미 읽은 줄을 다시 눌러 배지가 깎이면 목록과 숫자가 어긋난다.
-  it('이미 읽은 알림을 다시 눌러도 줄지 않는다', function alreadyReadCase() {
-    expect(withDecrementedUnread(3, true)).toBe(3);
+  /**
+   * 조건이 없어진 자리다. 배지가 "안 읽은 수"일 때는 **이미 읽은 줄을 지워도 그대로**여야
+   * 했는데(그 줄은 애초에 안 세어졌으니까), 이제 남은 줄을 세므로 사라지면 언제나 준다.
+   */
+  it('어떤 줄이든 사라지면 준다', function anyRowCase() {
+    expect(withDecrementedCount(1)).toBe(0);
   });
 
   it('0 아래로는 내려가지 않는다', function floorCase() {
-    expect(withDecrementedUnread(0, false)).toBe(0);
+    expect(withDecrementedCount(0)).toBe(0);
   });
 
   it('아직 숫자를 받지 못했으면 0으로 둔다', function undefinedCase() {
-    expect(withDecrementedUnread(undefined, false)).toBe(0);
+    expect(withDecrementedCount(undefined)).toBe(0);
   });
 });

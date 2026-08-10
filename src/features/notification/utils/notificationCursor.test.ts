@@ -14,7 +14,6 @@ function makeNotification(id: number): AppNotification {
   return {
     id,
     type: 'chat',
-    isRead: false,
     createdAt: `2026-08-0${(id % 9) + 1}T00:00:00.000Z`,
     actorId: 'actor-1',
     actorNickname: '가지팔이',
