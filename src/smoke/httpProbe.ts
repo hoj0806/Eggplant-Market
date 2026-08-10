@@ -65,6 +65,19 @@ export function probe(path: string, headers: Record<string, string> = {}): Promi
   return started;
 }
 
+/**
+ * preflight(OPTIONS)를 보내고 **응답 헤더**를 받는다.
+ *
+ * Edge Function은 `verify_jwt: true`라 GET·POST가 게이트웨이에서 401로 막히는데,
+ * **preflight는 검사 없이 함수까지 간다.** 키 없이 함수에게 무언가 물어볼 수 있는
+ * 유일한 창이라, 배포된 판을 확인하는 데 쓴다.
+ */
+export async function preflight(url: string): Promise<{ status: number; headers: Headers }> {
+  const response = await fetch(url, { method: 'OPTIONS', redirect: 'manual' });
+
+  return { status: response.status, headers: response.headers };
+}
+
 /** `index.html`이 부르는 자산 경로들. 해시가 붙어 있어 미리 알 수 없다. */
 export function findAssetPaths(html: string): string[] {
   return Array.from(html.matchAll(/["'](\/assets\/[^"']+)["']/g)).map(

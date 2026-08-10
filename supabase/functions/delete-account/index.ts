@@ -21,10 +21,35 @@ import {
   sweepOrphanChatImages,
 } from './chatImageSweep.ts';
 
+/**
+ * 이 함수의 판. **고칠 때마다 손으로 올린다.**
+ *
+ * ── 왜 있는가 ──────────────────────────────────────────────────────────
+ * 2026-08-10에 **고쳐 놓고 배포를 안 한 채로 하루가 지났다.** 버킷 훑기(0809)가 머지까지
+ * 됐는데 배포본은 v2였고, 그동안 옛 코드가 돌아 같은 버그가 그대로 재현됐다.
+ * 프런트엔드는 Vercel이 `main`을 보고 자동으로 나가지만 **함수는 아무도 안 밀어 준다.**
+ *
+ * 그래서 함수가 **자기 판을 밖에 알린다.** 스모크가 그것을 저장소의 값과 견줘
+ * 어긋나면 빨개진다(`deployedFunction.smoke.test.ts`).
+ *
+ * ── 왜 OPTIONS에 실리는가 ─────────────────────────────────────────────
+ * `verify_jwt: true`라 GET·POST는 게이트웨이가 401로 막는다. 그런데 **preflight는
+ * 검사 없이 함수까지 온다** — 키 없이 판을 물어볼 수 있는 유일한 창이다.
+ *
+ * ── 한계 ─────────────────────────────────────────────────────────────
+ * **손으로 올리는 값이라 안 올리면 그물이 못 잡는다.** 그래도 "아무 그물도 없음"보다는
+ * 낫다 — 오늘 놓친 것은 판이 어긋난 것이 아니라 **아무도 안 본 것**이었다.
+ * 고치는 자리 바로 위에 두어 눈에 걸리게 했다.
+ */
+const FUNCTION_REVISION = '2026-08-10.chat-image-sweep';
+
 const CORS_HEADERS: Record<string, string> = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
   'access-control-allow-methods': 'POST, OPTIONS',
+  // 브라우저가 읽을 일은 없지만, 밖에서 판을 물어보는 것이 이 헤더의 목적이다.
+  'access-control-expose-headers': 'x-function-revision',
+  'x-function-revision': FUNCTION_REVISION,
 };
 
 /** 경로 첫 칸이 사용자 id인 버킷들. `{user_id}/…` 하나만 훑으면 된다. */
