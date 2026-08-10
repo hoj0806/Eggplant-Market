@@ -75,6 +75,32 @@ export function withoutNotification(
 }
 
 /**
+ * "모두 삭제"가 누른 뒤의 목록. 받아 온 페이지가 전부 빈 배열이 된다.
+ *
+ * **페이지 배열 자체는 그대로 둔다.** `withoutNotification`이 빈 페이지를 남기는 것과 같은
+ * 이유인데, 여기서는 값을 하나 더 한다 — `toNextNotificationCursor`는 **마지막 페이지가
+ * 덜 찼으면 다음이 없다**고 읽으므로, 페이지가 전부 비면 `hasNextPage`가 저절로 꺼진다.
+ * 그래서 무한 스크롤이 빈 목록 아래에서 헛되이 다음 장을 부르지 않는다.
+ *
+ * 무효화(invalidate)로 갈음할 수도 있지만 그러면 **지운 직후에 빈 목록을 한 번 더 받으러
+ * 간다.** 결과를 이미 아는 왕복이다.
+ */
+export function withoutAllNotifications(
+  data: InfiniteData<AppNotification[]> | undefined,
+): InfiniteData<AppNotification[]> | undefined {
+  if (data === undefined) {
+    return data;
+  }
+
+  return {
+    ...data,
+    pages: data.pages.map(function emptyPage(): AppNotification[] {
+      return [];
+    }),
+  };
+}
+
+/**
  * 배지 숫자를 하나 줄인다.
  *
  * 이미 읽은 알림을 다시 누르면 줄이지 않는다 — 화면이 그 판단을 하도록 두면 "누를 때마다

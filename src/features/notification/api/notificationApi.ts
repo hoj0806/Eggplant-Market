@@ -136,6 +136,34 @@ export async function deleteNotification(notificationId: number): Promise<void> 
 }
 
 /**
+ * 내 알림을 모두 지운다.
+ *
+ * **지우는 범위를 정하는 것은 정책 하나뿐이다** — `notifications_delete`(0019)의
+ * `auth.uid() = user_id`. `user_id`로 한 번 더 좁히지 않는 이유는
+ * `markAllNotificationsRead`와 같다: 화면이 들고 있는 id가 낡으면 조용히 어긋난다.
+ *
+ * 세션이 없으면(`auth.uid()`가 null) 오류가 아니라 **0건 삭제**로 끝난다.
+ * RLS의 delete는 지울 수 없는 행을 조용히 건너뛴다(0019에서 확인한 그대로).
+ * 그 사실은 `anonymousWriteGuards.int.test.ts`가 실제 DB에 대고 지킨다.
+ *
+ * 조건 자리에 `id is not null`(언제나 참, id는 PK)을 적은 것은 정책을 못 믿어서가 아니라
+ * **조건 없는 delete가 실수처럼 읽히기 때문**이다. 다음에 이 줄을 읽는 사람이 "필터를
+ * 빠뜨린 것"과 "일부러 전부 지우는 것"을 구별할 수 있어야 한다.
+ *
+ * "안 읽은 것만" 같은 조건은 붙이지 않는다. 버튼 이름이 "모두 삭제"이므로 읽은 것도
+ * 안 읽은 것도 함께 사라진다 — 화면이 확인을 한 번 받는 이유가 그것이다.
+ */
+export async function deleteAllNotifications(): Promise<void> {
+  const { error } = await supabase.from('notifications').delete().not('id', 'is', null);
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return undefined;
+}
+
+/**
  * 내게 오는 새 알림을 구독한다.
  *
  * insert만 본다. update(읽음)는 누른 본인의 화면에서 일어나므로 뮤테이션이 그 자리에서

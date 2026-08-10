@@ -1,3 +1,4 @@
+import DeleteAllNotificationsButton from './deleteAllNotificationsButton';
 import NotificationList from './notificationList';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
@@ -42,25 +43,31 @@ function NotificationPage() {
 
   return (
     <main className="flex page-wide flex-col gap-4 p-6">
-      <header className="flex items-center justify-between gap-3">
+      <header className="flex items-start justify-between gap-3">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">알림</h1>
 
-        {/* 받아 온 페이지에 안 읽은 것이 없으면 감춘다. 서버는 안 읽은 것 전부를 읽음 처리하므로
-            아래쪽 페이지에 남아 있어도 이 버튼 한 번이면 함께 정리된다. */}
-        {hasUnread ? (
-          <button
-            type="button"
-            onClick={function markAll(): void {
-              markAllReadMutation.mutate();
-            }}
-            disabled={markAllReadMutation.isPending}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium
-                       text-gray-700 transition hover:bg-gray-50 disabled:opacity-50
-                       dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            {markAllReadMutation.isPending ? '처리 중…' : '모두 읽음'}
-          </button>
-        ) : null}
+        <div className="flex items-start gap-2">
+          {/* 받아 온 페이지에 안 읽은 것이 없으면 감춘다. 서버는 안 읽은 것 전부를 읽음 처리하므로
+              아래쪽 페이지에 남아 있어도 이 버튼 한 번이면 함께 정리된다. */}
+          {hasUnread ? (
+            <button
+              type="button"
+              onClick={function markAll(): void {
+                markAllReadMutation.mutate();
+              }}
+              disabled={markAllReadMutation.isPending}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium
+                         text-gray-700 transition hover:bg-gray-50 disabled:opacity-50
+                         dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              {markAllReadMutation.isPending ? '처리 중…' : '모두 읽음'}
+            </button>
+          ) : null}
+
+          {/* 지울 것이 있을 때만 낸다. "모두 읽음"과 판단 기준이 다르다 — 저쪽은 안 읽은 것이
+              있는가, 이쪽은 **한 줄이라도 있는가**다. 다 읽은 목록도 치우고 싶을 수 있다. */}
+          {notifications.length > 0 ? <DeleteAllNotificationsButton viewerId={viewerId} /> : null}
+        </div>
       </header>
 
       {markAllReadMutation.isError ? (
