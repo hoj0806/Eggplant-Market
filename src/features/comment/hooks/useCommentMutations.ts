@@ -1,7 +1,20 @@
-import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+  type UseMutationResult,
+} from '@tanstack/react-query';
 import { postCommentsQueryKey } from './useCommentQueries';
 import { createComment, deleteComment, updateComment } from '../api/commentApi';
+import {
+  withAppendedComment,
+  withoutComment,
+  withUpdatedComment,
+} from '../utils/commentCache';
 import type { PostComment } from '../types';
+
+/** usePostCommentsQuery가 캐시에 넣는 모양. setQueryData에 그대로 넘긴다. */
+type CommentCache = InfiniteData<PostComment[]>;
 
 /**
  * 댓글 쓰기의 입력. 답글이면 `parentId`가 찬다.
@@ -29,8 +42,8 @@ export type SubmitCommentInput = {
  * 답글도 배열 끝에 붙는다. 캐시는 평평한 채로 두고 트리는 그릴 때 접으므로
  * (`buildCommentTree`), 끝에 붙은 답글이 자기 부모 밑으로 알아서 들어간다.
  *
- * 캐시가 아직 없으면 아무것도 하지 않는다. 목록을 한 번도 안 받아 온 상태에서 배열을
- * 새로 만들면 "방금 쓴 댓글 하나만 있는 목록"이 되고, 그것이 전부인 줄 알게 된다.
+ * 페이징이 붙으면서 붙이는 자리가 **마지막 페이지의 끝**이 됐다. 규칙은 그대로다 —
+ * 캐시가 아직 없으면 아무것도 하지 않는다(`withAppendedComment`).
  */
 export function useCreateCommentMutation(
   postId: number,
@@ -49,13 +62,10 @@ export function useCreateCommentMutation(
       });
     },
     onSuccess: function appendToList(created: PostComment): void {
-      queryClient.setQueryData<PostComment[]>(
+      queryClient.setQueryData<CommentCache>(
         postCommentsQueryKey(postId),
-        function append(previous: PostComment[] | undefined): PostComment[] | undefined {
-          if (previous === undefined) {
-            return previous;
-          }
-          return [...previous, created];
+        function append(previous) {
+          return withAppendedComment(previous, created);
         },
       );
     },
@@ -87,15 +97,10 @@ export function useEditCommentMutation(
       return updateComment({ commentId: input.id, content: input.content });
     },
     onSuccess: function replaceInList(updated: PostComment): void {
-      queryClient.setQueryData<PostComment[]>(
+      queryClient.setQueryData<CommentCache>(
         postCommentsQueryKey(postId),
-        function replace(previous: PostComment[] | undefined): PostComment[] | undefined {
-          if (previous === undefined) {
-            return previous;
-          }
-          return previous.map(function swapOne(comment: PostComment): PostComment {
-            return comment.id === updated.id ? updated : comment;
-          });
+        function replace(previous) {
+          return withUpdatedComment(previous, updated);
         },
       );
     },
@@ -123,15 +128,10 @@ export function useDeleteCommentMutation(
       return deleteComment(commentId);
     },
     onSuccess: function removeFromList(_result: void, commentId: number): void {
-      queryClient.setQueryData<PostComment[]>(
+      queryClient.setQueryData<CommentCache>(
         postCommentsQueryKey(postId),
-        function remove(previous: PostComment[] | undefined): PostComment[] | undefined {
-          if (previous === undefined) {
-            return previous;
-          }
-          return previous.filter(function keepOthers(comment: PostComment): boolean {
-            return comment.id !== commentId && comment.parentId !== commentId;
-          });
+        function remove(previous) {
+          return withoutComment(previous, commentId);
         },
       );
     },

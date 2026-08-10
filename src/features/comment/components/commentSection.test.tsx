@@ -7,15 +7,15 @@ import type { PostComment } from '../types';
 
 // commentApi는 supabaseClient(import.meta)에 닿는다. ts-jest가 CommonJS로 옮기면서
 // import.meta를 그대로 뱉으므로 실제 모듈을 로드하면 죽는다(troble.md 참고).
-const mockFetchPostComments = jest.fn();
+const mockFetchPostCommentPage = jest.fn();
 const mockCreateComment = jest.fn();
 const mockUpdateComment = jest.fn();
 const mockDeleteComment = jest.fn();
 
 jest.mock('../api/commentApi', function mockCommentApi() {
   return {
-    fetchPostComments: function fetchPostComments(postId: unknown) {
-      return mockFetchPostComments(postId);
+    fetchPostCommentPage: function fetchPostCommentPage(postId: unknown, cursor: unknown) {
+      return mockFetchPostCommentPage(postId, cursor);
     },
     createComment: function createComment(input: unknown) {
       return mockCreateComment(input);
@@ -30,6 +30,8 @@ jest.mock('../api/commentApi', function mockCommentApi() {
 });
 
 const POST_ID = 7;
+// 화면 머리말이 쓰는 값. 받아 온 줄 수가 아니라 posts.comment_count다(0028).
+const COMMENT_COUNT = 2;
 const SELLER_ID = 'seller-1';
 const VIEWER_ID = 'viewer-1';
 const FIXED_CREATED_AT = '2026-08-05T00:00:00.000Z';
@@ -57,7 +59,12 @@ function renderSection(viewerId: string | null) {
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <CommentSection postId={POST_ID} viewerId={viewerId} sellerId={SELLER_ID} />
+        <CommentSection
+          postId={POST_ID}
+          commentCount={COMMENT_COUNT}
+          viewerId={viewerId}
+          sellerId={SELLER_ID}
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -66,7 +73,7 @@ function renderSection(viewerId: string | null) {
 describe('CommentSection', function commentSectionSuite() {
   beforeEach(function resetMocks() {
     jest.clearAllMocks();
-    mockFetchPostComments.mockResolvedValue([]);
+    mockFetchPostCommentPage.mockResolvedValue([]);
     mockDeleteComment.mockResolvedValue(undefined);
     mockUpdateComment.mockResolvedValue(buildComment());
   });
@@ -79,7 +86,7 @@ describe('CommentSection', function commentSectionSuite() {
 
   // 읽기는 누구에게나 열려 있다(0017 comments_select). 로그인은 쓸 때만 필요하다.
   it('비로그인도 댓글을 읽을 수 있고, 쓰려면 로그인 안내가 나온다', async function guestCase() {
-    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockFetchPostCommentPage.mockResolvedValue([buildComment()]);
     renderSection(null);
 
     expect(await screen.findByText('이거 아직 있나요?')).toBeInTheDocument();
@@ -97,7 +104,7 @@ describe('CommentSection', function commentSectionSuite() {
   });
 
   it('댓글을 쓰면 목록 끝에 붙고 입력칸이 비워진다', async function createCase() {
-    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockFetchPostCommentPage.mockResolvedValue([buildComment()]);
     mockCreateComment.mockResolvedValue(
       buildComment({ id: 2, content: '네 있습니다', author: { id: SELLER_ID, nickname: '판매자', avatarUrl: null } }),
     );
@@ -118,12 +125,12 @@ describe('CommentSection', function commentSectionSuite() {
 
     // 다시 부르지 않고 캐시에 이어 붙인다 — 방금 쓴 댓글이 한 박자 늦게 나타나면 안 된다.
     expect(await screen.findByText('네 있습니다')).toBeInTheDocument();
-    expect(mockFetchPostComments).toHaveBeenCalledTimes(1);
+    expect(mockFetchPostCommentPage).toHaveBeenCalledTimes(1);
     expect(await screen.findByLabelText('댓글')).toHaveValue('');
   });
 
   it('남의 댓글에는 삭제 버튼이 없다', async function otherCommentCase() {
-    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockFetchPostCommentPage.mockResolvedValue([buildComment()]);
     renderSection(VIEWER_ID);
 
     expect(await screen.findByText('이거 아직 있나요?')).toBeInTheDocument();
@@ -132,7 +139,7 @@ describe('CommentSection', function commentSectionSuite() {
 
   // 0017이 게시물 판매자에게도 삭제를 열어 준다. 내 글에 달린 광고를 지울 길이 신고뿐이면 곤란하다.
   it('게시물 판매자는 남의 댓글도 지울 수 있다', async function sellerDeleteCase() {
-    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockFetchPostCommentPage.mockResolvedValue([buildComment()]);
     renderSection(SELLER_ID);
 
     await userEvent.click(await screen.findByRole('button', { name: '삭제' }));
@@ -151,7 +158,7 @@ describe('CommentSection', function commentSectionSuite() {
   // --- 대댓글 -------------------------------------------------------------
 
   it('답글을 쓰면 부모 id와 함께 보내고 부모 밑에 붙는다', async function replyCase() {
-    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockFetchPostCommentPage.mockResolvedValue([buildComment()]);
     mockCreateComment.mockResolvedValue(
       buildComment({ id: 2, parentId: 1, content: '네 있습니다' }),
     );
@@ -176,12 +183,12 @@ describe('CommentSection', function commentSectionSuite() {
     await waitFor(function assertClosed() {
       expect(screen.queryByLabelText('가지이웃님에게 답글')).not.toBeInTheDocument();
     });
-    expect(mockFetchPostComments).toHaveBeenCalledTimes(1);
+    expect(mockFetchPostCommentPage).toHaveBeenCalledTimes(1);
   });
 
   // 2단 고정이다. 답글에 또 답글을 열면 0018의 알림이 가리키는 사람과 화면이 어긋난다.
   it('답글에는 답글 버튼이 없다', async function depthCase() {
-    mockFetchPostComments.mockResolvedValue([
+    mockFetchPostCommentPage.mockResolvedValue([
       buildComment(),
       buildComment({ id: 2, parentId: 1, content: '네 있습니다' }),
     ]);
@@ -192,7 +199,7 @@ describe('CommentSection', function commentSectionSuite() {
   });
 
   it('비로그인에게는 답글 버튼이 없다', async function guestReplyCase() {
-    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockFetchPostCommentPage.mockResolvedValue([buildComment()]);
     renderSection(null);
 
     expect(await screen.findByText('이거 아직 있나요?')).toBeInTheDocument();
@@ -202,7 +209,7 @@ describe('CommentSection', function commentSectionSuite() {
   // FK가 cascade라(0001) 되돌릴 수 없다. 부모 줄만 보고 누르면 그 사실을 알 길이 없다.
   it('답글이 딸린 댓글을 지울 때 함께 사라지는 수를 알리고, 답글까지 걷어낸다',
     async function cascadeCase() {
-      mockFetchPostComments.mockResolvedValue([
+      mockFetchPostCommentPage.mockResolvedValue([
         buildComment(),
         buildComment({ id: 2, parentId: 1, content: '네 있습니다' }),
         buildComment({ id: 3, parentId: 1, content: '얼마에 파세요?' }),
@@ -228,7 +235,7 @@ describe('CommentSection', function commentSectionSuite() {
 
   it('내 댓글은 원래 내용이 담긴 칸에서 고치고, 고친 결과가 그 자리에 들어간다',
     async function editCase() {
-      mockFetchPostComments.mockResolvedValue([
+      mockFetchPostCommentPage.mockResolvedValue([
         buildComment({ author: { id: VIEWER_ID, nickname: '나', avatarUrl: null } }),
       ]);
       mockUpdateComment.mockResolvedValue(
@@ -260,12 +267,12 @@ describe('CommentSection', function commentSectionSuite() {
       // 서버가 찍은 updated_at으로 판단한다 — 화면이 스스로 "고쳤다"고 정하지 않는다.
       expect(screen.getByText(/수정됨/)).toBeInTheDocument();
       expect(screen.queryByLabelText('댓글 수정')).not.toBeInTheDocument();
-      expect(mockFetchPostComments).toHaveBeenCalledTimes(1);
+      expect(mockFetchPostCommentPage).toHaveBeenCalledTimes(1);
     });
 
   // 판매자는 남의 댓글을 치울 수는 있어도 바꿔 쓸 수는 없다(0001의 comments_update).
   it('남의 댓글은 지울 수 있어도 수정할 수 없다', async function sellerCannotEditCase() {
-    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockFetchPostCommentPage.mockResolvedValue([buildComment()]);
     renderSection(SELLER_ID);
 
     expect(await screen.findByRole('button', { name: '삭제' })).toBeInTheDocument();
@@ -273,7 +280,7 @@ describe('CommentSection', function commentSectionSuite() {
   });
 
   it('고치는 동안에는 답글·삭제 버튼을 감춘다', async function hideActionsWhileEditingCase() {
-    mockFetchPostComments.mockResolvedValue([
+    mockFetchPostCommentPage.mockResolvedValue([
       buildComment({ author: { id: VIEWER_ID, nickname: '나', avatarUrl: null } }),
     ]);
     renderSection(VIEWER_ID);
@@ -288,7 +295,7 @@ describe('CommentSection', function commentSectionSuite() {
   });
 
   it('고치지 않은 댓글에는 수정됨이 붙지 않는다', async function notEditedCase() {
-    mockFetchPostComments.mockResolvedValue([buildComment()]);
+    mockFetchPostCommentPage.mockResolvedValue([buildComment()]);
     renderSection(VIEWER_ID);
 
     expect(await screen.findByText('이거 아직 있나요?')).toBeInTheDocument();
@@ -321,7 +328,7 @@ describe('CommentSection', function commentSectionSuite() {
   // 목록에 온 비밀 댓글은 **볼 자격이 있다는 뜻**이다(0033의 comments_select).
   // 표를 붙이는 이유는 남에게 알리려는 것이 아니라, 답하는 사람이 자기 답도 비밀임을 알게 하려는 것이다.
   it('비밀 댓글에는 표가 붙고 공개 댓글에는 붙지 않는다', async function secretBadgeCase() {
-    mockFetchPostComments.mockResolvedValue([
+    mockFetchPostCommentPage.mockResolvedValue([
       buildComment(),
       buildComment({ id: 2, content: '얼마까지 되나요?', isSecret: true }),
     ]);
@@ -335,7 +342,7 @@ describe('CommentSection', function commentSectionSuite() {
   // 가린 내용이 답글로 새어 나간다.
   it('답글 폼에는 체크칸이 없고, 비밀 댓글의 답글은 부모 값을 실어 보낸다',
     async function secretReplyCase() {
-      mockFetchPostComments.mockResolvedValue([
+      mockFetchPostCommentPage.mockResolvedValue([
         buildComment({ content: '얼마까지 되나요?', isSecret: true }),
       ]);
       mockCreateComment.mockResolvedValue(

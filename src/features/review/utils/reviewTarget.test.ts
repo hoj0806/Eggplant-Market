@@ -17,6 +17,7 @@ function toPost(overrides: Partial<PostDetail> = {}): PostDetail {
     tradePlace: null,
     images: [],
     viewCount: 0,
+    commentCount: 0,
     likeCount: 0,
     isLiked: false,
     createdAt: '2026-08-01T00:00:00.000Z',

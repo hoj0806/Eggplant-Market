@@ -14,6 +14,18 @@ import type { CommentTreeNode, PostComment } from '../types';
 
 type CommentSectionProps = {
   postId: number;
+  /**
+   * 이 글의 댓글 수(`posts.comment_count`, 0028).
+   *
+   * **받아 온 줄을 세지 않는다.** 페이징을 붙이면서 화면에 있는 것은 "지금까지 받은 만큼"이
+   * 됐는데, 그것을 세면 "댓글 10"이라고 적어 놓고 아래에 더 보기 버튼이 있는 꼴이 된다.
+   *
+   * 이 값은 **공개 댓글만** 센다(0033). 비밀 댓글을 볼 수 있는 사람에게는 화면의 줄 수보다
+   * 작을 수 있는데, 그것이 0033이 고른 기준이다 — `comment_count`는 평범한 컬럼이라
+   * RLS가 안 걸려 보는 사람마다 다를 수 없고, 그러면 기준은 **가장 적게 보는 사람**이어야
+   * 한다. 게시물 카드의 "댓글 n"과 같은 숫자를 쓴다.
+   */
+  commentCount: number;
   /** 비로그인이면 null. 그때는 입력칸 대신 로그인 안내가 온다. */
   viewerId: string | null;
   /** 게시물 판매자. 자기 글의 댓글은 남의 것이라도 지울 수 있다(0017). */
@@ -174,7 +186,7 @@ function CommentSection(props: CommentSectionProps) {
     return createMutation.isPending && createMutation.variables?.parentId === parentId;
   }
 
-  const comments = commentsQuery.data ?? [];
+  const comments = (commentsQuery.data?.pages ?? []).flat();
   const tree = buildCommentTree(comments);
   // 목록 전체가 같은 순간을 기준으로 "n분 전"을 잰다. 줄마다 new Date()를 부르면
   // 같은 시각에 쓴 댓글들이 1초씩 어긋나 보인다.
@@ -249,7 +261,7 @@ function CommentSection(props: CommentSectionProps) {
   return (
     <section className="flex flex-col gap-3 border-t border-gray-100 pt-5 dark:border-gray-800">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-        댓글 {commentsQuery.isLoading ? '' : comments.length}
+        댓글 {props.commentCount}
       </h2>
 
       {error !== null ? (
@@ -269,9 +281,29 @@ function CommentSection(props: CommentSectionProps) {
       ) : comments.length === 0 ? (
         <p className={MESSAGE_CLASS}>아직 댓글이 없어요. 궁금한 점을 물어보세요.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
-          {tree.map(renderNode)}
-        </ul>
+        <>
+          <ul className="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
+            {tree.map(renderNode)}
+          </ul>
+
+          {/* 무한 스크롤이 아니라 버튼이다. 이 목록은 상세 화면 **안**에 있어서 스크롤로
+              이어 붙이면 끝에 닿을 때마다 댓글이 자라 아래에 있는 것에 영영 못 닿는다. */}
+          {commentsQuery.hasNextPage ? (
+            <button
+              type="button"
+              disabled={commentsQuery.isFetchingNextPage}
+              onClick={function loadMore(): void {
+                commentsQuery.fetchNextPage();
+              }}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm
+                         font-medium text-gray-700 transition hover:bg-gray-50
+                         disabled:opacity-50 dark:border-gray-700 dark:text-gray-200
+                         dark:hover:bg-gray-800"
+            >
+              {commentsQuery.isFetchingNextPage ? '불러오는 중…' : '댓글 더 보기'}
+            </button>
+          ) : null}
+        </>
       )}
 
       {props.viewerId === null ? (

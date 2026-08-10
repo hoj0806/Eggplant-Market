@@ -1,5 +1,6 @@
 import { supabase } from '../../../shared/lib/supabaseClient';
-import type { CommentAuthor, PostComment } from '../types';
+import { COMMENT_PAGE_SIZE } from '../utils/commentCursor';
+import type { CommentAuthor, CommentCursor, PostComment } from '../types';
 
 /**
  * RPC를 만들지 않고 임베드로 읽는다.
@@ -51,26 +52,76 @@ function toPostComment(row: CommentRow): PostComment {
 }
 
 /**
- * 한 게시물의 댓글 전부. 오래된 것이 위다 — 물음이 답보다 먼저 보여야 대화로 읽힌다.
+ * 한 게시물의 댓글 **한 페이지**. 오래된 것이 위다 — 물음이 답보다 먼저 보여야 대화로 읽힌다.
  *
- * 페이징하지 않는다. 중고 거래 글의 댓글은 "아직 있나요" 몇 줄이라 나눌 만큼 쌓이지 않고,
- * 나누면 "댓글 3"이라는 개수를 따로 세어 와야 한다. 실제로 길어지는 글이 생기면 그때
- * 커서를 붙인다 — 0017의 인덱스가 (post_id, created_at)이라 그대로 받는다.
+ * ── 왜 1단만 세어 끊는가 ──────────────────────────────────────────────
+ * **자를 곳은 실타래 사이여야 한다.** 평평하게 열 줄씩 끊으면 답글이 부모와 갈라져 다음
+ * 페이지로 넘어가고, 그러면 `buildCommentTree`가 부모 없는 답글을 **1단으로 올려** 그린다
+ * (그쪽은 차단으로 부모가 사라진 경우를 위해 그렇게 만들어졌다). 답이 물음처럼 보이게 된다.
  *
- * 차단한 사람의 댓글은 여기 오지 않는다. 거르는 일은 정책이 한다(0017).
+ * 그래서 질의를 둘로 나눈다.
+ *
+ *   ① 1단 댓글 열 개   (post_id + parent_id is null, keyset)
+ *   ② 그 열 개의 답글   (parent_id in …)
+ *
+ * 왕복이 둘이지만 한 페이지에 한 번씩이고, **①의 결과를 알아야 ②를 물을 수 있어** 어차피
+ * 순서가 있다. 서버 함수로 합칠 수도 있으나 정책만으로 되는 일에 RPC를 만들지 않는다 —
+ * 차단·비밀 댓글을 거르는 일은 양쪽 질의에서 `comments_select`가 그대로 한다(0017 · 0033).
+ *
+ * **답글은 페이지에 안 세어진다.** 그래서 한 번에 오는 줄 수는 열 개보다 많을 수 있다.
+ *
+ * ── 개수 표시는 어떻게 되나 ───────────────────────────────────────────
+ * 전에는 "나누면 댓글 개수를 따로 세어 와야 한다"가 페이징을 미룬 이유였는데,
+ * **0028이 `posts.comment_count`를 만들면서 그 이유가 사라졌다.** 화면은 그 값을 쓴다.
  */
-export async function fetchPostComments(postId: number): Promise<PostComment[]> {
-  const { data, error } = await supabase
+export async function fetchPostCommentPage(
+  postId: number,
+  cursor: CommentCursor | null,
+): Promise<PostComment[]> {
+  let rootQuery = supabase
     .from('comments')
     .select(COMMENT_COLUMNS)
     .eq('post_id', postId)
-    .order('created_at', { ascending: true });
+    .is('parent_id', null)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(COMMENT_PAGE_SIZE);
 
-  if (error !== null) {
-    throw error;
+  if (cursor !== null) {
+    // (created_at, id) keyset. 같은 시각 댓글이 둘이면 id로 가른다.
+    rootQuery = rootQuery.or(
+      `created_at.gt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.gt.${cursor.id})`,
+    );
   }
 
-  return (data as unknown as CommentRow[]).map(toPostComment);
+  const { data: rootData, error: rootError } = await rootQuery;
+
+  if (rootError !== null) {
+    throw rootError;
+  }
+
+  const roots = (rootData as unknown as CommentRow[]).map(toPostComment);
+
+  if (roots.length === 0) {
+    return roots;
+  }
+
+  const { data: replyData, error: replyError } = await supabase
+    .from('comments')
+    .select(COMMENT_COLUMNS)
+    .in(
+      'parent_id',
+      roots.map(function toId(comment: PostComment): number {
+        return comment.id;
+      }),
+    )
+    .order('created_at', { ascending: true });
+
+  if (replyError !== null) {
+    throw replyError;
+  }
+
+  return [...roots, ...(replyData as unknown as CommentRow[]).map(toPostComment)];
 }
 
 export type CreateCommentInput = {
