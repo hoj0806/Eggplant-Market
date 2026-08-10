@@ -41,21 +41,56 @@ export function createFixture(): Fixture {
   return {
     users,
     postIds,
+    /**
+     * 심은 것을 되돌린다.
+     *
+     * **실패를 삼키지 않는다.** 전에는 지우기 결과를 안 보고 목록을 비웠다 —
+     * 못 지운 계정이 있어도 아무도 모르고, 다음에 그 흔적을 봐도 **언제 어디서 샜는지**
+     * 알 수 없었다. 뒷정리가 실패했다는 사실은 **테스트가 빨개져서** 알려야 한다.
+     * (앱의 뒷정리는 조용히 넘어가는 것이 맞다 — 사용자가 할 수 있는 일이 없기 때문이다.
+     *  여기는 반대다. 읽는 사람이 개발자이고, 지금 고칠 수 있다.)
+     *
+     * 못 지운 것은 목록에 남긴다. 비워 버리면 다시 시도할 근거까지 사라진다.
+     */
     async cleanup(): Promise<void> {
       const admin = getAdminClient();
+      const failures: string[] = [];
 
       // 글부터 지운다. 사용자 삭제가 cascade로 데려가지만, 남의 글에 달린
       // 우리 댓글·찜처럼 사용자에 안 매달린 것이 남을 수 있어 순서를 지킨다.
       if (postIds.length > 0) {
-        await admin.from('posts').delete().in('id', postIds);
+        const { error } = await admin.from('posts').delete().in('id', postIds);
+
+        if (error !== null) {
+          failures.push(`글 ${postIds.join(', ')}: ${error.message}`);
+        }
       }
 
+      const undeleted: FixtureUser[] = [];
+
       for (const user of users) {
-        await admin.auth.admin.deleteUser(user.id);
+        const { error } = await admin.auth.admin.deleteUser(user.id);
+
+        if (error !== null) {
+          undeleted.push(user);
+          failures.push(`계정 ${user.id}: ${error.message}`);
+        }
       }
 
       users.length = 0;
+      users.push(...undeleted);
       postIds.length = 0;
+
+      if (failures.length > 0) {
+        throw new Error(
+          [
+            '픽스처를 다 치우지 못했다. 아래가 실제 프로젝트에 남아 있다.',
+            ...failures.map(function toLine(line: string): string {
+              return `  ${line}`;
+            }),
+          ].join('\n'),
+        );
+      }
     },
   };
 }
@@ -86,6 +121,15 @@ export async function createTestUser(
 
   const userId = data.user.id;
 
+  // **만들자마자 등록한다.** 뒤에 오는 온보딩이 실패해도 치울 수 있어야 하기 때문이다.
+  //
+  // 2026-08-10에 이 순서 때문에 계정 넷이 샜다. 등록이 온보딩 **뒤**에 있어서, update가
+  // 실패하면(그날은 `JWT issued at future`였다) 계정은 이미 auth.users에 있는데 픽스처는
+  // 그 존재를 모르는 상태가 됐다 — cleanup이 지울 수 없는 유령이 된다.
+  // 남은 넷이 전부 "닉네임은 트리거 기본값, onboarded_at은 null"이라 한눈에 알아볼 수 있었다.
+  const user: FixtureUser = { id: userId, nickname: options.nickname };
+  fixture.users.push(user);
+
   // handle_new_user 트리거가 profiles 행을 이미 만들었다. 온보딩만 채운다.
   const { error: profileError } = await admin
     .from('profiles')
@@ -102,9 +146,6 @@ export async function createTestUser(
   if (profileError !== null) {
     throw profileError;
   }
-
-  const user: FixtureUser = { id: userId, nickname: options.nickname };
-  fixture.users.push(user);
 
   return user;
 }
