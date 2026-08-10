@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import PostImageCarousel from './postImageCarousel';
 import PostOwnerMenu from './postOwnerMenu';
+import PostShareButton from './postShareButton';
 import PostSellerCard from './postSellerCard';
 import PostStatusBadge from './postStatusBadge';
 import PostStatusControl from './postStatusControl';
@@ -138,24 +139,32 @@ function PostDetailPage() {
     <main className="flex min-h-screen page-detail flex-col gap-4 p-6">
       {/*
         제목을 주지 않는다 — 이 화면의 제목 자리에는 사진과 글이 곧바로 온다.
-        오른쪽에는 ⋯ 메뉴가 하나 붙는다. 내 글이면 관리(수정·끌올·삭제),
-        남의 글이면 안전(신고·차단)이다. 둘이 함께 뜨는 일은 없다.
+        오른쪽에는 공유 버튼과 ⋯ 메뉴가 붙는다. ⋯는 내 글이면 관리(수정·끌올·삭제),
+        남의 글이면 안전(신고·차단)이고 둘이 함께 뜨는 일은 없다.
+        공유는 그 갈래 밖이다 — 내 글이든 남의 글이든, 로그인했든 아니든 같다.
       */}
       <PageHeader
         backTo="/"
         backLabel="홈"
         action={
-          viewerId !== null && viewerId === post.seller.id ? (
-            <PostOwnerMenu post={post} viewerId={viewerId} />
-          ) : (
-            <SafetyMenu
-              viewerId={viewerId}
-              targetUserId={post.seller.id}
-              targetNickname={post.seller.nickname}
-              // 게시물 상세에서만 글 자체를 신고할 수 있다. 프로필·채팅방에는 신고할 글이 없다.
-              post={{ id: post.id, title: post.title }}
-            />
-          )
+          <div className="flex items-start gap-1">
+            {/* 공유는 **로그인을 묻지 않는다.** 우리 서버에 아무것도 쓰지 않고,
+                누구에게 보낼지는 카카오톡에서 고른다. 그래서 ⋯ 메뉴 밖에 둔다 —
+                저쪽은 내 글이냐 남의 글이냐로 갈리지만 공유는 양쪽에서 같다. */}
+            <PostShareButton post={post} />
+
+            {viewerId !== null && viewerId === post.seller.id ? (
+              <PostOwnerMenu post={post} viewerId={viewerId} />
+            ) : (
+              <SafetyMenu
+                viewerId={viewerId}
+                targetUserId={post.seller.id}
+                targetNickname={post.seller.nickname}
+                // 게시물 상세에서만 글 자체를 신고할 수 있다. 프로필·채팅방에는 신고할 글이 없다.
+                post={{ id: post.id, title: post.title }}
+              />
+            )}
+          </div>
         }
       />
 
