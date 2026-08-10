@@ -16,6 +16,7 @@ function makeNotification(overrides: Partial<AppNotification> & { type: Notifica
     preview: null,
     offerAmount: null,
     isFirst: false,
+    commentCount: 1,
     ...overrides,
   };
 }
@@ -128,6 +129,32 @@ describe('toNotificationView', function notificationTextSuite() {
     expect(comment.to).toBe('/posts/7');
     expect(like.title).toBe('가지팔이님이 관심을 표시했어요');
     expect(like.to).toBe('/posts/7');
+  });
+
+  /**
+   * 같은 글의 댓글은 한 줄로 묶인다(0037). 묶였을 때 **사람 이름을 안 쓴다** —
+   * 아는 것이 최신 한 사람뿐이라 "외 2명"이라고 적으면 같은 사람이 세 번 단 경우에
+   * 거짓말이 된다.
+   */
+  it('묶인 댓글 알림은 개수로 말한다', function groupedCommentCase() {
+    const grouped = toNotificationView(
+      makeNotification({ type: 'comment', postId: 7, preview: '지금 갈게요', commentCount: 3 }),
+      VIEWER_ID,
+    );
+
+    expect(grouped.title).toBe('댓글 3개가 달렸어요');
+    // 미리보기는 가장 최근 댓글이다. 어디로 가는지도 그대로다.
+    expect(grouped.body).toBe('지금 갈게요');
+    expect(grouped.to).toBe('/posts/7');
+  });
+
+  it('한 개일 때는 사람 이름으로 말한다', function singleCommentCase() {
+    const single = toNotificationView(
+      makeNotification({ type: 'comment', postId: 7, commentCount: 1 }),
+      VIEWER_ID,
+    );
+
+    expect(single.title).toBe('가지팔이님이 댓글을 남겼어요');
   });
 
   // 0018의 fetch_notifications는 댓글이 지워지면 preview를 null로 준다(알림 줄은 남는다).
