@@ -13,7 +13,8 @@
     "test:integration": "jest --selectProjects integration",
     "test:build": "npm run build && jest --selectProjects build",
     "test:smoke": "node scripts/runSmoke.mjs",
-    "seed": "node scripts/seedDemo.mjs"
+    "seed": "node scripts/seedDemo.mjs",
+    "sweep:chat-images": "node scripts/sweepOrphanChatImages.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
