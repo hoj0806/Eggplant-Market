@@ -90,8 +90,13 @@ describe('ReportSheet', function reportSheetSuite() {
     await userEvent.click(screen.getByRole('radio', { name: '사기가 의심돼요' }));
     await userEvent.click(screen.getByRole('button', { name: '신고하기' }));
 
-    expect(await screen.findByText('신고가 접수되었어요.')).toBeInTheDocument();
+    expect(await screen.findByText('신고를 보냈어요.')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+
+    // **없는 일을 약속하지 않는다.** 이 앱에는 관리자도, 글을 가리는 수단도 없다
+    // (`reports`는 insert 정책 하나뿐이다). "조치하겠다"가 되살아나면 여기서 걸린다.
+    expect(screen.queryByText(/조치/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/운영팀/)).not.toBeInTheDocument();
   });
 
   it('접수 안내에서 차단을 함께 권한다', async function offersBlock() {
@@ -116,6 +121,6 @@ describe('ReportSheet', function reportSheetSuite() {
     await userEvent.click(screen.getByRole('button', { name: '신고하기' }));
 
     expect(await screen.findByText('이미 신고한 대상입니다.')).toBeInTheDocument();
-    expect(screen.queryByText('신고가 접수되었어요.')).not.toBeInTheDocument();
+    expect(screen.queryByText('신고를 보냈어요.')).not.toBeInTheDocument();
   });
 });
