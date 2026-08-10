@@ -12,7 +12,6 @@ function makeNotification(
 ): AppNotification {
   return {
     id: 1,
-    isRead: false,
     createdAt: '2026-08-05T00:00:00.000Z',
     actorId: 'actor-1',
     actorNickname: '가지팔이',
@@ -29,7 +28,7 @@ function makeNotification(
 
 function renderItem(
   notification: AppNotification,
-  onSelect = jest.fn(),
+  onOpen = jest.fn(),
   onDelete = jest.fn(),
   isDeleting = false,
 ) {
@@ -41,49 +40,49 @@ function renderItem(
           viewerId={VIEWER_ID}
           now={NOW}
           isDeleting={isDeleting}
-          onSelect={onSelect}
+          onOpen={onOpen}
           onDelete={onDelete}
         />
       </ul>
     </MemoryRouter>,
   );
 
-  return onSelect;
+  return onOpen;
 }
 
 describe('NotificationListItem', function notificationListItemSuite() {
-  it('알림을 누르면 읽음 처리를 맡기고 그 방으로 가는 링크가 된다', function selectCase() {
-    const onSelect = renderItem(
+  // 0036: 누르는 것은 "읽음"이 아니라 "치움"이다. 가면서 사라진다.
+  it('알림을 누르면 그 방으로 가면서 그 줄을 치운다', function openCase() {
+    const onOpen = renderItem(
       makeNotification({ type: 'chat', roomId: 9, preview: '아직 있나요?' }),
     );
 
     const link = screen.getByRole('link');
     expect(link).toHaveAttribute('href', '/chats/9');
 
-    return userEvent.click(link).then(function assertSelected() {
-      expect(onSelect).toHaveBeenCalledTimes(1);
+    return userEvent.click(link).then(function assertOpened() {
+      expect(onOpen).toHaveBeenCalledTimes(1);
     });
   });
 
-  // 색만으로는 색을 구분하지 못하는 사람에게 아무것도 전해지지 않는다.
-  it('안 읽은 알림은 색 말고 글자로도 표시한다', function unreadCase() {
-    renderItem(makeNotification({ type: 'chat', isRead: false }));
-
-    expect(screen.getByText('안 읽음')).toBeInTheDocument();
-  });
-
-  it('읽은 알림에는 그 표시가 없다', function readCase() {
-    renderItem(makeNotification({ type: 'chat', isRead: true }));
+  // 0036에서 읽음 상태를 없앴다. 목록에 있는 줄은 전부 "아직 안 치운 것"이라
+  // 갈릴 것이 없다 — 표식이 되살아나면 이 테스트가 먼저 깨진다.
+  it('안 읽음 표식을 그리지 않는다', function noReadMarkCase() {
+    renderItem(makeNotification({ type: 'chat' }));
 
     expect(screen.queryByText('안 읽음')).not.toBeInTheDocument();
   });
 
   // 눌러도 아무 일이 없는 링크를 남겨 두면 "눌렀는데 왜 안 가지"가 된다.
   it('가리키던 방이 사라졌으면 링크로 그리지 않는다', function missingTargetCase() {
-    renderItem(makeNotification({ type: 'chat', roomId: null }));
+    const onOpen = jest.fn();
+    renderItem(makeNotification({ type: 'chat', roomId: null }), onOpen);
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.getByText('가지팔이님이 메시지를 보냈어요')).toBeInTheDocument();
+    // 갈 곳이 없으면 누를 자리도 없으니 사라지지도 않는다. 치우려면 ×를 쓴다 —
+    // 갈 곳도 없는데 눌렀다고 지워지면 무엇이 없어졌는지 확인할 길이 없다.
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   // 스무 줄의 버튼 이름이 전부 "삭제"면 스크린리더로 훑을 때 어느 줄인지 알 수 없다.

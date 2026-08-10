@@ -2,11 +2,7 @@ import DeleteAllNotificationsButton from './deleteAllNotificationsButton';
 import NotificationList from './notificationList';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthUser, useAuthStore } from '../../auth/store/authStore';
-import {
-  useDeleteNotificationMutation,
-  useMarkAllNotificationsReadMutation,
-  useMarkNotificationReadMutation,
-} from '../hooks/useNotificationMutations';
+import { useDeleteNotificationMutation } from '../hooks/useNotificationMutations';
 import { useNotificationsQuery } from '../hooks/useNotificationQueries';
 import { useNotificationsRealtime } from '../hooks/useNotificationRealtime';
 import type { AppNotification } from '../types';
@@ -28,8 +24,6 @@ function NotificationPage() {
   // 이 화면을 보는 동안 새 알림이 오면 목록이 따라 움직인다.
   useNotificationsRealtime(viewerId);
 
-  const markReadMutation = useMarkNotificationReadMutation(viewerId);
-  const markAllReadMutation = useMarkAllNotificationsReadMutation(viewerId);
   const deleteMutation = useDeleteNotificationMutation(viewerId);
 
   if (viewerId === null) {
@@ -37,44 +31,16 @@ function NotificationPage() {
   }
 
   const notifications = (notificationsQuery.data?.pages ?? []).flat();
-  const hasUnread = notifications.some(function isUnread(notification: AppNotification): boolean {
-    return !notification.isRead;
-  });
 
   return (
     <main className="flex page-wide flex-col gap-4 p-6">
       <header className="flex items-start justify-between gap-3">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">알림</h1>
 
-        <div className="flex items-start gap-2">
-          {/* 받아 온 페이지에 안 읽은 것이 없으면 감춘다. 서버는 안 읽은 것 전부를 읽음 처리하므로
-              아래쪽 페이지에 남아 있어도 이 버튼 한 번이면 함께 정리된다. */}
-          {hasUnread ? (
-            <button
-              type="button"
-              onClick={function markAll(): void {
-                markAllReadMutation.mutate();
-              }}
-              disabled={markAllReadMutation.isPending}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium
-                         text-gray-700 transition hover:bg-gray-50 disabled:opacity-50
-                         dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              {markAllReadMutation.isPending ? '처리 중…' : '모두 읽음'}
-            </button>
-          ) : null}
-
-          {/* 지울 것이 있을 때만 낸다. "모두 읽음"과 판단 기준이 다르다 — 저쪽은 안 읽은 것이
-              있는가, 이쪽은 **한 줄이라도 있는가**다. 다 읽은 목록도 치우고 싶을 수 있다. */}
-          {notifications.length > 0 ? <DeleteAllNotificationsButton viewerId={viewerId} /> : null}
-        </div>
+        {/* 머리말의 버튼은 하나뿐이다. 알림에 할 수 있는 일이 치우는 것 하나라(0036)
+            "모두 읽음"이 설 자리가 없어졌다. 한 줄이라도 있으면 낸다. */}
+        {notifications.length > 0 ? <DeleteAllNotificationsButton viewerId={viewerId} /> : null}
       </header>
-
-      {markAllReadMutation.isError ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          읽음 표시에 실패했습니다. 잠시 후 다시 시도해 주세요.
-        </p>
-      ) : null}
 
       {deleteMutation.isError ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
@@ -85,12 +51,14 @@ function NotificationPage() {
       <NotificationList
         query={notificationsQuery}
         viewerId={viewerId}
-        deletingId={deleteMutation.isPending ? (deleteMutation.variables?.id ?? null) : null}
-        onSelect={function markOneRead(notification: AppNotification): void {
-          markReadMutation.mutate({ id: notification.id, wasRead: notification.isRead });
+        deletingId={deleteMutation.isPending ? (deleteMutation.variables ?? null) : null}
+        // 누르는 것과 ×는 같은 일을 한다 — 그 줄이 사라진다. 다른 것은 누른 뒤
+        // 어디에 있느냐뿐이라(가리키던 곳 / 이 목록) 뮤테이션도 하나를 나눠 쓴다.
+        onOpen={function openAndRemove(notification: AppNotification): void {
+          deleteMutation.mutate(notification.id);
         }}
         onDelete={function removeOne(notification: AppNotification): void {
-          deleteMutation.mutate({ id: notification.id, wasRead: notification.isRead });
+          deleteMutation.mutate(notification.id);
         }}
       />
     </main>

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DeleteAllNotificationsButton from './deleteAllNotificationsButton';
-import { notificationsQueryKey, unreadNotificationCountQueryKey } from '../hooks/useNotificationQueries';
+import { notificationCountQueryKey, notificationsQueryKey } from '../hooks/useNotificationQueries';
 import type { AppNotification } from '../types';
 
 // notificationApi는 supabaseClient를 거쳐 import.meta.env에 닿는다. 실제 모듈은 로드하지 않는다.
@@ -15,18 +15,15 @@ jest.mock('../api/notificationApi', function mockNotificationApi() {
     },
     // 훅 파일이 모듈을 통째로 import하므로 자리만 채운다.
     deleteNotification: jest.fn(),
-    markAllNotificationsRead: jest.fn(),
-    markNotificationRead: jest.fn(),
   };
 });
 
 const VIEWER_ID = 'me';
 
-function makeNotification(id: number, isRead: boolean): AppNotification {
+function makeNotification(id: number): AppNotification {
   return {
     id,
     type: 'chat',
-    isRead,
     createdAt: '2026-08-10T00:00:00.000Z',
     actorId: 'actor-1',
     actorNickname: '가지팔이',
@@ -46,10 +43,10 @@ function renderButton() {
   });
 
   queryClient.setQueryData(notificationsQueryKey(VIEWER_ID), {
-    pages: [[makeNotification(1, false), makeNotification(2, true)]],
+    pages: [[makeNotification(1), makeNotification(2)]],
     pageParams: [null],
   });
-  queryClient.setQueryData(unreadNotificationCountQueryKey(VIEWER_ID), 1);
+  queryClient.setQueryData(notificationCountQueryKey(VIEWER_ID), 2);
 
   render(
     <QueryClientProvider client={queryClient}>
@@ -105,8 +102,8 @@ describe('DeleteAllNotificationsButton', function deleteAllNotificationsButtonSu
       };
       expect(cache.pages.flat()).toEqual([]);
     });
-    // 몇 개가 안 읽은 것이었는지 세지 않는다 — 다 지웠으면 0이다.
-    expect(queryClient.getQueryData(unreadNotificationCountQueryKey(VIEWER_ID))).toBe(0);
+    // 몇 줄이었는지 세지 않는다 — 다 지웠으면 0이다.
+    expect(queryClient.getQueryData(notificationCountQueryKey(VIEWER_ID))).toBe(0);
   });
 
   it('실패하면 그 자리에 알리고 목록을 건드리지 않는다', async function showsError() {

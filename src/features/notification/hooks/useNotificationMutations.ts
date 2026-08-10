@@ -4,102 +4,55 @@ import {
   type InfiniteData,
   type UseMutationResult,
 } from '@tanstack/react-query';
-import { notificationsQueryKey, unreadNotificationCountQueryKey } from './useNotificationQueries';
+import { notificationCountQueryKey, notificationsQueryKey } from './useNotificationQueries';
+import { deleteAllNotifications, deleteNotification } from '../api/notificationApi';
 import {
-  deleteAllNotifications,
-  deleteNotification,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from '../api/notificationApi';
-import {
-  withAllNotificationsRead,
-  withDecrementedUnread,
+  withDecrementedCount,
   withoutAllNotifications,
   withoutNotification,
-  withReadNotification,
 } from '../utils/notificationCache';
 import type { AppNotification } from '../types';
+
+/**
+ * 알림에 일어나는 일은 **사라지는 것 하나뿐**이다(0036).
+ *
+ * 읽음 표시가 있던 자리에는 아무것도 두지 않았다 — 알림을 누르면 가리키던 곳으로 가면서
+ * 그 줄이 지워지므로, "봤다"를 따로 적어 둘 이유가 없다. 그래서 뮤테이션도 둘뿐이다.
+ */
 
 /** useNotificationsQuery가 캐시에 넣는 모양. setQueryData에 그대로 넘긴다. */
 type NotificationCache = InfiniteData<AppNotification[]>;
 
-export type MarkNotificationReadInput = {
-  id: number;
-  /** 누를 때 이미 읽은 상태였는가. 배지를 두 번 깎지 않기 위해 필요하다. */
-  wasRead: boolean;
-};
-
 /**
- * 알림 하나를 읽음으로.
+ * 알림 하나를 지운다. **누르는 길도 여기로 온다.**
  *
- * 캐시를 **보내기 전에** 고친다. 알림을 누르면 곧바로 화면이 넘어가므로 응답을 기다렸다
- * 고치면 그 결과를 받을 화면이 이미 없다. 실패해도 되돌리지 않는다 — 잃는 것이 굵은 글씨
- * 하나뿐이고, 다음 조회가 서버 값으로 덮는다.
- */
-export function useMarkNotificationReadMutation(
-  viewerId: string | null,
-): UseMutationResult<void, Error, MarkNotificationReadInput> {
-  const queryClient = useQueryClient();
-
-  return useMutation<void, Error, MarkNotificationReadInput>({
-    mutationFn: function markRead(input: MarkNotificationReadInput): Promise<void> {
-      return markNotificationRead(input.id);
-    },
-    onMutate: function updateCache(input: MarkNotificationReadInput): void {
-      queryClient.setQueryData<NotificationCache>(
-        notificationsQueryKey(viewerId),
-        function markOne(current) {
-          return withReadNotification(current, input.id);
-        },
-      );
-      queryClient.setQueryData<number>(
-        unreadNotificationCountQueryKey(viewerId),
-        function decrement(current) {
-          return withDecrementedUnread(current, input.wasRead);
-        },
-      );
-    },
-  });
-}
-
-export type DeleteNotificationInput = {
-  id: number;
-  /** 지울 때 이미 읽은 상태였는가. 안 읽은 것을 지우면 배지도 함께 줄어야 한다. */
-  wasRead: boolean;
-};
-
-/**
- * 알림 하나를 지운다.
+ * 두 자리가 같은 뮤테이션을 쓴다 — 줄을 눌러 열 때와 ×를 눌러 치울 때. 하는 일이 같기
+ * 때문이다(그 줄이 사라진다). 다른 것은 **누른 뒤 어디에 있느냐**뿐이다.
  *
- * 화면에 머무른 채 누르는 버튼이라 **응답을 받고 나서** 캐시를 고친다. 읽음 표시가 보내기
- * 전에 고쳤던 것은 누르는 즉시 다른 화면으로 넘어가기 때문인데, 삭제는 그 자리에 남는다 —
- * 실패했는데 줄이 사라졌다가 다시 나타나는 편보다 잠깐 남아 있다 사라지는 편이 낫다.
+ * 캐시는 **응답을 받고 나서** 고친다. ×는 그 자리에 남으므로, 실패했는데 줄이 사라졌다가
+ * 다시 나타나는 편보다 잠깐 남아 있다 사라지는 편이 낫다. 줄을 눌러 화면이 넘어간 경우에도
+ * 이 콜백은 그대로 돈다 — 뮤테이션에 걸어 둔 콜백은 컴포넌트가 사라져도 실행되므로,
+ * 돌아왔을 때 그 줄은 이미 없다.
  *
- * 배지는 읽음 표시와 같은 함수로 줄인다. 안 읽은 알림이 사라지면 `count_unread_notifications`도
- * 하나 줄어들므로, 화면이 먼저 같은 만큼 줄여 두어야 다음 조회까지 숫자가 어긋나지 않는다.
+ * 배지는 **언제나 하나** 준다. 남아 있는 알림을 세기 때문에 사라지면 그만큼 준다.
  */
 export function useDeleteNotificationMutation(
   viewerId: string | null,
-): UseMutationResult<void, Error, DeleteNotificationInput> {
+): UseMutationResult<void, Error, number> {
   const queryClient = useQueryClient();
 
-  return useMutation<void, Error, DeleteNotificationInput>({
-    mutationFn: function removeOne(input: DeleteNotificationInput): Promise<void> {
-      return deleteNotification(input.id);
+  return useMutation<void, Error, number>({
+    mutationFn: function removeOne(notificationId: number): Promise<void> {
+      return deleteNotification(notificationId);
     },
-    onSuccess: function updateCache(_result: void, input: DeleteNotificationInput): void {
+    onSuccess: function updateCache(_result: void, notificationId: number): void {
       queryClient.setQueryData<NotificationCache>(
         notificationsQueryKey(viewerId),
         function removeOne(current) {
-          return withoutNotification(current, input.id);
+          return withoutNotification(current, notificationId);
         },
       );
-      queryClient.setQueryData<number>(
-        unreadNotificationCountQueryKey(viewerId),
-        function decrement(current) {
-          return withDecrementedUnread(current, input.wasRead);
-        },
-      );
+      queryClient.setQueryData<number>(notificationCountQueryKey(viewerId), withDecrementedCount);
     },
   });
 }
@@ -110,9 +63,8 @@ export function useDeleteNotificationMutation(
  * 캐시를 고치는 방식은 한 줄 삭제와 같다 — **응답을 받고 나서.** 화면에 머무른 채 누르는
  * 버튼이라 실패하면 목록이 그대로 남아 다시 누를 수 있다.
  *
- * 배지는 `withDecrementedUnread`를 쓰지 않는다. 몇 개가 안 읽은 것이었는지 화면이 모르기
- * 때문이다 — 목록은 첫 페이지만 받아 온 상태일 수 있고 배지는 전체를 센다. **다 지웠으면
- * 안 읽은 것도 0이다.** "모두 읽음"이 0을 그대로 쓰는 것과 같은 자리다.
+ * 배지는 하나씩 깎지 않고 **0으로 놓는다.** 몇 줄이었는지 화면이 모르기 때문이다 —
+ * 목록은 첫 페이지만 받아 온 상태일 수 있고 배지는 전체를 센다. 다 지웠으면 0이다.
  */
 export function useDeleteAllNotificationsMutation(
   viewerId: string | null,
@@ -126,30 +78,7 @@ export function useDeleteAllNotificationsMutation(
         notificationsQueryKey(viewerId),
         withoutAllNotifications,
       );
-      queryClient.setQueryData<number>(unreadNotificationCountQueryKey(viewerId), 0);
-    },
-  });
-}
-
-/**
- * 안 읽은 알림을 모두 읽음으로.
- *
- * 이쪽은 화면에 머무른 채 누르는 버튼이라 응답을 받고 나서 고친다.
- * 실패하면 굵은 글씨가 그대로 남아 다시 누를 수 있다.
- */
-export function useMarkAllNotificationsReadMutation(
-  viewerId: string | null,
-): UseMutationResult<void, Error, void> {
-  const queryClient = useQueryClient();
-
-  return useMutation<void, Error, void>({
-    mutationFn: markAllNotificationsRead,
-    onSuccess: function updateCache(): void {
-      queryClient.setQueryData<NotificationCache>(
-        notificationsQueryKey(viewerId),
-        withAllNotificationsRead,
-      );
-      queryClient.setQueryData<number>(unreadNotificationCountQueryKey(viewerId), 0);
+      queryClient.setQueryData<number>(notificationCountQueryKey(viewerId), 0);
     },
   });
 }
