@@ -15,6 +15,7 @@ import SafetyMenu from '../../block/components/safetyMenu';
 import StartChatButton from '../../chat/components/startChatButton';
 import CommentSection from '../../comment/components/commentSection';
 import LikeButton from '../../like/components/likeButton';
+import { useClearNotificationsAt } from '../../notification/hooks/useClearNotificationsAt';
 import ReviewPrompt from '../../review/components/reviewPrompt';
 import { usePostDetailQuery } from '../hooks/usePostQueries';
 import { useRecordRecentView } from '../hooks/useRecordRecentView';
@@ -114,6 +115,9 @@ function PostDetailPage() {
   const postQuery = usePostDetailQuery(postId, viewerId);
   useViewCount(postQuery.data, viewerId);
   useRecordRecentView(postQuery.data?.id, viewerId);
+  // 이 글로 데려가던 알림(댓글·관심)은 여기 도착한 것으로 할 일이 끝난다.
+  // 알림을 눌러 들어왔든 목록에서 눌러 들어왔든 확인한 것은 같다.
+  useClearNotificationsAt(postId === null ? null : { kind: 'post', postId }, viewerId);
 
   if (postId === null || postQuery.isError) {
     return (

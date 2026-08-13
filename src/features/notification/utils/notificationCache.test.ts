@@ -1,8 +1,10 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import {
+  withCountReducedBy,
   withDecrementedCount,
   withoutAllNotifications,
   withoutNotification,
+  withoutNotifications,
 } from './notificationCache';
 import { toNextNotificationCursor } from './notificationCursor';
 import type { AppNotification } from '../types';
@@ -132,5 +134,58 @@ describe('withDecrementedCount', function withDecrementedCountSuite() {
 
   it('아직 숫자를 받지 못했으면 0으로 둔다', function undefinedCase() {
     expect(withDecrementedCount(undefined)).toBe(0);
+  });
+});
+
+describe('withoutNotifications', function withoutNotificationsSuite() {
+  it('여러 줄을 한 번에 빼낸다', function removesMany() {
+    const cache = makeCache([
+      [makeNotification(1), makeNotification(2)],
+      [makeNotification(3), makeNotification(4)],
+    ]);
+
+    const next = withoutNotifications(cache, [2, 3]);
+
+    expect(next?.pages).toEqual([[makeNotification(1)], [makeNotification(4)]]);
+  });
+
+  /** 도착한 화면에 내 알림이 없을 수 있다. 그때 캐시를 새 객체로 바꿀 이유가 없다. */
+  it('뺄 것이 없으면 그대로 둔다', function keepsWhenEmpty() {
+    const cache = makeCache([[makeNotification(1)]]);
+
+    expect(withoutNotifications(cache, [])).toBe(cache);
+  });
+
+  it('아직 목록을 받지 못했으면 아무 일도 하지 않는다', function undefinedCase() {
+    expect(withoutNotifications(undefined, [1])).toBeUndefined();
+  });
+
+  /** 페이지가 통째로 비어도 페이지 자체는 남긴다 — 커서의 흔적이라(withoutNotification과 같다). */
+  it('빈 페이지를 없애지 않는다', function keepsEmptyPage() {
+    const cache = makeCache([[makeNotification(1)], [makeNotification(2)]]);
+
+    expect(withoutNotifications(cache, [1])?.pages).toEqual([[], [makeNotification(2)]]);
+  });
+});
+
+describe('withCountReducedBy', function withCountReducedBySuite() {
+  it('지운 만큼 줄인다', function reducesByRemoved() {
+    expect(withCountReducedBy(5, 2)).toBe(3);
+  });
+
+  /**
+   * "모두 삭제"와 갈리는 자리다. 방 하나에 도착했다고 다른 방의 알림까지 확인한 것은
+   * 아니므로 0으로 놓지 않는다.
+   */
+  it('남는 알림이 있으면 0으로 놓지 않는다', function keepsRemainder() {
+    expect(withCountReducedBy(9, 1)).toBe(8);
+  });
+
+  it('0 아래로는 내려가지 않는다', function floorCase() {
+    expect(withCountReducedBy(1, 3)).toBe(0);
+  });
+
+  it('아직 숫자를 받지 못했으면 0으로 둔다', function undefinedCase() {
+    expect(withCountReducedBy(undefined, 2)).toBe(0);
   });
 });

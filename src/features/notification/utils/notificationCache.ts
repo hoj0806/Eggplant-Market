@@ -37,6 +37,33 @@ export function withoutNotification(
 }
 
 /**
+ * 여러 줄을 한 번에 빼낸다. 도착한 화면의 알림이 함께 사라질 때 쓴다.
+ *
+ * 한 줄 빼기를 여러 번 부르지 않는 이유는 캐시가 아니라 **읽는 사람** 때문이다 —
+ * 지운 개수만큼 `setQueryData`가 도는 코드는 "왜 반복인가"를 한 번 더 생각하게 만든다.
+ * 하는 일은 같다.
+ */
+export function withoutNotifications(
+  data: InfiniteData<AppNotification[]> | undefined,
+  notificationIds: ReadonlyArray<number>,
+): InfiniteData<AppNotification[]> | undefined {
+  if (data === undefined || notificationIds.length === 0) {
+    return data;
+  }
+
+  const removed = new Set(notificationIds);
+
+  return {
+    ...data,
+    pages: data.pages.map(function removeFromPage(page: AppNotification[]): AppNotification[] {
+      return page.filter(function keepOthers(current: AppNotification): boolean {
+        return !removed.has(current.id);
+      });
+    }),
+  };
+}
+
+/**
  * "모두 삭제"가 누른 뒤의 목록. 받아 온 페이지가 전부 빈 배열이 된다.
  *
  * **페이지 배열 자체는 그대로 둔다.** `withoutNotification`이 빈 페이지를 남기는 것과 같은
@@ -75,4 +102,18 @@ export function withDecrementedCount(count: number | undefined): number {
   }
 
   return Math.max(count - 1, 0);
+}
+
+/**
+ * 배지 숫자를 지운 만큼 줄인다.
+ *
+ * 0으로 놓지 않는다 — "모두 삭제"와 달리 **남는 알림이 있다.** 방 하나에 도착했다고
+ * 다른 방의 알림까지 확인한 것은 아니다. 몇 줄이 사라졌는지는 서버가 돌려준 id로 안다.
+ */
+export function withCountReducedBy(count: number | undefined, removed: number): number {
+  if (count === undefined) {
+    return 0;
+  }
+
+  return Math.max(count - removed, 0);
 }

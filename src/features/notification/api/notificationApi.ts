@@ -106,6 +106,64 @@ export async function deleteNotification(notificationId: number): Promise<void> 
 }
 
 /**
+ * 알림이 데려가려던 곳. 그 화면에 사람이 도착하면 알림은 할 일을 다 한 것이다.
+ *
+ * 종류가 아니라 **목적지**로 적는다. `notificationText`가 정하는 링크(`view.to`)와 같은
+ * 기준이라, 알림 하나가 어디로 가는지를 아는 곳이 늘지 않는다.
+ */
+export type NotificationPlace =
+  | { readonly kind: 'room'; readonly roomId: number }
+  | { readonly kind: 'post'; readonly postId: number };
+
+/** 채팅방으로 데려가는 알림(`toRoomPath`). */
+const TYPES_AT_ROOM: ReadonlyArray<NotificationType> = ['chat', 'price_offer'];
+
+/** 게시물 상세로 데려가는 알림(`toPostPath`). */
+const TYPES_AT_POST: ReadonlyArray<NotificationType> = ['comment', 'like'];
+
+/**
+ * **도착한 곳의 알림을 지운다.**
+ *
+ * 알림을 눌러 들어가야만 사라지던 것이 문제였다. 채팅 목록에서 방을 열거나 홈에서 글을
+ * 눌러 들어가면 **이미 확인한 일인데 알림이 그대로 남고 종 배지도 안 준다.** 사람이 한
+ * 일은 같은데 어느 문으로 들어왔느냐로 갈렸다.
+ *
+ * 기준을 "눌렀는가"에서 **"도착했는가"**로 옮긴다. 0036이 읽음 상태를 없애면서 정한
+ * "누르면 지워진다"는 규칙의 뜻이 원래 이것이었다 — 확인한 알림은 남지 않는다.
+ *
+ * **후기 알림은 여기 없다.** 그것이 데려가는 곳은 프로필(`/users/:id`)인데 받은 후기가
+ * **탭 뒤에** 있다. 도착이 곧 봄이 아닌 자리라 같은 규칙을 적용하면 안 본 것을 지운다.
+ *
+ * `payload`의 값으로 찾는다. 알림에는 `room_id`·`post_id` 컬럼이 없고 jsonb 한 칸뿐이라
+ * (0015), 화면이 가진 id로 되짚을 수 있는 길이 이것뿐이다.
+ *
+ * **범위를 `user_id`로 좁히지 않는다** — 삭제 쪽의 오랜 약속이다(`deleteNotification` 참고).
+ * 남의 알림은 `notifications_delete`가 조용히 건너뛴다. 그래서 남의 방·남의 글에 도착해도
+ * 지워지는 것은 언제나 내 알림뿐이다.
+ *
+ * 몇 줄이 지워졌는지 돌려준다. 배지는 남은 수를 세므로(0036) 그만큼 깎으면 되고,
+ * 그래야 다시 세러 가는 왕복이 없다.
+ */
+export async function deleteNotificationsAt(place: NotificationPlace): Promise<number[]> {
+  const pending = supabase.from('notifications').delete();
+
+  const filtered =
+    place.kind === 'room'
+      ? pending.in('type', TYPES_AT_ROOM).eq('payload->>room_id', String(place.roomId))
+      : pending.in('type', TYPES_AT_POST).eq('payload->>post_id', String(place.postId));
+
+  const { data, error } = await filtered.select('id');
+
+  if (error !== null) {
+    throw error;
+  }
+
+  return (data as ReadonlyArray<{ id: number }>).map(function toId(row): number {
+    return row.id;
+  });
+}
+
+/**
  * 내 알림을 모두 지운다.
  *
  * **지우는 범위를 정하는 것은 정책 하나뿐이다** — `notifications_delete`(0019)의

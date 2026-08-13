@@ -7,6 +7,7 @@ import BackLink from '../../../shared/ui/backLink';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import SafetyMenu from '../../block/components/safetyMenu';
+import { useClearNotificationsAt } from '../../notification/hooks/useClearNotificationsAt';
 import ProfileAvatar from '../../profile/components/profileAvatar';
 import { useChatMessagesQuery, useChatRoomQuery } from '../hooks/useChatQueries';
 import { useChatRoomRealtime } from '../hooks/useChatRealtime';
@@ -50,6 +51,9 @@ function ChatRoomPage() {
   useChatRoomRealtime(roomId);
   // 방 요약이 아니라 화면에 있는 메시지로 센다. 실시간으로 도착한 순간 바로 읽음이 된다.
   useMarkRoomRead(roomId, viewerId, countUnreadFromPartner(messages, viewerId));
+  // 이 방으로 데려가던 알림(메시지·가격 제안)도 함께 치운다. 방을 열었으면 확인한 것이다 —
+  // 알림 목록을 거쳐 들어왔는지 채팅 목록에서 눌렀는지로 갈릴 이유가 없다.
+  useClearNotificationsAt(roomId === null ? null : { kind: 'room', roomId }, viewerId);
 
   // roomId가 null이면 훅은 아무것도 하지 않지만 훅 자체는 언제나 같은 순서로 불려야 한다.
   const sendText = useSendTextMessageMutation(roomId ?? 0, viewerId);
