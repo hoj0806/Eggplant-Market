@@ -3,6 +3,7 @@
  *
  * `npm run seed:story`            심는다 (온보딩을 마친 계정 넷을 자동으로 고른다)
  * `npm run seed:story -- <uuid> <uuid> <uuid> <uuid>`   순서를 직접 정한다
+ * `npm run seed:story -- --more`  두 번째 판을 **더** 심는다 (첫 판의 글에도 말이 붙는다)
  * `npm run seed:story -- --clean` 심은 것만 치운다
  *
  * `seedDemo.mjs`와 무엇이 다른가
@@ -526,6 +527,341 @@ const CHATS = [
 const AVATAR_IMAGES = { A: 12, B: 33, C: 47, D: 5 };
 
 // ---------------------------------------------------------------------------
+// 두 번째 판 (`--more`)
+//
+// 첫 판을 다시 돌리면 같은 글이 두 벌 생긴다. 그래서 **더 심는 것**을 따로 적는다.
+// 여기 있는 댓글·채팅 중에는 **첫 판의 글에 붙는 것**도 있다 — 시간이 지나며 글 하나에
+// 말이 쌓이는 모습이 그래야 나온다. 첫 판의 글은 제목으로 찾아 붙인다(아래 findPlantedPosts).
+// ---------------------------------------------------------------------------
+
+const MORE_POSTS = [
+  {
+    key: 'capsule',
+    owner: 'A',
+    title: '캡슐 커피머신 (캡슐 30개 포함)',
+    price: 60000,
+    categoryId: 20,
+    photos: [['coffee-machine', 141]],
+    minutes: 45,
+    views: 33,
+    place: '석관동 우체국 앞',
+    description:
+      '드립으로 넘어가면서 정리합니다. 남은 캡슐 30개쯤 같이 드려요.\n물때 청소 방금 했고 잘 나옵니다.',
+  },
+  {
+    key: 'helmet',
+    owner: 'A',
+    title: '자전거 헬멧 새것 (M)',
+    price: 25000,
+    categoryId: 53,
+    photos: [['bicycle-helmet', 151]],
+    minutes: 520,
+    views: 19,
+    place: null,
+    description: '사이즈가 안 맞아서 두 번 쓰고 넣어뒀습니다.\n머리둘레 56~58 정도면 맞아요.',
+  },
+  {
+    key: 'rack',
+    owner: 'A',
+    title: '원룸 행거 (조립식)',
+    price: 8000,
+    categoryId: 25,
+    photos: [['clothes-rack', 161]],
+    minutes: 2100,
+    views: 14,
+    place: null,
+    description: '이사하면서 붙박이장이 생겨서 내놓아요. 나사 다 있고 흔들림 없습니다.',
+  },
+  {
+    key: 'iphone',
+    owner: 'B',
+    title: '아이폰 13 미니 128GB 미드나이트',
+    price: 320000,
+    categoryId: 13,
+    photos: [['iphone', 171], ['smartphone', 172]],
+    minutes: 70,
+    views: 154,
+    place: '장위동 근린공원 입구',
+    description:
+      '2년 썼고 배터리 성능 87%입니다. 액정·후면 깨짐 없고 케이스 계속 씌워 썼어요.\n초기화해서 드리고 정품 케이블 같이 드립니다.\n택배는 안 하고 직거래만 할게요.',
+  },
+  {
+    key: 'backpack',
+    owner: 'B',
+    title: '등산 배낭 40L',
+    price: 45000,
+    categoryId: 54,
+    photos: [['hiking-backpack', 181]],
+    minutes: 1050,
+    views: 26,
+    place: null,
+    description: '두 번 메고 창고에 있었습니다. 레인커버 있고 등판 통풍 잘 됩니다.',
+  },
+  {
+    key: 'books',
+    owner: 'B',
+    title: '문고판 소설 20권 묶음',
+    price: 15000,
+    categoryId: 67,
+    photos: [['books', 191]],
+    minutes: 3600,
+    views: 22,
+    place: null,
+    description: '책장 정리합니다. 밑줄 없고 상태 깨끗해요.\n낱권 판매는 안 하고 묶음으로만 드립니다.',
+  },
+  {
+    key: 'camera',
+    owner: 'C',
+    title: '미러리스 카메라 + 번들렌즈',
+    price: 380000,
+    categoryId: 16,
+    photos: [['mirrorless-camera', 201], ['camera-lens', 202]],
+    minutes: 55,
+    views: 178,
+    place: '이문동 초록마을 앞',
+    description:
+      '여행 다닐 때 쓰다가 요즘은 폰으로만 찍게 되어 내놓습니다.\n셔터수 8천 정도고 번들렌즈, 배터리 두 개, 스트랩 포함이에요.\n실물 확인하고 사셔도 됩니다.',
+  },
+  {
+    key: 'yoga',
+    owner: 'C',
+    title: '요가매트 + 폼롤러 세트',
+    price: 18000,
+    categoryId: 56,
+    photos: [['yoga-mat', 211]],
+    minutes: 1700,
+    views: 31,
+    place: null,
+    description: '홈트 하다가 헬스장 등록해서 정리해요. 매트 두께 6mm입니다.',
+  },
+  {
+    key: 'kettle',
+    owner: 'D',
+    title: '전기 주전자 1.7L',
+    price: 12000,
+    categoryId: 20,
+    photos: [['electric-kettle', 221]],
+    minutes: 180,
+    views: 24,
+    place: '중화동 먹자골목 입구',
+    description: '자취할 때 쓰던 겁니다. 내부 스테인리스라 냄새 안 나요.\n1분이면 끓습니다.',
+  },
+  {
+    key: 'harness',
+    owner: 'D',
+    title: '강아지 하네스 M 사이즈',
+    price: 9000,
+    categoryId: 74,
+    photos: [['dog-harness', 231]],
+    minutes: 2300,
+    views: 17,
+    place: null,
+    description: '우리 강아지가 커버려서 못 쓰게 됐어요. 세탁해뒀습니다.\n5~8kg 정도에 잘 맞아요.',
+  },
+  {
+    key: 'monstera',
+    owner: 'D',
+    title: '몬스테라 화분 (중형)',
+    price: 20000,
+    categoryId: 79,
+    photos: [['monstera', 241]],
+    minutes: 4100,
+    views: 40,
+    place: null,
+    description:
+      '2년 키운 아이입니다. 잎이 커져서 자리를 많이 차지해요.\n화분째 드리고 분갈이는 최근에 했습니다. 물꽂이 방법도 알려드릴게요.',
+  },
+];
+
+const MORE_COMMENTS = [
+  {
+    post: 'iphone',
+    author: 'A',
+    minutes: 66,
+    content: '배터리 성능 87%면 하루 정도는 버티나요?',
+    replies: [{ author: 'B', minutes: 64, content: '가볍게 쓰면 하루 갑니다. 게임 하면 좀 줄어요.' }],
+  },
+  {
+    post: 'iphone',
+    author: 'C',
+    minutes: 60,
+    secret: true,
+    content: '혹시 30만원에 가능하실까요? 오늘 바로 갈 수 있어요.',
+    replies: [{ author: 'B', minutes: 58, secret: true, content: '31만원까지는 됩니다. 채팅으로 이야기하시죠.' }],
+  },
+  {
+    post: 'camera',
+    author: 'D',
+    minutes: 50,
+    content: '셔터수 8천이면 거의 새것이네요. 렌즈 곰팡이는 없나요?',
+    replies: [{ author: 'C', minutes: 48, content: '없습니다. 방습함에 보관했어요. 보시면서 확인하셔도 돼요.' }],
+  },
+  {
+    post: 'camera',
+    author: 'A',
+    minutes: 40,
+    content: '가방도 같이 주시나요?',
+    replies: [{ author: 'C', minutes: 38, content: '가방은 제가 계속 써야 해서요. 스트랩은 드립니다!' }],
+  },
+  {
+    post: 'monstera',
+    author: 'C',
+    minutes: 3800,
+    content: '잎 크기가 어느 정도인가요? 화분 높이도 궁금해요.',
+    replies: [{ author: 'D', minutes: 3780, content: '잎이 어른 손바닥보다 크고 화분까지 70cm쯤 됩니다.' }],
+  },
+  {
+    post: 'kettle',
+    author: 'A',
+    minutes: 160,
+    content: '아직 있을까요? 오늘 저녁에 갈 수 있어요.',
+    replies: [{ author: 'D', minutes: 150, content: '네 있습니다. 먹자골목 입구에서 뵈면 돼요.' }],
+  },
+  {
+    post: 'backpack',
+    author: 'D',
+    minutes: 1000,
+    content: '등산 자주 다니시나 봐요. 40L면 1박 2일도 되나요?',
+    replies: [],
+  },
+  {
+    post: 'books',
+    author: 'C',
+    minutes: 3500,
+    content: '어떤 작가 책들인가요? 목록 있으면 좋겠어요.',
+    replies: [{ author: 'B', minutes: 3480, content: '한국 소설 위주고 절반은 단편집입니다. 사진 더 찍어 올릴게요.' }],
+  },
+  // 첫 판의 글에 말이 더 붙는다. 시간이 지나며 쌓이는 모습이 그래야 나온다.
+  {
+    post: 'ipad',
+    author: 'D',
+    minutes: 8,
+    content: '아직 판매 중인가요? 주말에 갈 수 있습니다.',
+    replies: [],
+  },
+  {
+    post: 'bike',
+    author: 'C',
+    minutes: 88,
+    content: '지금 채팅도 드렸어요! 오늘 저녁까지 답 주시면 바로 갈게요.',
+    replies: [{ author: 'B', minutes: 86, content: '확인했습니다. 조금만 기다려 주세요!' }],
+  },
+  {
+    post: 'coffee',
+    author: 'B',
+    minutes: 2700,
+    secret: true,
+    content: '나눔이라 조심스러운데 혹시 아직 남아 있을까요?',
+    replies: [{ author: 'A', minutes: 2690, secret: true, content: '아직 있어요! 편하실 때 말씀 주세요.' }],
+  },
+];
+
+const MORE_LIKES = [
+  { post: 'iphone', users: ['A', 'C', 'D'] },
+  { post: 'camera', users: ['A', 'B', 'D'] },
+  { post: 'monstera', users: ['A', 'C'] },
+  { post: 'capsule', users: ['B', 'D'] },
+  { post: 'kettle', users: ['A'] },
+  { post: 'books', users: ['C'] },
+  { post: 'yoga', users: ['B'] },
+  // 첫 판의 글에도 관심이 더 붙는다.
+  { post: 'earbuds', users: ['D'] },
+  { post: 'chair', users: ['A'] },
+];
+
+const MORE_RECENT = {
+  A: ['iphone', 'camera', 'kettle', 'monstera'],
+  B: ['camera', 'capsule', 'yoga'],
+  C: ['iphone', 'harness', 'monstera'],
+  D: ['camera', 'iphone', 'books', 'capsule'],
+};
+
+const MORE_CHATS = [
+  {
+    post: 'iphone',
+    buyer: 'C',
+    messages: [
+      { from: 'C', minutes: 56, text: '댓글 남겼던 사람이에요. 실물 사진 한 장만 볼 수 있을까요?' },
+      { from: 'B', minutes: 54, photo: ['iphone', 173] },
+      { from: 'B', minutes: 53, text: '이렇게 생겼습니다. 케이스 벗긴 상태예요.' },
+      { from: 'C', minutes: 50, text: '깨끗하네요. 30만원 어떠세요?' },
+      { from: 'C', minutes: 49, offer: 300000, status: 'pending' },
+    ],
+  },
+  {
+    post: 'camera',
+    buyer: 'D',
+    messages: [
+      { from: 'D', minutes: 45, text: '카메라 보고 연락드려요. 오늘 실물 확인 가능할까요?' },
+      { from: 'C', minutes: 44, text: '네 저녁 7시 이후면 초록마을 앞에서 가능합니다.' },
+      { from: 'D', minutes: 42, text: '그럼 36만원에 해주시면 바로 갈게요!' },
+      { from: 'D', minutes: 41, offer: 360000, status: 'accepted' },
+      { from: 'C', minutes: 40, text: '좋습니다. 이따 뵐게요.' },
+      { from: 'D', minutes: 20, text: '잘 받았습니다. 시험 삼아 몇 장 찍어봤는데 좋네요!' },
+    ],
+    trade: {
+      soldMinutes: 18,
+      reviews: [
+        {
+          from: 'D',
+          score: 0.5,
+          tags: ['시간 약속을 잘 지켜요', '상품 상태가 설명과 같아요'],
+          comment: '셔터수까지 그대로였습니다. 사용법도 알려주셔서 감사했어요.',
+          minutes: 15,
+        },
+        {
+          from: 'C',
+          score: 0.1,
+          tags: ['응답이 빨라요'],
+          comment: '약속 잡기 편했습니다.',
+          minutes: 12,
+        },
+      ],
+    },
+  },
+  {
+    post: 'capsule',
+    buyer: 'D',
+    messages: [
+      { from: 'D', minutes: 40, text: '커피머신 5만 5천원에 가능할까요?' },
+      { from: 'D', minutes: 39, offer: 55000, status: 'rejected' },
+      { from: 'A', minutes: 35, text: '캡슐까지 드리는 거라 6만원은 받아야 할 것 같아요. 죄송합니다!' },
+    ],
+  },
+  {
+    post: 'kettle',
+    buyer: 'A',
+    messages: [
+      { from: 'A', minutes: 140, text: '댓글 드렸던 사람입니다. 지금 가도 될까요?' },
+      { from: 'D', minutes: 138, photo: ['electric-kettle', 222] },
+      { from: 'D', minutes: 137, text: '지금 상태 이래요. 7시 이후에 오시면 됩니다.' },
+      { from: 'A', minutes: 135, text: '네 그때 뵐게요!' },
+    ],
+  },
+  {
+    post: 'yoga',
+    buyer: 'B',
+    messages: [
+      { from: 'B', minutes: 900, text: '요가매트 아직 있나요?' },
+      { from: 'C', minutes: 880, text: '네 있습니다. 이문동으로 오실 수 있으면 오늘도 괜찮아요.' },
+      { from: 'B', minutes: 500, text: '받았습니다.' },
+    ],
+    trade: {
+      soldMinutes: 480,
+      reviews: [
+        {
+          from: 'B',
+          score: -0.5,
+          tags: [],
+          comment: '약속 시간에 30분 늦으셨고 연락도 늦게 되어 아쉬웠습니다.',
+          minutes: 460,
+        },
+      ],
+    },
+  },
+];
+
+// ---------------------------------------------------------------------------
 // 심기
 // ---------------------------------------------------------------------------
 
@@ -629,10 +965,10 @@ async function seedAvatars(admin, people, manifest) {
   console.log(`프로필 사진 ${planted}장 (원래 있던 것은 그대로)`);
 }
 
-async function seedPosts(admin, people, manifest) {
+async function seedPosts(admin, people, manifest, definitions) {
   const byKey = {};
 
-  for (const post of POSTS) {
+  for (const post of definitions) {
     const owner = people[post.owner];
     const urls = [];
 
@@ -685,19 +1021,25 @@ async function seedPosts(admin, people, manifest) {
     );
   }
 
-  const photoCount = POSTS.reduce(function add(sum, post) {
+  const photoCount = definitions.reduce(function add(sum, post) {
     return sum + post.photos.length;
   }, 0);
 
-  console.log(`글 ${POSTS.length}개 · 물건 사진 ${photoCount}장`);
+  console.log(`글 ${definitions.length}개 · 물건 사진 ${photoCount}장`);
 
   return byKey;
 }
 
-async function seedLikesAndViews(admin, people, posts) {
+async function seedLikesAndViews(admin, people, posts, likeDefinitions, recentDefinitions) {
   const likes = [];
 
-  for (const like of LIKES) {
+  // 가리키는 글이 없으면 건너뛴다 — 두 번째 판이 첫 판의 글을 가리키는데 그 글이
+  // 사람 손에 지워졌을 수 있다.
+  for (const like of likeDefinitions) {
+    if (posts[like.post] === undefined) {
+      continue;
+    }
+
     for (const who of like.users) {
       likes.push({ post_id: posts[like.post].id, user_id: people[who].id });
     }
@@ -707,8 +1049,12 @@ async function seedLikesAndViews(admin, people, posts) {
 
   const views = [];
 
-  for (const who of Object.keys(RECENT)) {
-    for (const [index, key] of RECENT[who].entries()) {
+  for (const who of Object.keys(recentDefinitions)) {
+    for (const [index, key] of recentDefinitions[who].entries()) {
+      if (posts[key] === undefined) {
+        continue;
+      }
+
       views.push({
         user_id: people[who].id,
         post_id: posts[key].id,
@@ -722,10 +1068,10 @@ async function seedLikesAndViews(admin, people, posts) {
   console.log(`찜 ${likes.length}개 · 최근 본 글 ${views.length}개`);
 }
 
-async function seedComments(admin, people, posts) {
+async function seedComments(admin, people, posts, threads) {
   let count = 0;
 
-  for (const thread of COMMENTS) {
+  for (const thread of threads) {
     const parentId = await insertOne(
       admin,
       'comments',
@@ -760,7 +1106,7 @@ async function seedComments(admin, people, posts) {
     }
   }
 
-  const secretCount = COMMENTS.filter(function isSecret(thread) {
+  const secretCount = threads.filter(function isSecret(thread) {
     return thread.secret === true;
   }).length;
 
@@ -773,12 +1119,12 @@ async function seedComments(admin, people, posts) {
  * 순서가 규칙이다 — **방이 먼저** 있어야 거래완료의 `buyer_id`를 박을 수 있다
  * (`guard_post_buyer`, 0035). "거래 상대는 채팅한 사람 중에서만"을 트리거가 지킨다.
  */
-async function seedChats(admin, people, posts, manifest) {
+async function seedChats(admin, people, posts, manifest, chats) {
   let messageCount = 0;
   let chatPhotoCount = 0;
   let reviewCount = 0;
 
-  for (const chat of CHATS) {
+  for (const chat of chats) {
     const post = posts[chat.post];
     const buyer = people[chat.buyer];
 
@@ -877,7 +1223,7 @@ async function seedChats(admin, people, posts, manifest) {
   }
 
   console.log(
-    `채팅방 ${CHATS.length}개 · 메시지 ${messageCount}개 (채팅 사진 ${chatPhotoCount}장) · 후기 ${reviewCount}개`,
+    `채팅방 ${chats.length}개 · 메시지 ${messageCount}개 (채팅 사진 ${chatPhotoCount}장) · 후기 ${reviewCount}개`,
   );
 }
 
@@ -902,16 +1248,60 @@ async function printSummary(admin, people) {
   }
 }
 
-async function seed(admin, uuids) {
-  const people = await resolvePeople(admin, uuids);
+/**
+ * 이미 심어 둔 글을 제목으로 찾는다.
+ *
+ * 두 번째 판(`--more`)의 댓글·채팅 중에는 **첫 판의 글에 붙는 것**이 있다. 글 하나에 시간을
+ * 두고 말이 쌓이는 모습은 그래야 나온다.
+ *
+ * 목록(`.seedStory.json`)은 id만 적고 어느 글인지는 안 적는다. 그래서 제목으로 되짚는데,
+ * **못 찾으면 조용히 건너뛴다** — 사람이 지운 글일 수 있고, 그때 시드가 멈출 이유는 없다.
+ */
+async function findPlantedPosts(admin, people, definitions) {
+  const byKey = {};
 
-  console.log('\n네 사람:');
-  for (const key of ['A', 'B', 'C', 'D']) {
-    console.log(`  ${key}  ${people[key].nickname}  ${people[key].dong_name}`);
+  for (const post of definitions) {
+    const owner = people[post.owner];
+
+    const { data, error } = await admin
+      .from('posts')
+      .select('id')
+      .eq('seller_id', owner.id)
+      .eq('title', post.title)
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error !== null) {
+      fail(`이미 심은 글 찾기 (${post.title})`, error);
+    }
+
+    if (data !== null) {
+      byKey[post.key] = { id: data.id, ownerKey: post.owner, ownerId: owner.id };
+    }
   }
-  console.log('');
 
-  const manifest = {
+  return byKey;
+}
+
+/** 두 번째 판이 첫 판의 글을 가리키는데 그 글이 없어졌을 때. 그 줄만 뺀다. */
+function onlyPlanted(items, posts, describe) {
+  return items.filter(function isPlanted(item) {
+    if (posts[item.post] !== undefined) {
+      return true;
+    }
+
+    console.log(`  건너뜀 — ${describe(item)} (가리키는 글이 없다)`);
+    return false;
+  });
+}
+
+function loadManifest(people) {
+  if (existsSync(MANIFEST_PATH)) {
+    return JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'));
+  }
+
+  return {
     seededAt: new Date().toISOString(),
     profileIds: Object.values(people).map(function toId(person) {
       return person.id;
@@ -919,13 +1309,50 @@ async function seed(admin, uuids) {
     postIds: [],
     storage: { [POST_IMAGE_BUCKET]: [], [CHAT_IMAGE_BUCKET]: [], [AVATAR_BUCKET]: [] },
   };
+}
+
+async function seed(admin, uuids, isMore) {
+  const people = await resolvePeople(admin, uuids);
+
+  console.log(`\n네 사람${isMore ? ' (두 번째 판을 더 심는다)' : ''}:`);
+  for (const key of ['A', 'B', 'C', 'D']) {
+    console.log(`  ${key}  ${people[key].nickname}  ${people[key].dong_name}`);
+  }
+  console.log('');
+
+  // 목록은 **이어 쓴다.** 새로 쓰면 첫 판이 심은 것을 치울 방법이 없어진다.
+  const manifest = loadManifest(people);
+  const definitions = isMore ? MORE_POSTS : POSTS;
+  const comments = isMore ? MORE_COMMENTS : COMMENTS;
+  const likes = isMore ? MORE_LIKES : LIKES;
+  const recent = isMore ? MORE_RECENT : RECENT;
+  const chats = isMore ? MORE_CHATS : CHATS;
 
   try {
     await seedAvatars(admin, people, manifest);
-    const posts = await seedPosts(admin, people, manifest);
-    await seedLikesAndViews(admin, people, posts);
-    await seedComments(admin, people, posts);
-    await seedChats(admin, people, posts, manifest);
+
+    // 두 번째 판은 첫 판의 글에도 말을 붙인다. 그래서 심은 글과 새 글을 함께 들고 간다.
+    const planted = isMore ? await findPlantedPosts(admin, people, POSTS) : {};
+    const posts = { ...planted, ...(await seedPosts(admin, people, manifest, definitions)) };
+
+    await seedLikesAndViews(admin, people, posts, likes, recent);
+    await seedComments(
+      admin,
+      people,
+      posts,
+      onlyPlanted(comments, posts, function describeComment(thread) {
+        return `댓글 (${thread.post})`;
+      }),
+    );
+    await seedChats(
+      admin,
+      people,
+      posts,
+      manifest,
+      onlyPlanted(chats, posts, function describeChat(chat) {
+        return `채팅 (${chat.post})`;
+      }),
+    );
   } finally {
     // 중간에 실패해도 **여기까지 심은 것**은 치울 수 있어야 한다.
     writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
@@ -934,6 +1361,11 @@ async function seed(admin, uuids) {
   await printSummary(admin, people);
 
   console.log('\n네 계정으로 각각 로그인해서 보면 된다. 같은 글도 사람마다 다르게 보인다.');
+
+  if (!isMore) {
+    console.log('더 심으려면  npm run seed:story -- --more');
+  }
+
   console.log('치울 때는  npm run seed:story -- --clean\n');
 }
 
@@ -1005,7 +1437,15 @@ async function main() {
     return;
   }
 
-  await seed(admin, args);
+  const isMore = args[0] === '--more';
+
+  await seed(
+    admin,
+    args.filter(function isUuid(arg) {
+      return !arg.startsWith('--');
+    }),
+    isMore,
+  );
 }
 
 await main();
