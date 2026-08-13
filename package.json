@@ -14,6 +14,7 @@
     "test:build": "npm run build && jest --selectProjects build",
     "test:smoke": "node scripts/runSmoke.mjs",
     "seed": "node scripts/seedDemo.mjs",
+    "seed:story": "node scripts/seedStory.mjs",
     "sweep:chat-images": "node scripts/sweepOrphanChatImages.mjs"
   },
   "dependencies": {

@@ -17,3 +17,6 @@ logs
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# 시드가 심은 것의 목록 — 치울 때 이것으로 찾는다(scripts/seedStory.mjs)
+scripts/.seedStory.json
