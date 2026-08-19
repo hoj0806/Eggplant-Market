@@ -5,22 +5,35 @@ import NeighborhoodPostList from './neighborhoodPostList';
 import { selectAuthStatus, selectAuthUser, useAuthStore } from '../../auth/store/authStore';
 import NotificationBellLink from '../../notification/components/notificationBellLink';
 import ProfileAvatar from '../../profile/components/profileAvatar';
+import GuestRegionSwitcher from '../../region/components/guestRegionSwitcher';
 import { useMyProfileQuery } from '../../profile/hooks/useProfileQuery';
+import { useActiveRegion } from '../hooks/useActiveRegion';
 import type { Profile } from '../../profile/types';
 
-function GuestActions() {
+/**
+ * 비로그인 사용자에게 로그인을 권하는 자리.
+ *
+ * **목록을 대신하지 않고 목록 위에 얹는다.** 예전에는 이 안내가 글 목록이 있어야 할 자리를
+ * 통째로 차지해서, 링크를 처음 누른 사람이 물건을 하나도 못 본 채 "시작하기"만 보고 떠났다.
+ * 권하는 것과 보여주는 것은 자리를 다투는 사이가 아니다.
+ *
+ * 버튼이 하나다. 소셜 로그인만 남으면서 **가입과 로그인이 같은 행동**이 됐다 —
+ * 둘을 나란히 두면 처음 온 사람이 무엇을 눌러야 할지 고르게 되는데, 고를 것이 없다.
+ */
+function GuestBanner() {
   return (
-    <div className="flex flex-col items-center gap-3 py-10">
-      <p className="text-gray-600 dark:text-gray-300">
-        로그인하고 우리 동네 중고거래를 시작해 보세요.
+    <div
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border
+                 border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900
+                 dark:bg-emerald-950"
+    >
+      <p className="text-sm text-gray-700 dark:text-gray-200">
+        마음에 드는 물건이 있나요? 로그인하면 채팅으로 거래할 수 있어요.
       </p>
-      {/*
-        버튼이 하나다. 소셜 로그인만 남으면서 **가입과 로그인이 같은 행동**이 됐다 —
-        둘을 나란히 두면 처음 온 사람이 무엇을 눌러야 할지 고르게 되는데, 고를 것이 없다.
-      */}
       <Link
         to="/login"
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+        className="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white
+                   transition hover:bg-emerald-700"
       >
         시작하기
       </Link>
@@ -83,10 +96,22 @@ function MemberGreeting(props: { profile: Profile | undefined; viewerId: string 
   );
 }
 
+/**
+ * 홈.
+ *
+ * **목록은 로그인 여부를 묻지 않는다.** 글 읽기는 `posts_select`가 `using (true)`라 서버가
+ * 이미 누구에게나 열어 둔 자리이고, 화면만 닫혀 있었다. 닫아 두는 동안 링크를 처음 누른
+ * 사람은 로고와 버튼 하나만 보고 떠났다.
+ *
+ * 동네는 `useActiveRegion`에게 묻는다. 로그인 사용자의 프로필·게스트가 고른 동네·아직
+ * 아무것도 고르지 않은 사람의 기본 동네가 그 안에서 갈린다 — 여기서 다시 나누면
+ * 검색 화면과 어긋난다.
+ */
 function HomePage() {
   const status = useAuthStore(selectAuthStatus);
   const user = useAuthStore(selectAuthUser);
-  // 목록을 그리려면 내 동네를 알아야 해서 프로필을 화면 맨 위에서 읽는다.
+  const activeRegion = useActiveRegion();
+  // 닉네임·아바타는 동네와 달리 이 화면에만 필요해서 프로필을 따로 읽는다.
   const profileQuery = useMyProfileQuery(status === 'authenticated' ? (user?.id ?? null) : null);
 
   const isMember = status === 'authenticated';
@@ -127,18 +152,37 @@ function HomePage() {
         </Link>
       </header>
 
-      {isMember ? (
-        <>
-          {/* 글쓰기 버튼은 탭바로 옮겼다. 어느 화면에서든 같은 자리에 있는 편이 찾기 쉽다. */}
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-            우리 동네 중고거래
-          </h2>
+      {activeRegion.isGuest ? <GuestBanner /> : null}
 
-          <NeighborhoodPostList regionCode={profileQuery.data?.region?.code ?? null} />
-        </>
+      {/*
+        게스트에게는 동네 이름을 그대로 제목으로 쓴다. "우리 동네"는 그 동네가 자기 동네일 때만
+        맞는 말이라, 대신 세워 준 동네를 보고 있는 사람에게는 어긋난다.
+      */}
+      {activeRegion.isGuest && activeRegion.region !== null ? (
+        <GuestRegionSwitcher
+          region={activeRegion.region}
+          isDefaultRegion={activeRegion.isDefaultRegion}
+          onRegionSelect={activeRegion.setGuestRegion}
+        />
       ) : null}
 
-      {status === 'unauthenticated' ? <GuestActions /> : null}
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
+        {activeRegion.isGuest && activeRegion.region !== null
+          ? `${activeRegion.region.depth3} 중고거래`
+          : '우리 동네 중고거래'}
+      </h2>
+
+      {/*
+        동네를 확인하는 중에는 목록을 그리지 않는다. 그리면 아직 모르는 것을 "동네가 없다"로
+        읽어 안내 문구가 한 번 번쩍인다.
+      */}
+      {activeRegion.isLoading ? (
+        <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          동네를 확인하는 중입니다…
+        </p>
+      ) : (
+        <NeighborhoodPostList regionCode={activeRegion.region?.code ?? null} />
+      )}
     </main>
   );
 }

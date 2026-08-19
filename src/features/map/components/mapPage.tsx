@@ -6,6 +6,7 @@ import RegionMapCanvas from './regionMapCanvas';
 import PageSpinner from '../../../shared/ui/pageSpinner';
 import PostList from '../../browse/components/postList';
 import SearchRegionPrompt from '../../browse/components/searchRegionPrompt';
+import GuestRegionSwitcher from '../../region/components/guestRegionSwitcher';
 import { useActiveRegion } from '../../browse/hooks/useActiveRegion';
 import { fromSearchParams, hasActiveFilter } from '../../browse/utils/postSearchFilters';
 import { DEFAULT_POST_SORT } from '../../browse/utils/postSort';
@@ -117,9 +118,16 @@ function MapPage() {
 
       {activeRegion.isLoading ? <PageSpinner message="동네를 확인하는 중입니다…" /> : null}
 
-      {!activeRegion.isLoading && activeRegion.region === null ? (
-        <SearchRegionPrompt
-          isGuest={activeRegion.isGuest}
+      {!activeRegion.isLoading && activeRegion.region === null ? <SearchRegionPrompt /> : null}
+
+      {/*
+        마커를 눌러도 지도의 중심은 그대로다(그쪽은 그 동네 목록을 펴는 일이다).
+        게스트가 다른 곳을 중심으로 보려면 여기서 동네를 바꾸는 수밖에 없다.
+      */}
+      {activeRegion.isGuest && activeRegion.region !== null ? (
+        <GuestRegionSwitcher
+          region={activeRegion.region}
+          isDefaultRegion={activeRegion.isDefaultRegion}
           onRegionSelect={handleGuestRegionSelect}
         />
       ) : null}
