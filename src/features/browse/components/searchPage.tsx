@@ -7,6 +7,7 @@ import PostSearchField from './postSearchField';
 import SearchRegionPrompt from './searchRegionPrompt';
 import SearchScopeToggle from './searchScopeToggle';
 import PageSpinner from '../../../shared/ui/pageSpinner';
+import GuestRegionSwitcher from '../../region/components/guestRegionSwitcher';
 import { useSearchPostsQuery } from '../../post/hooks/usePostQueries';
 import { useActiveRegion } from '../hooks/useActiveRegion';
 import {
@@ -130,9 +131,12 @@ function SearchPage() {
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">검색</h1>
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate text-sm text-gray-500 dark:text-gray-400">
-              {activeRegion.region?.fullName ?? '동네 미설정'}
-            </span>
+            {/* 게스트의 동네 이름은 아래 GuestRegionSwitcher가 들고 있다. 여기 또 적으면 둘이 된다. */}
+            {!activeRegion.isGuest ? (
+              <span className="truncate text-sm text-gray-500 dark:text-gray-400">
+                {activeRegion.region?.fullName ?? '동네 미설정'}
+              </span>
+            ) : null}
             {/*
               걸어 둔 조건을 그대로 들고 간다. 지도가 다른 것을 세고 있으면 개수가 어긋나 보인다.
               동네가 없으면 지도도 그릴 중심이 없어 링크 자체를 내린다.
@@ -155,8 +159,14 @@ function SearchPage() {
 
       {activeRegion.isLoading ? <PageSpinner message="동네를 확인하는 중입니다…" /> : null}
 
-      {!activeRegion.isLoading && activeRegion.region === null ? (
-        <SearchRegionPrompt isGuest={activeRegion.isGuest} onRegionSelect={handleGuestRegionSelect} />
+      {!activeRegion.isLoading && activeRegion.region === null ? <SearchRegionPrompt /> : null}
+
+      {activeRegion.isGuest && activeRegion.region !== null ? (
+        <GuestRegionSwitcher
+          region={activeRegion.region}
+          isDefaultRegion={activeRegion.isDefaultRegion}
+          onRegionSelect={handleGuestRegionSelect}
+        />
       ) : null}
 
       {!activeRegion.isLoading && activeRegion.region !== null ? (
